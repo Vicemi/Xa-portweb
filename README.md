@@ -2,7 +2,7 @@
 
 > Un port web no oficial del clásico **XA: Contra los Cuatreros Galácticos**, creado originalmente por **Batoví** y **Calca**, reconstruido para correr en el navegador con **Astro** y **React**.
 
-🎮 **Jugalo online:** [xa-portweb.vicemi.dev](https://xa-portweb.vicemi.dev) *(próximamente — el juego necesita que elijas tu carpeta local)*
+🎮 **Jugalo online:** [xa-portweb.vicemi.dev](https://xa-portweb.vicemi.dev) *(próximamente)*
 
 ---
 
@@ -122,7 +122,7 @@ Todos se ejecutan desde la raíz del proyecto:
 
 ```text
 /
-├── public/          # Solo el favicon (los assets del juego NO se incluyen, ver abajo)
+├── public/          # favicon + assets originales del juego (incluidos, ver abajo)
 ├── src/
 │   ├── components/  # XaGame.tsx — el componente React que monta el juego
 │   ├── pages/       # index.astro — la página principal
@@ -137,12 +137,14 @@ Todos se ejecutan desde la raíz del proyecto:
 └── package.json
 ```
 
-## ⚠️ Archivos del juego (imprescindible)
+## 📦 Assets del juego (incluidos)
 
-Este port **no incluye** los assets originales (imágenes, sonidos, mapas `.tmx`): son propiedad de sus autores y no se redistribuyen. Para jugar necesitás tu propia copia de *XA: Contra los Cuatreros Galácticos*.
+Este port **incluye** los assets originales (imágenes, sonidos, mapas `.tmx`) en `public/assets/`, así que el juego funciona de forma **autónoma**: clonás el repo, `npm install`, `npm run dev` y listo.
 
-- **En desarrollo** (`npm run dev`): se sirve automáticamente la instalación local desde `F:\Games\Xa` (o la carpeta que indiques con la variable de entorno `XA_GAME_DIR`).
-- **En producción**: el navegador te pide que elijas la carpeta del juego (File System Access API; con fallback a selector de carpeta en Firefox/Safari). Los archivos se leen **localmente en tu navegador** y **nunca** se suben a ningún servidor.
+- Al cargar, el juego usa primero los assets incluidos (`/assets/`).
+- Si no los encuentra, cae al modo de carpeta: el navegador te pide elegir tu instalación del juego (File System Access API; con fallback a selector de carpeta en Firefox/Safari). Los archivos se leen **localmente en tu navegador** y **nunca** se suben a ningún servidor.
+
+> ⚠️ *XA: Contra los Cuatreros Galácticos* es obra de **Batoví** y **Calca**. Este es un proyecto de fans **sin fines de lucro**; si algún titular de derechos lo solicita, el repositorio se dará de baja.
 
 ---
 

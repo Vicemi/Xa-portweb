@@ -106,7 +106,7 @@ export class XaGame {
   async start(): Promise<void> {
     this.detach = attachInput();
     window.addEventListener('resize', this.resize);
-    window.addEventListener('mousemove', this.onMouseMove);
+    window.addEventListener('pointermove', this.onMouseMove);
     window.addEventListener('pointerdown', this.onPointerDown);
     window.addEventListener('pointerup', this.onPointerUp);
     this.resize();
@@ -123,7 +123,7 @@ export class XaGame {
     cancelAnimationFrame(this.raf);
     this.detach();
     window.removeEventListener('resize', this.resize);
-    window.removeEventListener('mousemove', this.onMouseMove);
+    window.removeEventListener('pointermove', this.onMouseMove);
     window.removeEventListener('pointerdown', this.onPointerDown);
     window.removeEventListener('pointerup', this.onPointerUp);
     stopMusic();
@@ -266,7 +266,7 @@ export class XaGame {
     switch (this.screen) {
       case 'splash': {
         const dur = 1.8; // fade in + hold + fade out per logo
-        if (this.t >= dur || isFirstPress('confirm') || isFirstPress('jumpHold')) {
+        if (this.t >= dur || this.clicked || isFirstPress('confirm') || isFirstPress('jumpHold')) {
           this.splashStep++;
           this.t = 0;
           if (this.splashStep >= 2) { this.screen = 'loading'; this.loadingIsBoot = true; this.t = 0; }
@@ -275,10 +275,10 @@ export class XaGame {
         break;
       }
       case 'loading':
-        if (this.loadingIsBoot && (this.t >= 0.9 || isFirstPress('confirm'))) { this.screen = 'intro'; this.introPage = 0; this.t = 0; playMusic('xa_intro'); }
+        if (this.loadingIsBoot && (this.t >= 0.9 || this.clicked || isFirstPress('confirm'))) { this.screen = 'intro'; this.introPage = 0; this.t = 0; playMusic('xa_intro'); }
         break;
       case 'intro':
-        if (this.t > 0.4 && (isFirstPress('confirm') || isFirstPress('jumpHold') || isFirstPress('fire'))) {
+        if (this.t > 0.4 && (this.clicked || isFirstPress('confirm') || isFirstPress('jumpHold') || isFirstPress('fire'))) {
           this.introPage++;
           this.t = 0;
           if (this.introPage >= INTRO_PAGES.length) { this.screen = 'menu'; this.menuIndex = -1; this.t = 0; playMusic('xa_menu'); }
@@ -352,13 +352,13 @@ export class XaGame {
         if (isFirstPress('back') || isFirstPress('confirm')) { this.screen = 'menu'; this.menuIndex = -1; }
         break;
       case 'gameover': case 'win':
-        if (this.t > 0.6 && (isFirstPress('confirm') || isFirstPress('jumpHold'))) {
+        if (this.t > 0.6 && (this.clicked || isFirstPress('confirm') || isFirstPress('jumpHold'))) {
           this.screen = 'levels';
           this.t = 0;
         }
         break;
       case 'levelIntro':
-        if (this.t > 0.3 && (isFirstPress('confirm') || isFirstPress('jumpHold'))) {
+        if (this.t > 0.3 && (this.clicked || isFirstPress('confirm') || isFirstPress('jumpHold'))) {
           this.screen = 'play';
         }
         break;

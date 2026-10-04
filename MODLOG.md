@@ -375,6 +375,25 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   implementado ese freno/animation-sync.
 - Verificación: `tsc --noEmit` y `npm run build` OK.
 
+- Verificación: `tsc --noEmit` y `npm run build` OK.
+
+## Estado 2026-10 (assets incluidos + UI + móvil + flujo git)
+- **Assets en el repo**: copiados los 140 archivos originales a `public/assets/` + `manifest.json`. El loader ahora
+  intenta `/assets/` (bundled) → `/__game/` (dev) → carpeta del usuario (File System Access API). El juego es
+  autocontenido (ya no exige elegir carpeta). Se quitó `public/assets/` del `.gitignore`.
+- **Tipografía**: `game.text()` usa la fuente bitmap del juego (`fuente_blanca`) en vez de una fuente de sistema.
+- **Opciones**: sliders de volumen arrastrables (sonido/música) + toggles ON/OFF con control real de gain
+  (`audio.ts` ahora tiene `setSoundVolume`/`setMusicVolume`/getters). Corregido el mapa `OPTIONS` para usar
+  `options_win.png` (apuntaba a `options_xo.png`, inexistente en la build Windows).
+- **PRESS_ANY_KEY**: añadido el indicador animado a la pantalla de carga y al logo.
+- **Favicon**: `public/favicon.png` con la cabeza del protagonista (recorte del sprite del héroe).
+- **Título**: "XA Contra los Cuatreros Galácticos" (`index.astro`).
+- **Móvil (nuevo)**: detección de táctil + orientación; prompt "Girá el celular" en vertical; controles virtuales
+  semitransparentes (D-pad, SALTO=Space, FUEGO=X, ↩=Esc) en horizontal. `mousemove`→`pointermove` (el toque actualiza
+  la posición del ratón para el tap-to-select) y `this.clicked` avanza las pantallas splash/loading/intro/levelIntro/
+  gameover/win. Los botones disparan eventos de teclado sintéticos.
+- **Flujo git**: quedan solo `main` y `develop` (develop se sincroniza/mergea a main).
+
 ## Estado 2026-10 (ronda 19 — movimiento de voladores + freno del jefe)
 - **Voladores** (Bird/UFO/SmartUFO/Double/Bomb, ~680 en total) ahora usan el patrón real de `EnemyBird`:
   interpolación **easeInOutSin** entre `home` y `home+pxDelta` (antes era un seno simple que oscilaba ±pxDelta,

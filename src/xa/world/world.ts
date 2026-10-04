@@ -1,0 +1,485 @@
+// Scenario equivalent: one loaded level with its tilemap, background, objects, bullets and effects.
+import { Anim, drawFrame, frameOf, MAPS } from '../core/sprites';
+import { img } from '../core/assets';
+import { playMusic, playSound } from '../core/audio';
+import { GameCamera, VIEW_H, VIEW_W } from './camera';
+import { Enemy, createEnemy } from './enemies';
+import { Hero, HS } from './hero';
+import { Door, Platform } from './objects';
+import type { HeroState } from './state';
+import { TileMap, type Rect } from './tilemap';
+import { TileState, type TmxLevel, type TmxObject } from './tmx';
+
+export interface World {
+  map: TileMap;
+  camera: GameCamera;
+  state: HeroState;
+  hero: Hero;
+  immortal: boolean;
+  addEffect(anim: string, x: number, y: number, dir: number): void;
+  spawnHeroBullet(x: number, y: number, vx: number): void;
+  spawnEnemyBullet(x: number, y: number, vx: number, vy: number, g?: number): void;
+  startDeathTransition(seconds: number): void;
+  onHeroDeathFinished(): void;
+  /** Is there a floor (hard tile OR moving platform) at the given world point? */
+  hasFloor(x: number, y: number): boolean;
+}
+
+export interface WorldEvents {
+  gameOver(): void;
+  levelComplete(): void;
+  message(text: string, seconds: number): void;
+  saving(): void;
+}
+
+interface Effect { anim: Anim; x: number; y: number; dir: number }
+interface Bullet { x: number; y: number; vx: number; vy: number; team: number; alive: boolean; g?: number }
+
+/** StageManager::getFeetsPosition: centre-bottom of the tile containing (x, y). */
+export function feetOf(x: number, y: number, ts: number): { x: number; y: number } {
+  return { x: Math.floor(x / ts) * ts + ts * 0.5, y: Math.floor(y / ts) * ts + ts - 1 };
+}
+
+const ITEM_POINTS = 10; // coin value observed in xa.exe (Puntos +10 per coin)
+
+class Thing {
+  alive = true;
+  anim: Anim | null = null;
+  t = 0;
+  touching = false;
+  /** seconds left before a rescued cow is removed (-1 = not rescued) */
+  rescueTime = -1;
+  constructor(public o: TmxObject, public x: number, public y: number, public mapName: string | null) {
+    const a = o.props.pAnim;
+    if (a) this.anim = new Anim(a);
+  }
+  bounds(): Rect {
+    // use the TMX object rect: tall items (e.g. the ENDING gate) span their full height
+    return { x: this.o.x, y: this.o.y, w: this.o.w || 32, h: this.o.h || 32 };
+  }
+}
+
+function overlaps(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+export class Scenario implements World {
+  map: TileMap;
+  camera = new GameCamera();
+  hero: Hero;
+  immortal = false;
+  winner = false;
+  winTime = 6.0;
+  fade = 0;
+  fadeDir = 0;
+  private effects: Effect[] = [];
+  private bullets: Bullet[] = [];
+  private things: Thing[] = [];
+  private enemies: Enemy[] = [];
+  private platforms: Platform[] = [];
+  private doors: Door[] = [];
+  private heroOnPlatform: Platform | null = null;
+  private restore = { x: 0, y: 0 };
+  private bgPath: string;
+  private tilesetPath: string;
+
+  constructor(readonly level: TmxLevel, readonly levelNum: number, public state: HeroState, private events: WorldEvents) {
+    this.map = new TileMap(level);
+    this.hero = new Hero(this);
+    this.hero.limit = { w: this.map.widthPx, h: this.map.heightPx };
+    this.bgPath = 'assets/images/background/' + (level.props.pBackground ?? 'background_1.jpg');
+    this.tilesetPath = level.tilesetImage.replace('/tiles/', '/tiles/win/');
+    this.loadObjects();
+    if (level.props.pMusic) playMusic(level.props.pMusic);
+  }
+
+  /** Every image path this level needs (for preloading). */
+  static imagePaths(level: TmxLevel): string[] {
+    return [
+      'assets/images/background/' + (level.props.pBackground ?? 'background_1.jpg'),
+      level.tilesetImage.replace('/tiles/', '/tiles/win/'),
+      ...Object.values(MAPS).map((m) => m.path),
+    ];
+  }
+
+  private loadObjects(): void {
+    const ts = this.map.ts;
+    let cows = 0, coins = 0;
+    for (const o of this.level.objects) {
+      const f = feetOf(o.x, o.y, ts);
+      switch (o.type) {
+        case 'Hero':
+          this.restore = f;
+          this.hero.spawn(f.x, f.y);
+          break;
+        case 'Item':
+          if (o.props.pRequiredItem === 'POINTS') coins++;
+          this.things.push(new Thing(o, f.x, f.y, o.props.pAsset ?? null));
+          break;
+        case 'Information':
+        case 'SavePoint':
+          this.things.push(new Thing(o, f.x, f.y, o.props.pAsset ?? null));
+          break;
+        case 'Cow':
+          cows++;
+          this.things.push(new Thing(o, f.x, f.y, 'SAD_COW'));
+          break;
+        case 'Door':
+          this.doors.push(new Door(o, o.x, o.y));
+          break;
+        case 'PlatformInterp':
+        case 'PlatformLinear':
+          this.platforms.push(new Platform(o, o.x, o.y));
+          break;
+        default: {
+          const e = createEnemy(o, this, f.x, f.y);
+          if (e) this.enemies.push(e);
+          break;
+        }
+      }
+    }
+    this.state.startStage(this.levelNum, cows, coins);
+    this.camera.init(this.map.widthPx, this.map.heightPx, this.hero.pos.x, this.hero.pos.y, this.hero.height);
+  }
+
+  // ---------- World ----------
+  addEffect(anim: string, x: number, y: number, dir: number): void {
+    const a = new Anim(anim);
+    if (a.type) this.effects.push({ anim: a, x, y, dir });
+  }
+  spawnHeroBullet(x: number, y: number, vx: number): void {
+    this.bullets.push({ x, y, vx, vy: 0, team: 0, alive: true });
+  }
+  spawnEnemyBullet(x: number, y: number, vx: number, vy: number, g = 0): void {
+    this.bullets.push({ x, y, vx, vy, team: 1, alive: true, g });
+  }
+  /** Remove an enemy with a death burst (no points). */
+  private removeEnemy(e: Enemy): void {
+    e.alive = false;
+    playSound('ENEMY_DEATH');
+    this.addEffect('ENEMY_DEATH', e.x, e.y - e.h / 2, 1);
+  }
+  private killEnemy(e: Enemy): void {
+    if (e.isBomb) {
+      // EnemyBomb::onCollision: explode into an 8-way radial burst ("8_BULLETS", speed 200).
+      e.alive = false;
+      playSound('ENEMY_DEATH');
+      this.addEffect('BOMBA_DEATH', e.x, e.y - e.h / 2, 1);
+      for (let i = 0; i < 8; i++) {
+        const a = i * (Math.PI / 4);
+        this.spawnEnemyBullet(e.x, e.y - e.h / 2, Math.sin(a) * 200, -Math.cos(a) * 200);
+      }
+      this.state.addPoints(100);
+      return;
+    }
+    this.removeEnemy(e);
+    this.state.addPoints(100);
+  }
+  private killBoss(e: Enemy): void {
+    e.alive = false;
+    this.camera.shake(3.0);
+    playSound('ENEMY_DEATH');
+    this.addEffect('BOSS_DEAD', e.x, e.y - e.h / 2, 1);
+  }
+  hasFloor(x: number, y: number): boolean {
+    if (this.map.isHard(x, y)) return true;
+    for (const p of this.platforms) {
+      if (x >= p.x && x <= p.x + p.w && y >= p.y - 4 && y <= p.y + 8) return true;
+    }
+    return false;
+  }
+  startDeathTransition(seconds: number): void {
+    this.fade = 0;
+    this.fadeDir = 1 / (seconds / 2);
+  }
+  onHeroDeathFinished(): void {
+    const s = this.state;
+    if (s.lives <= 0) {
+      s.lives = 3;
+      this.events.gameOver();
+      return;
+    }
+    s.lives -= 1;
+    if (this.level.props.pMusic) playMusic(this.level.props.pMusic);
+    this.hero.vel = { x: 0, y: 0 };
+    this.hero.spawn(this.restore.x, this.restore.y);
+    this.camera.goToGoal(this.restore.x, this.restore.y, this.hero.height);
+    this.fadeDir = -Math.abs(this.fadeDir || 1);
+  }
+
+  // ---------- update ----------
+  update(dt: number): void {
+    const h = this.hero;
+    h.update(dt);
+    this.camera.update(dt, h.pos.x, h.pos.y, h.height, h.dir, h.vel.x, h.vel.y, this.winner);
+
+    // platforms: move + hero landing/riding
+    for (const p of this.platforms) {
+      p.update(dt);
+      const onX = h.pos.x > p.x - 8 && h.pos.x < p.x + p.w + 8;
+      if (this.heroOnPlatform === p) {
+        if (!h.isAlive() || h.vel.y < 0 || !onX) this.heroOnPlatform = null;
+        else {
+          h.landOnPlatform(p.y);                     // snap feet to the platform top (vertical)
+          h.ridePlatform(p.x - p.prevX, 0);          // carry horizontally (vertical already handled)
+        }
+      } else if (h.isAlive() && h.vel.y >= 0 && onX && h.prev.y <= p.y + 1 && h.pos.y >= p.y - 1) {
+        h.landOnPlatform(p.y);
+        this.heroOnPlatform = p;
+      }
+    }
+    // doors: block until opened with the right key
+    for (const d of this.doors) {
+      d.update(dt);
+      if (d.open) continue;
+      const db = d.bounds();
+      if (overlaps(h.rect, db)) {
+        if (d.tryOpen(this.state.keys)) continue;
+        if (h.vel.x > 0) h.pushX(db.x - (h.rect.x + h.rect.w));
+        else if (h.vel.x < 0) h.pushX(db.x + db.w - h.rect.x);
+        h.vel.x = 0;
+      }
+    }
+
+    if (this.fadeDir) {
+      this.fade = Math.min(1, Math.max(0, this.fade + this.fadeDir * dt));
+      if (this.fade <= 0 && this.fadeDir < 0) this.fadeDir = 0;
+    }
+
+    if (this.winner) {
+      this.winTime -= dt;
+      if (this.winTime <= 0) {
+        this.winTime = 6;
+        this.events.levelComplete();
+      }
+    }
+
+    for (const t of this.things) {
+      if (!t.alive) continue;
+      t.t += dt;
+      t.anim?.update(dt);
+      if (t.rescueTime >= 0) {
+        t.rescueTime -= dt;
+        if (t.rescueTime < 0) t.alive = false;
+        continue;
+      }
+      if (!h.isAlive()) continue;
+      const hit = overlaps(h.rect, t.bounds());
+      if (hit && !t.touching) this.touch(t);
+      t.touching = hit;
+    }
+
+    // enemies: update + hero contact (stomp vs. damage)
+    for (const e of this.enemies) {
+      if (!e.alive) continue;
+      e.update(dt);
+      if (h.isAlive()) {
+        const eb = e.bounds();
+        if (overlaps(h.rect, eb)) {
+          if (e.isInstantKill) {
+            h.setState(HS.Dead); // StubEnemy/EnemyDeathBarrier: touching = instant death (no damage)
+          } else if (e.isIndestructible) {
+            h.onCollisionEnemy(4); // hazard: contact damage only, never destroyed
+          } else if (h.vel.y > 0 && h.rect.y + h.rect.h - eb.y < 24) {
+            h.bounce();
+            if (e.isBoss) { if (e.onBullet()) this.killBoss(e); }
+            else this.killEnemy(e);
+          } else {
+            h.onCollisionEnemy(4);
+            if (!e.isBoss) this.removeEnemy(e); // original: contact removes the enemy (with death effect, no points)
+          }
+        }
+      }
+    }
+    this.enemies = this.enemies.filter((e) => e.alive);
+
+    const cam = this.camera;
+    for (const b of this.bullets) {
+      if (!b.alive) continue;
+      if (b.g) b.vy += b.g * dt;
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      if (b.x < cam.x - 32 || b.x > cam.x + cam.w + 32 || b.y < cam.y - 32 || b.y > cam.y + cam.h + 32) {
+        b.alive = false;
+        continue;
+      }
+      if (this.map.stateAt(b.x, b.y) === TileState.Hard) {
+        b.alive = false;
+        playSound(Math.random() < 0.5 ? 'BULLET_WALL_1' : 'BULLET_WALL_2');
+        const ts = this.map.ts;
+        const ex = Math.round(b.x / ts) * ts - 1;
+        this.addEffect(b.team === 0 ? 'SHIELD_GREEN' : 'SHIELD', ex, b.y, -Math.sign(b.vx));
+        continue;
+      }
+      if (b.team === 0) {
+        for (const e of this.enemies) {
+          if (!e.alive || e.isBulletProof || e.isIndestructible) continue;
+          if (overlaps({ x: b.x - 4, y: b.y - 4, w: 8, h: 8 }, e.bounds())) {
+            b.alive = false;
+            if (e.onBullet()) this.killEnemy(e);
+            break;
+          }
+        }
+      } else if (h.isAlive()) {
+        if (b.x > h.rect.x && b.x < h.rect.x + h.rect.w && b.y > h.rect.y && b.y < h.rect.y + h.rect.h) {
+          b.alive = false;
+          h.onBullet(b.x, b.y, Math.sign(b.vx));
+        }
+      }
+    }
+    this.bullets = this.bullets.filter((b) => b.alive);
+
+    for (const e of this.effects) e.anim.update(dt);
+    this.effects = this.effects.filter((e) => !e.anim.isOver());
+  }
+
+  private touch(t: Thing): void {
+    const s = this.state;
+    const p = t.o.props;
+    switch (t.o.type) {
+      case 'Information':
+        if (p.pText) this.events.message(p.pText, 4);
+        playSound('INFO');
+        return;
+      case 'SavePoint':
+        if (this.restore.x !== t.x || this.restore.y !== t.y) {
+          this.restore = { x: t.x, y: t.y };
+          playSound('SAVING');
+          this.events.saving();
+        }
+        return;
+      case 'Cow':
+        if (t.rescueTime < 0) {
+          t.mapName = 'HAPPY_COW';
+          t.anim = null;
+          t.rescueTime = 1.2;
+          s.cows++;
+          s.addPoints(100);
+          playSound('COW_RESCUED_1');
+        }
+        return;
+    }
+    const req = p.pRequiredItem ?? p.pAsset;
+    const count = +(p.pCount ?? 1) || 1;
+    switch (req) {
+      case 'POINTS':
+        s.coins++;
+        s.addPoints(ITEM_POINTS);
+        playSound('COIN');
+        break;
+      case 'LIVES':
+        s.lives += count;
+        playSound('HERO_LIFE');
+        break;
+      case 'ENERGY':
+        s.addEnergy(count);
+        playSound('HERO_ENERGY');
+        break;
+      case 'ENERGY_DOUBLE_JUMP':
+        s.cereals = Math.min(4, s.cereals + 1);
+        playSound('POWERUP');
+        break;
+      case 'ENERGY_JUMP':
+        s.heros = Math.min(4, s.heros + 1);
+        playSound('POWERUP');
+        break;
+      case 'ENDING':
+        if (!this.winner) {
+          this.winner = true;
+          this.hero.winner = true;
+          playSound('END_LEVEL');
+        }
+        return;
+      default:
+        if (p.pIsKey === 'true') s.keys.push(req ?? '');
+        playSound('KEY');
+    }
+    t.alive = false;
+  }
+
+  // ---------- render ----------
+  render(ctx: CanvasRenderingContext2D): void {
+    const cam = this.camera;
+    const cx = Math.floor(cam.x), cy = Math.floor(cam.y);
+
+    // background (Decoration::reloadTileMap)
+    const bg = img(this.bgPath);
+    if (bg) {
+      const span = this.map.widthPx - VIEW_W;
+      const bx = span > 0 ? -Math.floor(((bg.width - VIEW_W) * cam.x) / span) : 0;
+      ctx.drawImage(bg, bx, 0);
+    } else {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    }
+
+    // tiles
+    const tsImg = img(this.tilesetPath);
+    const L = this.level, ts = this.map.ts;
+    if (tsImg) {
+      const cols = Math.floor(tsImg.width / ts);
+      const x0 = Math.floor(cx / ts), y0 = Math.floor(cy / ts);
+      for (let ty = y0; ty <= y0 + Math.ceil(VIEW_H / ts); ty++) {
+        for (let tx = x0; tx <= x0 + Math.ceil(VIEW_W / ts); tx++) {
+          if (tx < 0 || ty < 0 || tx >= L.width || ty >= L.height) continue;
+          const id = L.tiles[ty * L.width + tx];
+          if (L.tileStates.get(id) === TileState.Invisible) continue;
+          ctx.drawImage(tsImg, (id % cols) * ts, Math.floor(id / cols) * ts, ts, ts, tx * ts - cx, ty * ts - cy, ts, ts);
+        }
+      }
+    }
+
+    // objects
+    for (const t of this.things) {
+      if (!t.alive) continue;
+      const sx = t.x - cx, sy = t.y - cy;
+      if (sx < -200 || sx > VIEW_W + 200) continue;
+      if (t.o.type === 'Cow') {
+        // original cow: SAD_COW (caged) -> HAPPY_COW hop/fade once rescued
+        if (t.rescueTime >= 0) {
+          const f = frameOf('HAPPY_COW', Math.floor((1.2 - t.rescueTime) * 12) % 14);
+          if (f) drawFrame(ctx, f, sx, sy);
+        } else {
+          const f = frameOf('SAD_COW', 0);
+          if (f) drawFrame(ctx, f, sx, sy);
+        }
+        continue;
+      }
+      const f = t.anim?.frame() ?? (t.mapName ? frameOf(t.mapName, 0) : null);
+      if (f) drawFrame(ctx, f, sx, sy);
+    }
+
+    // doors + platforms (behind the hero)
+    for (const d of this.doors) d.render(ctx, cam.x, cam.y);
+    for (const p of this.platforms) p.render(ctx, cam.x, cam.y);
+
+    // enemies
+    for (const e of this.enemies) {
+      if (!e.alive) continue;
+      if (e.x < cam.x - 120 || e.x > cam.x + VIEW_W + 120) continue;
+      e.render(ctx, cam.x, cam.y);
+    }
+
+    this.hero.render(ctx, cam.x, cam.y);
+
+    for (const b of this.bullets) {
+      const f = frameOf(b.team === 0 ? 'BULLET' : 'BULLET_ENEMY', 0);
+      if (f) drawFrame(ctx, f, Math.floor(b.x - cx), Math.floor(b.y - cy), Math.sign(b.vx) || 1);
+    }
+    for (const e of this.effects) {
+      const f = e.anim.frame();
+      if (f) drawFrame(ctx, f, Math.floor(e.x - cx), Math.floor(e.y - cy), e.dir);
+    }
+
+    if (this.fade > 0) {
+      ctx.fillStyle = `rgba(0,0,0,${this.fade})`;
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    }
+  }
+
+  get heroState(): HS { return this.hero.state; }
+
+  resumeMusic(): void {
+    if (this.level.props.pMusic && this.hero.isAlive()) playMusic(this.level.props.pMusic);
+  }
+}

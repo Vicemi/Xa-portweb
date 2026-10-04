@@ -5,29 +5,48 @@
 type Source = Map<string, File>;
 let source: Source | null = null;
 const urls = new Map<string, string>();
-/** DEV ONLY: files served by the dev server from the local install (see astro.config.mjs). */
-let devList: Set<string> | null = null;
+/** Server-backed assets (bundled /assets/ or dev /__game/): lowercase key -> real path. */
+let serverList: Set<string> | null = null;
+let serverReal: Map<string, string> = new Map();
+let serverBase = '';
 
+async function setupServer(base: string, list: string[]): Promise<boolean> {
+  serverBase = base;
+  serverList = new Set(list.map((p) => p.toLowerCase()));
+  serverReal = new Map(list.map((p) => [p.toLowerCase(), p]));
+  source = new Map();
+  return serverList.has('assets/data/level1.tmx');
+}
+
+/** Bundled assets shipped in public/assets (the repo is self-contained). */
+export async function useBundledAssets(): Promise<boolean> {
+  try {
+    const r = await fetch('/assets/manifest.json');
+    if (!r.ok) return false;
+    const list: string[] = await r.json();
+    return await setupServer('/assets', list);
+  } catch {
+    return false;
+  }
+}
+
+/** DEV ONLY: files served by the dev server from the local install (see astro.config.mjs). */
 export async function useDevGameFiles(): Promise<boolean> {
   if (!import.meta.env.DEV) return false;
   try {
     const r = await fetch('/__game/__list');
     if (!r.ok) return false;
     const list: string[] = await r.json();
-    devList = new Set(list.map((p) => p.toLowerCase()));
-    const real = new Map(list.map((p) => [p.toLowerCase(), p]));
-    devReal = real;
-    source = new Map();
-    return devList.has('assets/data/level1.tmx');
+    return await setupServer('/__game', list);
   } catch {
     return false;
   }
 }
-let devReal: Map<string, string> = new Map();
-async function devBlob(path: string): Promise<Blob | null> {
+
+async function serverBlob(path: string): Promise<Blob | null> {
   const key = path.toLowerCase();
-  if (!devList?.has(key)) return null;
-  const r = await fetch('/__game/' + devReal.get(key));
+  if (!serverList?.has(key)) return null;
+  const r = await fetch(serverBase + '/' + serverReal.get(key));
   return r.ok ? r.blob() : null;
 }
 
@@ -151,7 +170,7 @@ export function assetUrl(path: string): string | null {
   const key = path.replace(/\\/g, '/').toLowerCase();
   let u = urls.get(key);
   if (u) return u;
-  if (devList) return devList.has(key) ? '/__game/' + devReal.get(key) : null;
+  if (serverList) return serverList.has(key) ? serverBase + '/' + serverReal.get(key) : null;
   const f = source?.get(key);
   if (!f) return null;
   u = URL.createObjectURL(f);
@@ -178,18 +197,18 @@ export function loadImage(path: string): Promise<HTMLImageElement> {
 }
 
 export async function loadText(path: string): Promise<string> {
-  const f = devList ? await devBlob(path) : source?.get(path.toLowerCase());
+  const f = serverList ? await serverBlob(path) : source?.get(path.toLowerCase());
   if (!f) throw new Error(`Falta ${path}`);
   return f.text();
 }
 
 export async function loadArrayBuffer(path: string): Promise<ArrayBuffer | null> {
-  const f = devList ? await devBlob(path) : source?.get(path.toLowerCase());
+  const f = serverList ? await serverBlob(path) : source?.get(path.toLowerCase());
   return f ? f.arrayBuffer() : null;
 }
 
 export function listFiles(prefix: string): string[] {
-  const keys = devList ? [...devList] : source ? [...source.keys()] : [];
+  const keys = serverList ? [...serverList] : source ? [...source.keys()] : [];
   return keys.filter((k) => k.startsWith(prefix.toLowerCase()));
 }
 

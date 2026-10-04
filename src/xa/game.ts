@@ -1,9 +1,9 @@
 // Main loop + screen flow (original Xa screens: logo, loading, comic, menu, level select, help, credits,
 // options, game over, victory). The world is drawn into a 512x384 offscreen canvas (integer pixels) and then
 // scaled to fit any window, keeping the 4:3 aspect ratio. All art comes from the user's own game files.
-import { hasGameFiles, img, listFiles, loadText, pickGameFolder, preloadImages, restoreGameFolder, useDevGameFiles } from './core/assets';
+import { hasGameFiles, img, listFiles, loadText, pickGameFolder, preloadImages, restoreGameFolder, useBundledAssets, useDevGameFiles } from './core/assets';
 import { attachInput, isFirstPress, keyPressed, pollInput } from './core/input';
-import { isMusicEnabled, isSoundEnabled, playMusic, playSound, preloadSounds, setMusicEnabled, setSoundEnabled, stopMusic, unlockAudio } from './core/audio';
+import { getMusicVolume, getSoundVolume, isMusicEnabled, isSoundEnabled, playMusic, playSound, preloadSounds, setMusicEnabled, setMusicVolume, setSoundEnabled, setSoundVolume, stopMusic, unlockAudio } from './core/audio';
 import { drawText, fontPaths } from './core/font';
 import { drawFrame, frameOf } from './core/sprites';
 import levelData from './data/levels.json';
@@ -89,6 +89,8 @@ export class XaGame {
   private clicked = false;
   private hoverIndex = -1;
   private optionIndex = 0;
+  private draggingSlider: 'sound' | 'music' | null = null;
+  private mouseDown = false;
   private introLabel = '';
   levelNum = 1;
 
@@ -106,9 +108,11 @@ export class XaGame {
     window.addEventListener('resize', this.resize);
     window.addEventListener('mousemove', this.onMouseMove);
     window.addEventListener('pointerdown', this.onPointerDown);
+    window.addEventListener('pointerup', this.onPointerUp);
     this.resize();
     const r = await restoreGameFolder(false);
     if (r === 'ok') await this.onFilesReady();
+    else if (await useBundledAssets()) await this.onFilesReady();
     else if (await useDevGameFiles()) await this.onFilesReady();
     else this.needsPermission = r === 'needs-permission';
     this.last = performance.now();
@@ -121,6 +125,7 @@ export class XaGame {
     window.removeEventListener('resize', this.resize);
     window.removeEventListener('mousemove', this.onMouseMove);
     window.removeEventListener('pointerdown', this.onPointerDown);
+    window.removeEventListener('pointerup', this.onPointerUp);
     stopMusic();
   }
 
@@ -224,7 +229,8 @@ export class XaGame {
     this.mouseX = (e.clientX - r.left) * (this.canvas.width / r.width);
     this.mouseY = (e.clientY - r.top) * (this.canvas.height / r.height);
   };
-  private onPointerDown = () => { this.clicked = true; };
+  private onPointerDown = () => { this.clicked = true; this.mouseDown = true; };
+  private onPointerUp = () => { this.mouseDown = false; };
 
   toggleFullscreen(): void {
     if (document.fullscreenElement) void document.exitFullscreen();
@@ -311,13 +317,35 @@ export class XaGame {
         break;
       }
       case 'options': {
+        // keyboard: up/down pick the item, left/right adjust, confirm toggles on/off
         if (isFirstPress('up') || isFirstPress('down')) { this.optionIndex = 1 - this.optionIndex; playSound('CLICK'); }
-        if (isFirstPress('left') || isFirstPress('right') || isFirstPress('confirm')) {
+        if (isFirstPress('left') || isFirstPress('right')) {
+          const d = isFirstPress('left') ? -1 : 1;
+          if (this.optionIndex === 0) setSoundVolume(Math.min(1, Math.max(0, getSoundVolume() + d * 0.1)));
+          else setMusicVolume(Math.min(1, Math.max(0, getMusicVolume() + d * 0.1)));
+        }
+        if (isFirstPress('confirm')) {
           if (this.optionIndex === 0) setSoundEnabled(!isSoundEnabled());
           else setMusicEnabled(!isMusicEnabled());
           playSound('CLICK');
         }
-        if (isFirstPress('back')) { this.screen = 'menu'; this.menuIndex = -1; }
+        // mouse: click the toggles, click/drag the sliders
+        const m = this.mouseGamePos();
+        const hit = (cx: number, cy: number, w: number, h: number) => m.x >= cx - w / 2 && m.x <= cx + w / 2 && m.y >= cy - h / 2 && m.y <= cy + h / 2;
+        if (this.clicked && !this.draggingSlider) {
+          if (hit(290, 180, 27, 26)) { setMusicEnabled(!isMusicEnabled()); playSound('CLICK'); }
+          else if (hit(290, 231, 27, 26)) { setSoundEnabled(!isSoundEnabled()); playSound('CLICK'); }
+          else if (m.x >= 152 && m.x <= 318 && Math.abs(m.y - 205) <= 15) this.draggingSlider = 'sound';
+          else if (m.x >= 152 && m.x <= 318 && Math.abs(m.y - 256) <= 15) this.draggingSlider = 'music';
+        }
+        if (this.draggingSlider) {
+          if (!this.mouseDown) this.draggingSlider = null;
+          else {
+            const v = Math.min(1, Math.max(0, (m.x - 152) / 166));
+            if (this.draggingSlider === 'sound') setSoundVolume(v); else setMusicVolume(v);
+          }
+        }
+        if (isFirstPress('back')) { this.screen = 'menu'; this.menuIndex = -1; this.draggingSlider = null; }
         break;
       }
       case 'help': case 'credits':
@@ -507,6 +535,7 @@ export class XaGame {
       w.drawImage(im, 0, 0, im.width, Math.min(im.height, VIEW_H), 0, 0, VIEW_W, VIEW_H);
       w.globalAlpha = 1;
     }
+    if (this.t > 0.4) this.drawPressAnyKey(w);
   }
 
   private renderLoading(w: CanvasRenderingContext2D): void {
@@ -518,6 +547,7 @@ export class XaGame {
       const f = Math.floor(this.t * 3) % 3;
       w.drawImage(im, 1, 388 + f * 40, 259, 32, VIEW_W / 2 - 259, VIEW_H - 60, 518, 64);
     }
+    if (this.t > 0.4) this.drawPressAnyKey(w);
   }
 
   private renderIntro(w: CanvasRenderingContext2D): void {
@@ -587,12 +617,16 @@ export class XaGame {
   }
 
   private renderOptions(w: CanvasRenderingContext2D): void {
-    this.cover(w, 'assets/images/menuElements/options_win.png');
-    const snd = isSoundEnabled() ? 'ON' : 'OFF';
-    const mus = isMusicEnabled() ? 'ON' : 'OFF';
-    drawText(w, 'SONIDO  ' + snd, VIEW_W / 2, 150, 'white', 'center', 0.7);
-    drawText(w, 'MUSICA  ' + mus, VIEW_W / 2, 182, 'white', 'center', 0.7);
-    drawText(w, 'Flechas: elegir · Enter: cambiar · Esc: volver', VIEW_W / 2, VIEW_H - 20, 'white', 'center', 0.45);
+    // Background (frame 0) + draggable volume knobs + ON/OFF toggles, matching OptionsState.
+    const draw = (index: number, x: number, y: number) => {
+      const f = frameOf('OPTIONS', index);
+      if (f) w.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, x - f.sw / 2, y - f.sh / 2, f.sw, f.sh);
+    };
+    draw(0, VIEW_W / 2, VIEW_H / 2); // background
+    draw(isMusicEnabled() ? 1 : 4, getMusicVolume() * 166 + 152, 256); // music knob
+    draw(isSoundEnabled() ? 1 : 4, getSoundVolume() * 166 + 152, 205); // sound knob
+    draw(isMusicEnabled() ? 2 : 3, 290, 180); // music toggle
+    draw(isSoundEnabled() ? 2 : 3, 290, 231); // sound toggle
   }
 
   private renderPause(w: CanvasRenderingContext2D): void {
@@ -604,14 +638,9 @@ export class XaGame {
     this.text(w, 'Q: salir a selección de nivel', VIEW_W / 2, 232, 12);
   }
 
-  private text(w: CanvasRenderingContext2D, t: string, x: number, y: number, size = 14, color = '#e8f0e0', align: CanvasTextAlign = 'center'): void {
-    w.font = `bold ${size}px "Trebuchet MS", system-ui, sans-serif`;
-    w.textAlign = align;
-    w.textBaseline = 'middle';
-    w.lineWidth = 3;
-    w.strokeStyle = 'rgba(0,0,0,0.85)';
-    w.strokeText(t, x, y);
-    w.fillStyle = color;
-    w.fillText(t, x, y);
+  private text(w: CanvasRenderingContext2D, t: string, x: number, y: number, size = 14, _color = '#e8f0e0', align: CanvasTextAlign = 'center'): void {
+    // Use the game's bitmap font (fuente_blanca) instead of a system font, matching the original typography.
+    const scale = size / 18;
+    drawText(w, t, x, y - 9 * scale, 'white', align === 'center' ? 'center' : align === 'right' ? 'right' : 'left', scale);
   }
 }

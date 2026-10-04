@@ -22,12 +22,16 @@ let music: { src: AudioBufferSourceNode; name: string } | null = null;
 let currentMusic = '';
 let soundOn = true;
 let musicOn = true;
+let soundVol = 1;
+let musicVol = 1;
 
 function ac(): AudioContext {
   if (!ctx) {
     ctx = new AudioContext();
     fxGain = ctx.createGain();
     musicGain = ctx.createGain();
+    fxGain.gain.value = soundVol;
+    musicGain.gain.value = musicVol;
     fxGain.connect(ctx.destination);
     musicGain.connect(ctx.destination);
   }
@@ -100,3 +104,7 @@ export function setSoundEnabled(on: boolean): void { soundOn = on; }
 export function setMusicEnabled(on: boolean): void { musicOn = on; if (!on) stopMusic(); }
 export function isSoundEnabled(): boolean { return soundOn; }
 export function isMusicEnabled(): boolean { return musicOn; }
+export function setSoundVolume(v: number): void { soundVol = v; if (ctx) fxGain.gain.value = v; }
+export function setMusicVolume(v: number): void { musicVol = v; if (ctx) musicGain.gain.value = v; }
+export function getSoundVolume(): number { return soundVol; }
+export function getMusicVolume(): number { return musicVol; }

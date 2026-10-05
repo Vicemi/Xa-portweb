@@ -710,3 +710,13 @@ documentado en el descompilado, sin copiar código descompilado al repo.
     el piso al nacer → quitado.
   - Confirmados como originales: PARABLE 300 + randomBetween(0,80); 4_FALL ±25 aleatorio; sonidos alternados.
 - Regresión 16 niveles: sin errores ni NaN.
+
+## Estado 2026-10-05 (ronda 42 — textos del mapa de niveles alineados)
+- bat::TextSprite: los glifos (ImageMap de GameFont) tienen ancla CERO → cada línea se dibuja con el TOPE de su celda
+  de 30 px en la y de la línea. VAlignUp (default del constructor, 0xd4=3) → y = posición; VAlignCenter →
+  y = pos − líneas·lineHeight/2, con lineHeight = 18 (GameFontDesc(…,12,30,30,2.5,18); vtable+0x14 = getLineHeight).
+- El port restaba 2 px más (TEXT_TOP = 2) en todo texto centrado: barra de info del mapa (nivel, vacas, %, puntaje,
+  título), intro de nivel (descripción, "Nivel N", título) y globo de carteles del HUD. Quitado.
+- Medido por píxeles: en fuente_negra los dígitos ocupan las filas 13-23 de la celda (mayúsculas 5-23). Ahora los
+  números de la barra quedan en filas 34-44 de info_map.png, misma línea base que "Nivel:" (33-45) y "Puntaje:"
+  (36-46) impresos en el arte; antes 32-42.

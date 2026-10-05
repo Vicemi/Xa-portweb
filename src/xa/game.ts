@@ -32,11 +32,12 @@ const OPT_FULLSCREEN = [292, 260] as const;
 const OPT_STRETCH = [292, 285] as const;
 // Rows of options_win.png measured on the art (the label lines and the slider bars under them).
 const OPT_ROW_MUSIC = 173, OPT_ROW_SFX = 215, OPT_BAR_MUSIC = 197, OPT_BAR_SFX = 240;
-// Font placement: bat::TextSprite positions refer to the glyph band, which sits TEXT_TOP px below the 30 px
-// cell top; vertically-centred text puts the middle of an 18 px line on the anchor.
+// Font placement (bat::TextSprite): glyph images have a zero anchor, so a line is drawn with its 30 px cell top on
+// the line's y. VAlignUp (the default) puts that on the sprite's position; VAlignCenter moves each line up by
+// lines × lineHeight(18) / 2. In fuente_negra the capitals fill cell rows 5-23 and the digits rows 13-23, so with
+// VAlignCenter the digits share the baseline of the labels printed on the art (e.g. info_map.png's "Nivel:").
 const LINE_H = 18;
-const TEXT_TOP = 2;
-const TEXT_VC = TEXT_TOP + LINE_H / 2;
+const TEXT_VC = LINE_H / 2;
 
 export type Screen = 'pick' | 'splash' | 'loading' | 'intro' | 'menu' | 'levels' | 'help' | 'credits' | 'options' | 'levelIntro' | 'play' | 'paused' | 'gameover' | 'win' | 'error';
 
@@ -897,10 +898,10 @@ export class XaGame {
     const desc = n ? LANG.descriptions[n - 1] ?? '' : '';
     if (desc) {
       const lines = desc.split('\n').length;
-      drawText(w, desc, 256, Math.round(57 - (lines * LINE_H) / 2) - TEXT_TOP, 'black', 'center');
+      drawText(w, desc, 256, Math.round(57 - (lines * LINE_H) / 2), 'black', 'center');
     }
-    if (n) drawText(w, LANG.ids[n - 1] ?? `Nivel ${n}`, 425, 212 - TEXT_TOP, 'white', 'left');
-    drawText(w, this.introLabel, 256, 256 - TEXT_TOP, 'black2', 'center');
+    if (n) drawText(w, LANG.ids[n - 1] ?? `Nivel ${n}`, 425, 212, 'white', 'left');
+    drawText(w, this.introLabel, 256, 256, 'black2', 'center');
     if (!this.levelReady) {
       const f = frameOf('PRESS_ANY_KEY', 3); // "CARGANDO..."
       if (f) w.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, VIEW_W - f.sw, VIEW_H - f.sh, f.sw, f.sh);

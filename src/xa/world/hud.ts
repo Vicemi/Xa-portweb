@@ -92,7 +92,7 @@ export class Hud {
     if (this.messageTime > 0 && this.message) {
       this.blit(ctx, 'BACK_HUD', MSG_X - 280, MSG_Y - 20);
       const lines = this.message.split('\n').length;
-      drawText(ctx, this.message, MSG_X, Math.round(MSG_Y + 5 - (lines * LINE_H) / 2) - 2, 'black', 'center', 1);
+      drawText(ctx, this.message, MSG_X, Math.round(MSG_Y + 5 - (lines * LINE_H) / 2), 'black', 'center', 1);
     }
 
     // ---- "guardando" indicator ----

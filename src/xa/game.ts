@@ -2,7 +2,7 @@
 // options, game over, victory). The world is drawn into a 512x384 offscreen canvas (integer pixels) and then
 // scaled to fit any window, keeping the 4:3 aspect ratio. All art comes from the user's own game files.
 import { hasGameFiles, img, listFiles, loadText, pickGameFolder, preloadImages, restoreGameFolder, useBundledAssets, useDevGameFiles } from './core/assets';
-import { attachInput, isFirstPress, isPressed, keyPressed, pollInput } from './core/input';
+import { attachInput, isFirstPress, isPressed, keyPressed, pollInput, resetInput } from './core/input';
 import { getMusicVolume, getSoundVolume, isMusicEnabled, isSoundEnabled, loadPrefs, playMusic, playSound, preloadSounds, setMusicEnabled, setMusicVolume, setSoundEnabled, setSoundVolume, stopMusic, unlockAudio } from './core/audio';
 import { drawText, fontPaths } from './core/font';
 import { drawFrame, frameOf } from './core/sprites';
@@ -331,6 +331,7 @@ export class XaGame {
     this.screen = 'levelIntro';
     this.scenario = null;
     this.levelReady = false;
+    resetInput();
     this.readyT = 0;
     this.introNum = entry.num;
     this.introLabel = entry.num && !entry.extra ? (LEVEL_TITLES[entry.num - 1] ?? entry.label) : entry.label;

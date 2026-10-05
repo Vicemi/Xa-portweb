@@ -876,3 +876,13 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   sus balas; parpadea los últimos 3 s. HUD: ícono + barra de tiempo junto al doble salto. Enemy.onBullet(damage).
 - Verificado: los 4 se recogen y aplican (cadencia, daño, abanico, contacto 4→2), se pierden al morir, tintes y
   HUD vistos en captura; SHIELD_DOWN en balas que caen; regresión 16 originales + 12 extras sin errores, build OK.
+
+## Estado 2026-10-05 (ronda 53 — salto: no se reprodujo; teclado blindado contra teclas trabadas)
+- Reporte: "se perdió la mecánica de saltar" (teclado PC, en varios niveles, quizás tras reiniciar). No se
+  reprodujo: salto 102 px y doble salto 147 px en originales y extras; también tras morir, pausar/reanudar, cambiar
+  de nivel y game over → menú → nivel. Ningún cambio reciente tocó el salto ni input.
+- Blindaje de las causas posibles: input.ts limpia las teclas al perder/recuperar el foco y cuando la pestaña se
+  oculta (visibilitychange), hace preventDefault también en keyup de Espacio/flechas (un botón con foco no se
+  "aprieta" con el salto), y resetInput() se llama al cargar un nivel y al reaparecer tras morir → ninguna tecla
+  queda "apretada" de antes (lo que dejaría a Xa agachado o tragaría el siguiente salto). Verificado: con Z trabada
+  durante la muerte el salto responde al reaparecer.

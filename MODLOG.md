@@ -524,3 +524,11 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - **Botón volver móvil** (XaGame.tsx `.xa-back-btn`): siempre visible en pantallas táctiles; `XaGame.backLabel()` /
   `backAction()` según pantalla: play ❚❚ pausa, paused ▶ continúa (↩ cierra confirmación), menu ⛶ pantalla
   completa, splash/loading/intro ⏭, levelIntro ▶, resto ↩ al menú. TouchControls ya no tiene su propio botón.
+
+## Estado 2026-10-04 (ronda 25 — carteles: el decodificador nuevo no se usaba)
+- `Hud.showMessage` seguía con el reemplazo viejo (solo `\!` y `\n`); el `decodeGameText` de la ronda 20 existía
+  pero nadie lo llamaba (el parche falló en silencio por el escapado de barras). Resultado: `\a \e \i \o \u \m \E \?`
+  salían como "▯" + letra en ~todos los carteles. Ahora `showMessage` usa `decodeGameText`.
+- Verificado en el navegador sobre los 80 `pText` de los 16 niveles: 0 barras invertidas, 0 caracteres fuera del
+  alfabeto de la fuente, 0 líneas > 410 px (ancho útil del globo).
+- Lección: los patch scripts deben `assert` cada reemplazo (los que no lo hacían fallaron sin avisar).

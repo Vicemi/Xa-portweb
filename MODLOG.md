@@ -674,3 +674,8 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   cualquier tamaño (menús y créditos) y conserva cinta "Presiona cualquier tecla" y fundidos.
 - Verificado en navegador: menú de noche (9 h) y de día (hora forzada a 14), botones y récord visibles, créditos OK,
   sin errores de consola.
+
+## Estado 2026-10-05 (ronda 38 — logo del port en el arranque)
+- Nuevo `screen_logo_vicemi.jpg` (512x512, banda 4:3 superior como los originales) como TERCER logo: Batoví →
+  Calcar → Vicemi → PreLoader (xa_intro). Lista `SPLASH_LOGOS` en game.ts; cada logo con su "dong" (intro_piano),
+  3.5 s y fundidos de 0.8 s; se salta con cualquier tecla/clic. Manifest regenerado. Verificado en navegador.

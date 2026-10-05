@@ -840,3 +840,10 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   (jefe original sin cambios); SvEnemy = su knock-out SVNZ (SV_*_DEATH; el gran demonio, sin frames de muerte, usa
   su secuencia de aturdido/derrumbe 5000) dibujado desde los pies, con 1.5 s de estallidos MEGA_POWER y, al terminar,
   una nube ENEMY_DEATH y desaparece. Verificado en los 4 jefes (47/188/56/33 frames y la explosión se va).
+
+## Estado 2026-10-05 (ronda 50 — puntos flotantes legibles: la fuente pixelada es monoespaciada)
+- Bug: los dígitos de los puntos al matar enemigos/rescatar vacas se encimaban. VolatilePoints usa GameFont 3
+  (fuente_pixelada.png, sin escala, centrado). Lang::initFontManager sólo llama addCharacter (anchos por letra) para
+  las fuentes 0-2; la 3 se queda con GameFontDesc::getLetterWidth por defecto = this+0x10 = ancho de celda (30) y
+  charSpace 0 → avance fijo de 30 px. El port le aplicaba la tabla de anchos de la fuente negra (~7.5 px) a glifos
+  de ~14 px de tinta. font.ts: letterWidth('pixel') = 30.

@@ -21,7 +21,10 @@ const INDEX = new Map<string, number>([...META.alphabet].map((c, i) => [c, i]));
 function glyphIndex(ch: string): number {
   return INDEX.get(ch) ?? INDEX.get(META.notFound) ?? 0;
 }
-function letterWidth(ch: string): number {
+function letterWidth(ch: string, font: FontName = 'black'): number {
+  // Lang::initFontManager only gives the per-letter widths (addCharacter) to fonts 0-2; the pixel font keeps
+  // GameFontDesc::getLetterWidth's default, the 30 px cell, so it is monospaced
+  if (font === 'pixel') return META.cell;
   return META.widths[ch] ?? META.cell;
 }
 
@@ -29,7 +32,7 @@ function letterWidth(ch: string): number {
 export function lineWidth(text: string, font: FontName = 'black'): number {
   const s = CHAR_SPACE[font];
   let w = 0;
-  for (const ch of text) w += letterWidth(ch) + s;
+  for (const ch of text) w += letterWidth(ch, font) + s;
   return text.length ? w - s : 0;
 }
 
@@ -43,7 +46,7 @@ export function drawLine(ctx: CanvasRenderingContext2D, text: string, x: number,
   const total = lineWidth(text, font) * scale;
   let cx = align === 'center' ? x - total / 2 : align === 'right' ? x - total : x;
   for (const ch of text) {
-    const w = letterWidth(ch);
+    const w = letterWidth(ch, font);
     if (ch !== ' ') {
       const i = glyphIndex(ch);
       const gx = cx + (-(cell - w) * 0.5) * scale;

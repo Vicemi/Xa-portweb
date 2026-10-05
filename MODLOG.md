@@ -631,3 +631,11 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - **Cómic** (corrección): InGame::loadIntroGeneral → General2..5 → loadMenu; cada página es una Intro que avanza con
   CUALQUIER tecla o clic tras 0.6 s (Intro::update). NO existe "Enter salta toda la historia" (era de la instalación
   modificada); quitado. El botón ⏭ móvil = pasar página.
+
+## Estado 2026-10-05 (ronda 33 — repaso integral, parte 6: menú y topes)
+- **Récord del menú** (Menu::init → setHighScore(HeroState::getHighScore)): HeroState+0x4 = SUMA de los mejores
+  puntajes de cada nivel (saveGame); fuente negra, 6 dígitos con ceros, en (419, 8 del contenedor ≈ y 21) dentro del
+  recuadro "RÉCORD:". Antes no se mostraba.
+- **Menú día/noche** (AssetsGeneral "MENU" + bat::DateAndTime): menu.jpg si 10 ≤ hora < 19, si no menu_night.jpg.
+  Antes siempre noche.
+- Topes: vidas ≤ 99 (addLives), puntaje ≤ 999999 (addPoints). Energía: Hero::setState(9) recarga 10 (ya portado).

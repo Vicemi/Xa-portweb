@@ -452,7 +452,7 @@ export class Scenario implements World {
         playSound('COIN');
         break;
       case 'LIVES':
-        s.lives += count;
+        s.addLives(count);
         playSound('HERO_LIFE');
         break;
       case 'ENERGY':

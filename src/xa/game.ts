@@ -31,7 +31,7 @@ const LINE_H = 18;
 const TEXT_TOP = 2;
 const TEXT_VC = TEXT_TOP + LINE_H / 2;
 
-type Screen = 'pick' | 'splash' | 'loading' | 'intro' | 'menu' | 'levels' | 'help' | 'credits' | 'options' | 'levelIntro' | 'play' | 'paused' | 'gameover' | 'win' | 'error';
+export type Screen = 'pick' | 'splash' | 'loading' | 'intro' | 'menu' | 'levels' | 'help' | 'credits' | 'options' | 'levelIntro' | 'play' | 'paused' | 'gameover' | 'win' | 'error';
 
 interface LevelEntry { label: string; path: string; num: number }
 
@@ -125,6 +125,8 @@ export class XaGame {
   private confirmIndex = 1;      // 0 = SÍ, 1 = NO
   private cowCache: Record<number, number> = {};
   levelNum = 1;
+  /** Current screen (the React shell shows the touch controls only while playing). */
+  get currentScreen(): Screen { return this.screen; }
 
   constructor(private canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext('2d')!;
@@ -203,6 +205,18 @@ export class XaGame {
       ...Array.from({ length: LEVEL_COUNT }, (_, i) => ({ label: `Nivel ${i + 1} - ${LEVEL_TITLES[i] ?? ''}`, path: `assets/data/level${i + 1}.tmx`, num: i + 1 })),
       ...custom,
     ];
+    // Modding / testing shortcuts: ?level=N jumps straight into level N, ?map=assets/data/x.tmx into any TMX.
+    const q = new URLSearchParams(location.search);
+    const lv = +(q.get('level') ?? 0), map = q.get('map');
+    if (map || (lv >= 1 && lv <= LEVEL_COUNT)) {
+      const entry = map
+        ? this.levels.find((l) => l.path === map.toLowerCase()) ?? { label: map.split('/').pop()!.replace('.tmx', ''), path: map, num: 0 }
+        : this.levels[lv - 1];
+      this.levelIndex = Math.max(0, this.levels.indexOf(entry));
+      playMusic('xa_menu');
+      void this.loadLevel(entry);
+      return;
+    }
     this.screen = 'splash';
     this.t = 0;
     this.splashStep = 0;

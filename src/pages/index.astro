@@ -30,46 +30,56 @@ import XaGameView from '../components/XaGame.tsx';
   .xa-rotate-icon { font-size: 3rem; animation: xa-spin 2s ease-in-out infinite; }
   @keyframes xa-spin { 0%, 20% { transform: rotate(0deg); } 70%, 100% { transform: rotate(90deg); } }
 
-  /* --- mobile: transparent virtual controls --- */
-  .xa-controls { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
-  .xa-controls .xa-btn {
-    pointer-events: auto; position: absolute; display: flex; align-items: center; justify-content: center;
-    border: 2px solid rgba(255,255,255,0.55); border-radius: 50%;
-    background: rgba(255,255,255,0.14); color: rgba(255,255,255,0.9);
-    font: bold 0.95rem system-ui, sans-serif; user-select: none; -webkit-user-select: none;
-    touch-action: none; text-shadow: 0 1px 2px rgba(0,0,0,0.7); cursor: pointer;
+  /* --- mobile: touch controls (src/components/TouchControls.tsx) --- */
+  .xa-touch {
+    position: fixed; inset: 0; z-index: 5; touch-action: none;
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
   }
-  .xa-controls .xa-btn:active { background: rgba(255,255,255,0.34); }
-
-  /* D-pad (bottom-left): single draggable area, direction follows the finger */
-  .xa-dpad {
-    position: absolute; left: calc(0.8rem + env(safe-area-inset-left)); bottom: calc(1rem + env(safe-area-inset-bottom));
-    width: 8rem; height: 8rem; pointer-events: auto;
-    border: 2px solid rgba(255,255,255,0.4); border-radius: 50%;
-    background: rgba(255,255,255,0.08); touch-action: none;
+  /* floating stick: ring at the touch origin + knob under the finger */
+  .xa-stick-ring, .xa-stick-knob { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+  .xa-stick-ring {
+    width: 124px; height: 124px;
+    border: 2px solid rgba(255,255,255,0.45); background: rgba(255,255,255,0.08);
   }
-  .xa-dpad-arrow {
-    position: absolute; color: rgba(255,255,255,0.75);
-    font-size: 1.4rem; text-shadow: 0 1px 2px rgba(0,0,0,0.7);
-    pointer-events: none; user-select: none; -webkit-user-select: none;
+  .xa-stick-knob {
+    width: 58px; height: 58px;
+    background: rgba(255,255,255,0.35); border: 2px solid rgba(255,255,255,0.7);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
   }
-  .xa-up    { left: 50%; top: 0.4rem; transform: translateX(-50%); }
-  .xa-left  { left: 0.5rem; top: 50%; transform: translateY(-50%); }
-  .xa-down  { left: 50%; bottom: 0.4rem; transform: translateX(-50%); }
-  .xa-right { right: 0.5rem; top: 50%; transform: translateY(-50%); }
-
-  /* Actions (bottom-right): jump (big) + fire, with a gap between them */
-  .xa-actions .xa-btn { width: 3.6rem; height: 3.6rem; }
-  .xa-jump { right: calc(1.2rem + env(safe-area-inset-right)); bottom: calc(1.2rem + env(safe-area-inset-bottom)); width: 4.6rem !important; height: 4.6rem !important; }
-  .xa-fire { right: calc(6.8rem + env(safe-area-inset-right)); bottom: calc(2.4rem + env(safe-area-inset-bottom)); font-size: 0.7rem !important; }
-
-  /* small landscape phones: shrink the pad and buttons so they don't cover the play area */
+  .xa-stick-hint {
+    position: absolute; pointer-events: none; border-radius: 50%;
+    left: calc(1.2rem + env(safe-area-inset-left)); bottom: calc(1.2rem + env(safe-area-inset-bottom));
+    width: 7rem; height: 7rem; display: flex; align-items: center; justify-content: center;
+    border: 2px dashed rgba(255,255,255,0.22); color: rgba(255,255,255,0.4);
+    font: bold 1rem system-ui, sans-serif; letter-spacing: 0.4rem;
+  }
+  /* action buttons: big, well separated, slightly see-through so the game stays visible */
+  .xa-act {
+    position: absolute; pointer-events: none; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid rgba(255,255,255,0.55); background: rgba(255,255,255,0.13);
+    color: rgba(255,255,255,0.92); font: bold 0.85rem system-ui, sans-serif;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.7); transition: transform 60ms, background 60ms;
+  }
+  .xa-act.is-down { background: rgba(255,255,255,0.38); transform: scale(0.94); }
+  .xa-act-jump {
+    width: 6rem; height: 6rem;
+    right: calc(1.2rem + env(safe-area-inset-right)); bottom: calc(1.4rem + env(safe-area-inset-bottom));
+  }
+  .xa-act-fire {
+    width: 4.8rem; height: 4.8rem;
+    right: calc(9rem + env(safe-area-inset-right)); bottom: calc(1.1rem + env(safe-area-inset-bottom));
+  }
+  .xa-pause-btn {
+    position: absolute; top: calc(0.6rem + env(safe-area-inset-top)); right: calc(0.6rem + env(safe-area-inset-right));
+    width: 2.6rem; height: 2.6rem; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    border: 2px solid rgba(255,255,255,0.5); background: rgba(0,0,0,0.25); color: rgba(255,255,255,0.9);
+    font: bold 0.8rem system-ui, sans-serif;
+  }
+  /* short landscape phones: keep the buttons big enough to hit but clear of the play area */
   @media (max-height: 420px) {
-    .xa-dpad { width: 6.5rem; height: 6.5rem; }
-    .xa-jump { width: 3.8rem !important; height: 3.8rem !important; }
-    .xa-actions .xa-btn.xa-fire { width: 3rem; height: 3rem; right: calc(5.6rem + env(safe-area-inset-right)); }
+    .xa-act-jump { width: 5rem; height: 5rem; }
+    .xa-act-fire { width: 4rem; height: 4rem; right: calc(7.6rem + env(safe-area-inset-right)); }
+    .xa-stick-hint { width: 5.5rem; height: 5.5rem; }
   }
-
-  /* Back (top-right) */
-  .xa-back { right: 0.8rem; top: 0.8rem; width: 2.6rem; height: 2.6rem; font-size: 1.1rem !important; }
 </style>

@@ -1,6 +1,6 @@
 # 🚀 XA: Contra los Cuatreros Galácticos — Port Web
 
-> Un port web no oficial del clásico **XA: Contra los Cuatreros Galácticos**, creado originalmente por **Batoví** y **Calca**, reconstruido para correr en el navegador con **Astro** y **React**.
+> Un port web no oficial del clásico **XA: Contra los Cuatreros Galácticos** (2010), creado originalmente por **Batoví Games Studio** junto a **Calcar**, reconstruido para correr en el navegador con **Astro** y **React**. Se juega en PC y en el celular.
 
 🎮 **Jugalo online:** [xa-portweb.vicemi.dev](https://xa-portweb.vicemi.dev) *(próximamente)*
 
@@ -10,7 +10,7 @@
 
 XA fue uno de los juegos que más marcaron mi infancia. Este proyecto nace de una necesidad bastante simple: **revivirlo**. Pero no solo hacerlo funcionar de nuevo, sino también poder modificarlo, mejorarlo y expandirlo: crear mapas nuevos, agregar personajes y sumarle contenido que el original nunca tuvo.
 
-La meta a largo plazo es que este port sea una base abierta sobre la cual se puedan construir mods y contenido nuevo, manteniendo vivo un juego que forma parte de la memoria de muchos.
+El juego original está abandonado por su estudio desde hace años. La meta es que este port sea **fiel 1 a 1 al original** como punto de partida y, sobre esa base, una plataforma abierta para mods y contenido nuevo, manteniendo vivo un juego que forma parte de la memoria de muchos.
 
 ## 🛠️ Cómo se hizo
 
@@ -32,21 +32,59 @@ Todo cambió al usar **[universal-modder](https://github.com/rehan-remade/univer
 
 ### El port actual
 
-Después, usando **DeepSeek R4** con la misma skill, logré portear la **mayor parte del juego** a web con React, sobre un proyecto en Astro.
+Después, usando **DeepSeek R4** con la misma skill, logré portear la **mayor parte del juego** a web con React, sobre un proyecto en Astro. A partir de ahí, con **Claude**, cada mecánica se fue contrastando contra el código descompilado y el juego original corriendo, para que se comporte igual: física del héroe, colisiones, enemigos, jefe final, pantallas, textos y sonido. El diario completo de ese trabajo está en [`MODLOG.md`](MODLOG.md).
 
 ## 🚧 Estado actual
 
-El proyecto está **en desarrollo activo**. La mayor parte del juego ya es jugable, pero todavía hay bugs y errores que iré puliendo de a poco.
+El juego es **jugable de principio a fin** (16 niveles y el jefe final), en PC y en celular. Sigue en desarrollo activo: se siguen puliendo detalles para que todo quede idéntico al original.
 
-Si encontrás algún problema, podés abrir un *issue* describiendo qué pasó y cómo reproducirlo. ¡Toda ayuda suma!
+Si encontrás algún problema, abrí un *issue* contando **en qué nivel**, **qué hiciste** y **qué esperabas que pasara**. ¡Toda ayuda suma!
+
+### ✅ Lo que ya funciona
+
+- **Flujo completo del original:** logos de Batoví y Calcar (con su "dong" de piano), pantalla de carga, cómic de la historia, menú principal, ayuda, créditos, opciones, mapa de selección de niveles, intro de cada nivel, pausa, game over y final.
+- **Textos originales:** títulos, descripciones de los niveles y carteles salen del juego original (incluidos tildes, "ñ", "¡" y "¿").
+- **Héroe:** caminar, salto y doble salto (power-up que se reinicia en cada nivel, como en el original), escaleras, agacharse/bloquear, disparo en ráfaga, daño, vidas y puntos de guardado.
+- **Enemigos** con el comportamiento del original: patrulleros (también sobre plataformas), marcianos que te disparan cuando te ven, naves que disparan hacia donde vuelan, torretas, cañones en parábola, cobras saltarinas, bombas, trampas y más.
+- **Jefe final** con sus mecánicas: disparo en abanico, muerte por contacto, 200 impactos, explosión final y la llave que abre la salida.
+- **Mapa de niveles** con progreso guardado: vacas rescatadas, porcentaje de monedas y puntaje por nivel.
+- **Opciones:** volumen de música y efectos, **pantalla completa** y **estirar pantalla**; todo se recuerda entre partidas.
+- **Celular:** controles táctiles con multitouch (ver abajo) y aviso para girar el teléfono.
 
 ### 🗺️ Planes a futuro
 
-- [ ] Corregir los bugs y errores conocidos
+- [ ] Terminar de pulir los detalles que todavía difieren del original (transiciones entre pantallas, meteoritos)
 - [ ] Soporte para mods
-- [ ] Creación de mapas nuevos
+- [ ] Editor / creación de mapas nuevos
 - [ ] Nuevos personajes
 - [ ] Expansión general del contenido del juego
+
+---
+
+## 🎮 Controles
+
+### Teclado
+
+| Acción | Teclas |
+| :--- | :--- |
+| Moverse | **Flechas** (o teclado numérico 4 / 6) |
+| Subir / bajar escaleras, agacharse | **↑ / ↓** (o 8 / 2) |
+| Saltar (mantener) | **Z** o **Espacio** |
+| Disparar (mantener = ráfaga) | **X** (o 3 / 9) |
+| Pausa | **Esc** o **P** |
+| Pantalla completa | **F** (o desde *Opciones*) |
+| Menús | Flechas + **Enter**, o el mouse |
+
+### Celular / táctil
+
+Girá el teléfono en **horizontal**. Los controles aparecen solo mientras jugás, y en los menús alcanza con tocar.
+
+- **Mitad izquierda = joystick flotante.** Apoyá el dedo en cualquier parte de la mitad izquierda y arrastrá hacia donde quieras moverte. El centro del joystick acompaña al dedo, así que para cambiar de dirección basta un movimiento corto hacia el otro lado, sin levantar el dedo. Arrastrar en diagonal hacia arriba o abajo sirve para escaleras.
+- **Mitad derecha = acciones.** Botones grandes de **SALTO** y **FUEGO**, separados entre sí. Tocar cualquier otra zona de la mitad derecha también salta.
+- **Multitouch real:** podés moverte, saltar y disparar al mismo tiempo, y deslizar el dedo de un botón al otro sin soltarlo.
+- **❚❚** arriba a la derecha pausa el juego. El celular vibra levemente al saltar (si lo soporta).
+
+> En una notebook con pantalla táctil podés forzar los controles táctiles con `?touch=1` en la URL (o desactivarlos con `?touch=0`).
 
 ---
 
@@ -54,7 +92,7 @@ Si encontrás algún problema, podés abrir un *issue* describiendo qué pasó y
 
 ### Requisitos
 
-- **[Node.js](https://nodejs.org/)** — versión LTS (20 o superior recomendada)
+- **[Node.js](https://nodejs.org/)** **22.12 o superior**
 - **npm** (viene incluido con Node.js)
 - **Git**
 
@@ -115,25 +153,55 @@ Todos se ejecutan desde la raíz del proyecto:
 | `npm run dev`             | Inicia el servidor local en `localhost:4321`            |
 | `npm run build`           | Compila la versión de producción en `./dist/`           |
 | `npm run preview`         | Previsualiza la build localmente antes de publicarla    |
+| `npm run manifest`        | Regenera `public/assets/manifest.json` (después de agregar o quitar archivos del juego, por ejemplo un mapa nuevo) |
 | `npm run astro ...`       | Ejecuta comandos del CLI de Astro (`astro add`, `astro check`) |
-| `npm run astro -- --help` | Muestra la ayuda del CLI de Astro                       |
+
+### 🔗 Atajos por URL (útiles para probar y para mods)
+
+| URL | Qué hace |
+| :--- | :--- |
+| `/?level=5` | Entra directo al nivel 5 (1 a 16) |
+| `/?map=assets/data/mi_mapa.tmx` | Carga cualquier mapa TMX |
+| `/?touch=1` / `/?touch=0` | Fuerza / desactiva los controles táctiles |
+
+---
+
+## 🧩 Mapas nuevos (mods)
+
+Los niveles son archivos **[Tiled](https://www.mapeditor.org/) `.tmx`** en `public/assets/data/`. Para crear uno:
+
+1. Copiá un nivel existente (por ejemplo `level1.tmx`) con otro nombre, como `public/assets/data/mi_mapa.tmx`, y editalo en Tiled.
+2. Corré `npm run manifest` para que el juego lo encuentre.
+3. Jugalo con `/?map=assets/data/mi_mapa.tmx`, o desde el mapa de niveles: los mapas extra aparecen después del nivel 16 (con las flechas) y siempre están desbloqueados.
+
+Los objetos del mapa usan los mismos tipos y propiedades que el original (`Enemy`, `Android`, `UFO`, `Item`, `Door`, `SavePoint`, `Information`…, con `pxVel`, `pLives`, `pMinTime`, `pText`, etc.). En [`MODLOG.md`](MODLOG.md) está documentado qué hace cada uno.
+
+---
 
 ## 📁 Estructura del proyecto
 
 ```text
 /
-├── public/          # favicon + assets originales del juego (incluidos, ver abajo)
+├── public/
+│   ├── assets/          # assets originales del juego + manifest.json
+│   └── favicon.png
 ├── src/
-│   ├── components/  # XaGame.tsx — el componente React que monta el juego
-│   ├── pages/       # index.astro — la página principal
-│   └── xa/          # El motor del port
-│       ├── core/    # assets, audio, input, sprites, fuente bitmap
-│       ├── data/    # sprites.json, levels.json, font.json (extraídos del binario)
-│       ├── world/   # mundo, héroe, enemigos, tilemap, objetos, HUD, cámara
-│       └── game.ts  # bucle principal (60 fps) y flujo de pantallas
-├── tools/           # Herramientas de ingeniería inversa (xre.py, anims.py, …)
-├── astro.config.mjs
-├── MODLOG.md        # Diario de trabajo del port
+│   ├── components/
+│   │   ├── XaGame.tsx         # monta el juego (canvas, orientación, detección táctil)
+│   │   └── TouchControls.tsx  # joystick flotante + botones multitouch
+│   ├── pages/           # index.astro — la página principal y los estilos
+│   └── xa/              # el motor del port
+│       ├── core/        # assets, audio, input, sprites, fuente bitmap
+│       ├── data/        # sprites.json, levels.json, font.json (extraídos del juego original)
+│       ├── world/       # mundo, héroe, enemigos, tilemap, objetos, HUD, cámara
+│       └── game.ts      # bucle principal (60 fps) y flujo de pantallas
+├── tools/               # herramientas de ingeniería inversa y de datos
+│   ├── extract_texts.py # extrae títulos, descripciones y textos del xa.exe original
+│   ├── xre.py           # explora el xa.exe (strings, lecturas/escrituras, constantes)
+│   ├── build_data.py    # genera sprites.json a partir de lo extraído
+│   ├── gen-manifest.mjs # regenera public/assets/manifest.json
+│   └── …                # anims.py, imagemaps.py, letterwidth.py, collision-sim.mjs, cap.ps1
+├── MODLOG.md            # diario de trabajo del port (todo lo descubierto del juego original)
 └── package.json
 ```
 
@@ -142,9 +210,9 @@ Todos se ejecutan desde la raíz del proyecto:
 Este port **incluye** los assets originales (imágenes, sonidos, mapas `.tmx`) en `public/assets/`, así que el juego funciona de forma **autónoma**: clonás el repo, `npm install`, `npm run dev` y listo.
 
 - Al cargar, el juego usa primero los assets incluidos (`/assets/`).
-- Si no los encuentra, cae al modo de carpeta: el navegador te pide elegir tu instalación del juego (File System Access API; con fallback a selector de carpeta en Firefox/Safari). Los archivos se leen **localmente en tu navegador** y **nunca** se suben a ningún servidor.
+- Si no los encuentra, cae al modo de carpeta: el navegador te pide elegir tu instalación del juego (File System Access API; con alternativa de selector de carpeta en Firefox/Safari). Los archivos se leen **localmente en tu navegador** y **nunca** se suben a ningún servidor.
 
-> ⚠️ *XA: Contra los Cuatreros Galácticos* es obra de **Batoví** y **Calca**. Este es un proyecto de fans **sin fines de lucro**; si algún titular de derechos lo solicita, el repositorio se dará de baja.
+> ⚠️ *XA: Contra los Cuatreros Galácticos* es obra de **Batoví Games Studio** y **Calcar**. Este es un proyecto de fans **sin fines de lucro**; si algún titular de derechos lo solicita, el repositorio se dará de baja.
 
 ---
 
@@ -156,9 +224,11 @@ Si querés colaborar, ¡bienvenido! Podés:
 - Proponer mejoras o ideas para mods, mapas o personajes.
 - Enviar un *pull request* con correcciones o nuevo contenido.
 
+El trabajo se hace en la rama `develop` y se integra en `main` cuando está probado.
+
 ## ⚖️ Créditos y aviso legal
 
-- **XA: Contra los Cuatreros Galácticos** es obra de sus creadores originales, **Batoví** y **Calca**. Todos los derechos sobre el juego original, sus personajes y sus assets les pertenecen.
+- **XA: Contra los Cuatreros Galácticos** es obra de sus creadores originales, **Batoví Games Studio** y **Calcar**. Todos los derechos sobre el juego original, sus personajes y sus assets les pertenecen.
 - Este es un **proyecto de fans, sin fines de lucro**, hecho por nostalgia y con el objetivo de preservar el juego. No está afiliado ni respaldado por los autores originales.
 - Si sos uno de los titulares de los derechos y tenés alguna inquietud sobre este proyecto, no dudes en contactarme.
 

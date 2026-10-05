@@ -58,7 +58,9 @@ Además del juego original, el port suma un **segundo mapa con 12 niveles nuevos
 
 - **Cómo entrar:** en el mapa de niveles, tocá la **flecha del borde derecho** (o apretá **→** sobre el último nivel abierto). En el mapa 2, la **flecha izquierda** (o **←** sobre el primer nivel) vuelve al mapa original.
 - **Desbloqueo:** el primer nivel extra está abierto desde el principio y cada uno abre el siguiente. Más adelante se van a desbloquear al terminar los 16 originales (`EXTRA_REQUIRES_ORIGINALS` en [`game.ts`](src/xa/game.ts)).
-- **Niveles nuevos de verdad:** cada nivel se arma recorriendo el terreno de uno o dos niveles originales con el mismo tileset, en otro orden. Las secciones se reordenan, se repiten o se saltean, y las uniones no se notan porque siempre se empalma entre columnas idénticas. Las plataformas móviles cambian de velocidad, y los enemigos se reubican y se suman sobre los pisos nuevos.
+- **Niveles nuevos de verdad:** el terreno de cada nivel se arma con 15 a 30 tramos cortos de uno o dos niveles originales del mismo tileset, en otro orden, repetidos o salteados. Las uniones no se notan porque siempre se empalma entre columnas idénticas.
+- **Todo reubicado:** monedas en filas y arcos, vacas (sobre todo fuera del camino principal), energía, vidas, doble salto, puntos de guardado cada ~100 columnas y enemigos se colocan de nuevo, mezclando los de SVNZ con los de Xa.
+- **Siempre jugables:** cada nivel se verifica con una búsqueda que imita los movimientos de Xa (caminar, caer, salto y doble salto, escaleras, plataformas móviles). Solo se ubican cosas donde Xa puede llegar, y si la salida no es alcanzable el nivel se descarta y se arma otro. El mismo chequeo da alcanzables los 8 niveles originales usados como base.
 - **Enemigos nuevos**, con sus sprites, animaciones y zonas de golpe originales:
   - **Ninja demonio**: patrulla, te persigue y ataca con un tajo.
   - **Ninja rojo**: salta hacia vos y remata con un golpe.

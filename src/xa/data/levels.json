@@ -16,5 +16,46 @@
     "La Base Lunar",
     "La Nave Nodriza",
     "La Computadora Central"
-  ]
+  ],
+  "descriptions": [
+    "Una mañana que no es como cualquier otra.\n¡Los extraterrestres han invadido la tierra\ny se están robando nuestras vacas!\nXa debe llegar rápido al pueblo...",
+    "Xa llega al pueblo y se da cuenta que la\ninvasión es total. Debe atravesar el pueblo\ny encontrar el camino hacia la nave madre.\nSólo así podrá detenerlos...",
+    "En el pueblo Xa averigua que han atacado\nlos bañados, zona protegida del planeta.\nDebe dirigirse a ellos y protegerlos,\ncuidando no caer en sus profundas aguas.",
+    "Xa llega a la zona de silos y ve que hay\nmucha actividad. Debe tener cuidado con las\ndefensas que han preparado en su contra y\nbuscar el camino hacia el bosque.",
+    "Xa debe aventurarse en el bosque, en el\ncual se dice que existe una entrada a una\ngran cueva, en la cual mantienen cautivas\na muchas vacas. ¡Cuidado!",
+    "Xa debe lograr encontrar la salida en una\nzona con muchos pasadizos y peligros.\nLos pasajes están siendo fuertemente\nvigilados. ¡Debe cuidar de no perderse!",
+    "La salida de las cuevas dan a un gran\nbosque en el cual hay muchos enemigos\nsaltarines. Xa debe atravesarlo\npara llegar al próximo pueblo.",
+    "Los extraterrestres quieren impedir que\nXa llegue a la ciudad, por lo cual han\ntomado un pueblo en el camino y han puesto\ndefensas. ¡Cuidado con los pinchos!",
+    "Xa ha llegado a la ciudad. ¡Pero en lugar\nde personas encuentra extraterrestres!\nParece que va a llover pero no son gotas\nde agua... sino... ¡balas enemigas!",
+    "En la ciudad Xa averigua que la única forma\nde llegar a la nave es usando un cohete que\nse encuentra escondido en la Antártida. Debe\natravesar la ciudad y llegar al puerto.",
+    "Xa llega al puerto y ve que se encuentra\nplagado de peligrosas bombas que explotan\nen balas. Debe llegar al muelle Este y\nalcanzar el barco para ir a la Antártida.",
+    "Xa debe encontrar el cohete que lo llevará\na la luna. Para eso debe entrar en las\ncavernas heladas y encontrar el\ncamino hacia el vehículo.",
+    "Xa llega a la luna y ahora debe lograr\nentrar en la base enemiga. ¡Pero debe\ntener mucho cuidado! ¡Los enemigos ahora\nson mucho más peligrosos!",
+    "Xa logra introducirse en la base enemiga.\nDebe encontrar un vehículo para llegar a\nla nave nodriza. Pero la base es grande y\nprofunda. ¡No es apta para terrestres!",
+    "La aventura está llegando a su fin.\nXa ha llegado a la nave nodriza y debe\nencontrar el camino hacia su núcleo.\n¡Ten mucho cuidado con los soldados!",
+    "La última parada. Xa debe encontrar la\nguarida del jefe final y derrotarlo.\n¡Pero cuidado! ¡El último nivel\nsiempre es el más difícil!"
+  ],
+  "ids": [
+    "Nivel 1",
+    "Nivel 2",
+    "Nivel 3",
+    "Nivel 4",
+    "Nivel 5",
+    "Nivel 6",
+    "Nivel 7",
+    "Nivel 8",
+    "Nivel 9",
+    "Nivel 10",
+    "Nivel 11",
+    "Nivel 12",
+    "Nivel 13",
+    "Nivel 14",
+    "Nivel 15",
+    "Nivel 16"
+  ],
+  "ui": {
+    "pauseQuestion": "¿Seguro que quieres volver al menú principal?",
+    "back": "Atrás",
+    "points": "Puntos"
+  }
 }

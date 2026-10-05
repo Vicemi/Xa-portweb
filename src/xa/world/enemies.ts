@@ -55,8 +55,10 @@ export class Enemy {
     this.w = +(o.w || 32) || 32;
     this.h = +(o.h || 32) || 32;
     this.lives = Math.max(1, +(this.p.pLives ?? 1) || 1);
-    this.dir = (+(this.p.pLookDir ?? 1)) || 1;
     this.vx = +(this.p.pxVel ?? 0) || 0;
+    // Enemy::Enemy: facing = sign(pLookDir) if set, otherwise sign(pxVel) (e.g. pxVel=-120 starts walking left).
+    const look = +(this.p.pLookDir ?? 0) || 0;
+    this.dir = look ? Math.sign(look) : (this.vx < 0 ? -1 : 1);
     this.vy = +(this.p.pyVel ?? 0) || 0;
     const animName = this.p.pAnim ?? '';
     if (animName) this.anim = new Anim(animName);
@@ -136,23 +138,27 @@ export class Enemy {
     return !!this.p.pBulletAsset || SHOOTERS.has(this.type);
   }
 
-  // ground patrol: walks at pxVel, turns at walls (pCollidesH) and at edges (pCollidesFloor).
+  // ground patrol (Enemy + MobileObject::internalUpdate): walks at |pxVel|, reverses on walls (pCollidesH) and
+  // when the point (left-5 | right+5, bottom+1) has no floor, one-way platform tile or ladder top (pCollidesFloor).
   private patrol(dt: number): void {
     const spd = Math.abs(+(this.p.pxVel ?? 70) || 70);
-    this.x += this.dir * spd * dt;
     const ts = this.world.map.ts;
-    const aheadX = this.dir > 0 ? this.x + this.w / 2 + 2 : this.x - this.w / 2 - 2;
-    // Sample the whole vertical span (head→feet) so tall enemies don't walk through walls.
-    let wall = false;
-    if (this.p.pCollidesH === 'true') {
-      for (let y = this.y - this.h + 2; y < this.y && !wall; y += ts) wall = this.world.map.isHard(aheadX, y);
-      if (!wall) wall = this.world.map.isHard(aheadX, this.y - 2);
-    }
-    const edge = this.p.pCollidesFloor === 'true' && !this.world.hasFloor(aheadX, this.y + 2);
-    if (wall || edge) {
+    const ahead = (d: number) => (d > 0 ? this.x + this.w / 2 + 5 : this.x - this.w / 2 - 5);
+    const blocked = (d: number): boolean => {
+      const ax = ahead(d);
+      if (this.p.pCollidesH === 'true') {
+        // sample the whole vertical span (head→feet) so tall enemies don't walk through walls
+        for (let y = this.y - this.h + 2; y < this.y; y += ts) if (this.world.map.isHard(ax, y)) return true;
+        if (this.world.map.isHard(ax, this.y - 2)) return true;
+      }
+      return this.p.pCollidesFloor === 'true' && !this.world.hasFloor(ax, this.y + 1);
+    };
+    if (blocked(this.dir)) {
+      // turn around; if both sides are blocked (1-tile ledge) stay put instead of jittering every frame
+      if (blocked(-this.dir)) return;
       this.dir *= -1;
-      this.x += this.dir * 4;
     }
+    this.x += this.dir * spd * dt;
   }
 
   // flying: EnemyBird eases back and forth (easeInOutSin) over pDuration with a sine vertical bob.

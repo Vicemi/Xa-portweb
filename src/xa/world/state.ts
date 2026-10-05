@@ -33,6 +33,20 @@ export class HeroState {
     this.keys = [];
   }
 
+  /**
+   * HeroState::goToLevelSelect / changeStage: entering a level wipes the per-level run (keys, power-ups, coins,
+   * cows, score) and tops lives back up to 3. Power-ups never carry over between levels.
+   */
+  beginLevel(): void {
+    if (this.lives < START_LIVES) this.lives = START_LIVES;
+    this.keys = [];
+    this.cereals = 0;
+    this.heros = 0;
+    this.coins = 0;
+    this.cows = 0;
+    this.score = 0;
+  }
+
   startStage(level: number, totalCows: number, totalCoins: number): void {
     this.actualLevel = level;
     this.lastPlayedLevel = level;

@@ -8,6 +8,19 @@ import type { HeroState } from './state';
 
 const pad = (n: number, len: number) => String(Math.max(0, n)).padStart(len, '0');
 
+// Escape codes of the TMX sign texts, decoded exactly like the original (switch on the char after '\'):
+// ! ¡  ? ¿  a/e/i/o/u → á/é/í/ó/ú (upper-case too), m/M → ñ/Ñ, n → newline, \ → backslash.
+const ESCAPES: Record<string, string> = {
+  '!': '¡', '?': '¿', a: 'á', e: 'é', i: 'í', o: 'ó', u: 'ú', m: 'ñ', n: '\n',
+  A: 'Á', E: 'É', I: 'Í', O: 'Ó', U: 'Ú', M: 'Ñ', '\\': '\\',
+};
+export function decodeGameText(raw: string): string {
+  return raw.replace(/\\(.)/g, (m, c: string) => ESCAPES[c] ?? m);
+}
+const LINE_H = 18;
+const MSG_X = VIEW_W / 2 + 24;
+const MSG_Y = 80;
+
 export class Hud {
   message = '';
   messageTime = 0;
@@ -48,13 +61,12 @@ export class Hud {
     }
     this.blit(ctx, 'LOGO', 448, 348);
 
-    // ---- message balloon (hud_message_back) ----
-    if (this.messageTime > 0) {
-      ctx.save();
-      ctx.globalAlpha = Math.min(1, this.messageTime * 3);
-      this.blit(ctx, 'BACK_HUD', 0, 60);
-      drawText(ctx, this.message, VIEW_W / 2, 66, 'black', 'center', 0.7);
-      ctx.restore();
+    // ---- message balloon: BACK_HUD (anchor 280,20) inside a container at (256+24, 80); the text (font 0,
+    // scale 1) is centred horizontally and vertically 5 px below the container origin (Hud::Hud). ----
+    if (this.messageTime > 0 && this.message) {
+      this.blit(ctx, 'BACK_HUD', MSG_X - 280, MSG_Y - 20);
+      const lines = this.message.split('\n').length;
+      drawText(ctx, this.message, MSG_X, Math.round(MSG_Y + 5 - (lines * LINE_H) / 2) - 2, 'black', 'center', 1);
     }
 
     // ---- "guardando" indicator ----

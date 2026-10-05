@@ -182,7 +182,9 @@ export class Scenario implements World {
     this.addEffect('BOSS_DEAD', e.x, e.y - e.h / 2, 1);
   }
   hasFloor(x: number, y: number): boolean {
-    if (this.map.isHard(x, y)) return true;
+    // MobileObject::internalUpdate edge test: Scenario::isFloor || isPlatform (one-way tile) || isOverLadder.
+    const m = this.map;
+    if (m.isHard(x, y) || m.isPlatform(x, y) || m.isOverLadder(x, y - 1)) return true;
     for (const p of this.platforms) {
       if (x >= p.x && x <= p.x + p.w && y >= p.y - 4 && y <= p.y + 8) return true;
     }
@@ -389,7 +391,7 @@ export class Scenario implements World {
         playSound('HERO_ENERGY');
         break;
       case 'ENERGY_DOUBLE_JUMP':
-        s.cereals = Math.min(4, s.cereals + 1);
+        s.cereals = Math.min(1, s.cereals + 1); // HeroState::addCereals caps at 1
         playSound('POWERUP');
         break;
       case 'ENERGY_JUMP':

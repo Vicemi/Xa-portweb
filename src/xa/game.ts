@@ -14,8 +14,15 @@ import { parseTmx } from './world/tmx';
 import { Scenario } from './world/world';
 
 export const LEVEL_COUNT = 16;
-const LEVEL_TITLES = (levelData as unknown as { titles: string[] }).titles;
+// Built-in texts of xa.exe (Lang::mTitles / mDescriptions / level ids), extracted by tools/extract_texts.py.
+const LANG = levelData as unknown as { titles: string[]; descriptions: string[]; ids: string[]; ui: Record<string, string> };
+const LEVEL_TITLES = LANG.titles;
 const STEP = 1 / 60;
+// Font placement: bat::TextSprite positions refer to the glyph band, which sits TEXT_TOP px below the 30 px
+// cell top; vertically-centred text puts the middle of an 18 px line on the anchor.
+const LINE_H = 18;
+const TEXT_TOP = 2;
+const TEXT_VC = TEXT_TOP + LINE_H / 2;
 
 type Screen = 'pick' | 'splash' | 'loading' | 'intro' | 'menu' | 'levels' | 'help' | 'credits' | 'options' | 'levelIntro' | 'play' | 'paused' | 'gameover' | 'win' | 'error';
 
@@ -59,6 +66,7 @@ const SCREEN_IMAGES = [
   'assets/lang/images/credits/creditos.jpg',
   'assets/lang/images/menu/press_any_key.png',
   'assets/images/menuElements/cursor.png',
+  'assets/images/menuElements/info_map.png',
 ];
 
 const INTRO_PAGES = ['page_1', 'page_2', 'page_3', 'page_4', 'page_5'].map(
@@ -94,6 +102,14 @@ export class XaGame {
   private draggingSlider: 'sound' | 'music' | null = null;
   private mouseDown = false;
   private introLabel = '';
+  private introNum = 0;          // level shown on the intro screen (0 = custom map)
+  private levelReady = false;    // Intro: level finished loading -> "press any key" replaces "CARGANDO..."
+  private readyT = 0;            // seconds since the level finished loading
+  private bootReadyAt = 1.2;     // boot preloader: CARGANDO anim shows at least this long...
+  private soundsReady = false;   // ...and until every sound is decoded
+  private infoT = 0;             // level-select info bar slide-in timer (ButtonInformation, easeInOutQuad 0.3 s)
+  private infoIndex = -1;
+  private cowCache: Record<number, number> = {};
   levelNum = 1;
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -156,7 +172,8 @@ export class XaGame {
 
   private async onFilesReady(): Promise<void> {
     await preloadImages([...fontPaths(), ...SCREEN_IMAGES]);
-    void preloadSounds();
+    this.soundsReady = false;
+    void preloadSounds().finally(() => { this.soundsReady = true; }); // PreLoader: CARGANDO until decoded
     const custom = listFiles('assets/data/')
       .filter((p) => p.endsWith('.tmx') && !/\/level\d+\.tmx$/.test(p))
       .map((p) => ({ label: p.split('/').pop()!.replace('.tmx', ''), path: p, num: 0 }));
@@ -167,24 +184,31 @@ export class XaGame {
     this.screen = 'splash';
     this.t = 0;
     this.splashStep = 0;
-    playMusic('intro_piano'); // SplashScreen::SplashScreen reproduce intro_piano.ogg al arrancar
+    this.bootReadyAt = 1.2;
+    playMusic('intro_piano', false); // SplashScreen: intro_piano.ogg once (not looped) over the two logos
   }
 
   async loadLevel(entry: LevelEntry): Promise<void> {
-    this.screen = 'loading';
-    this.loadingIsBoot = false;
+    // Intro(levelId): the level card is shown right away with the "CARGANDO..." ribbon while the level loads
+    // behind it; once loaded the blinking "press any key" ribbon replaces it (Intro::render / Intro::update).
+    this.screen = 'levelIntro';
+    this.scenario = null;
+    this.levelReady = false;
+    this.readyT = 0;
+    this.introNum = entry.num;
+    this.introLabel = entry.num ? (LEVEL_TITLES[entry.num - 1] ?? entry.label) : entry.label;
     this.t = 0;
     const t0 = performance.now();
     try {
       const level = parseTmx(await loadText(entry.path));
       await preloadImages(Scenario.imagePaths(level));
       stopMusic();
-      // keep the loading screen visible for a minimum time (otherwise it flashes for microseconds)
+      // keep the "CARGANDO..." ribbon visible for a minimum time (otherwise it flashes for microseconds)
       const elapsed = performance.now() - t0;
       if (elapsed < 600) await new Promise((r) => setTimeout(r, 600 - elapsed));
       this.levelNum = entry.num || this.levelNum;
       this.hud = new Hud();
-      this.introLabel = entry.label;
+      this.state.beginLevel(); // power-ups/keys/coins never carry over between levels (HeroState::goToLevelSelect)
       this.scenario = new Scenario(level, entry.num, this.state, {
         gameOver: () => {
           this.state.reset();
@@ -218,8 +242,8 @@ export class XaGame {
         message: (t, seconds) => this.hud.showMessage(t, seconds),
         saving: () => this.hud.showSaving(),
       });
-      this.screen = 'levelIntro';
-      this.t = 0;
+      this.levelReady = true;
+      this.readyT = 0;
     } catch (e) {
       this.error = String((e as Error).message ?? e);
       this.screen = 'error';
@@ -277,13 +301,17 @@ export class XaGame {
         if (this.t >= dur || this.clicked || isFirstPress('confirm') || isFirstPress('jumpHold')) {
           this.splashStep++;
           this.t = 0;
-          if (this.splashStep >= 2) { this.screen = 'loading'; this.loadingIsBoot = true; this.t = 0; }
+          if (this.splashStep >= 2) {
+            // the piano "dong" belongs to the two logo screens only; the intro music starts with the loader
+            this.screen = 'loading'; this.loadingIsBoot = true; this.t = 0;
+            playMusic('xa_intro');
+          }
           else playSound('CLICK');
         }
         break;
       }
       case 'loading':
-        if (this.loadingIsBoot && (this.clicked || isFirstPress('confirm') || isFirstPress('jumpHold'))) { this.screen = 'intro'; this.introPage = 0; this.t = 0; playMusic('xa_intro'); }
+        if (this.loadingIsBoot && this.t >= this.bootReadyAt && this.soundsReady && (this.clicked || isFirstPress('confirm') || isFirstPress('jumpHold') || isFirstPress('fire'))) { this.screen = 'intro'; this.introPage = 0; this.t = 0; }
         break;
       case 'intro':
         if (this.t > 0.4 && (this.clicked || isFirstPress('confirm') || isFirstPress('jumpHold') || isFirstPress('fire'))) {
@@ -315,6 +343,9 @@ export class XaGame {
         if (isFirstPress('right')) { this.levelIndex = (this.levelIndex + 1) % n; playSound('CLICK'); }
         if (isFirstPress('back')) { this.screen = 'menu'; this.menuIndex = -1; }
         this.hoverIndex = this.levelHoverIndex();
+        const shown = this.hoverIndex >= 0 ? this.hoverIndex : this.levelIndex;
+        if (shown !== this.infoIndex) { this.infoIndex = shown; this.infoT = 0; }
+        this.infoT += dt;
         if (this.clicked && this.hoverIndex >= 0 && this.isUnlocked(this.hoverIndex)) {
           this.levelIndex = this.hoverIndex;
           void this.loadLevel(this.levels[this.hoverIndex]);
@@ -366,8 +397,12 @@ export class XaGame {
         }
         break;
       case 'levelIntro':
-        if (this.t > 0.3 && (this.clicked || isFirstPress('confirm') || isFirstPress('jumpHold'))) {
-          this.screen = 'play';
+        // Intro::update: any key/click once the level is loaded (after a 0.05 s guard)
+        if (this.levelReady) {
+          this.readyT += dt;
+          if (this.readyT > 0.05 && this.scenario && (this.clicked || isFirstPress('confirm') || isFirstPress('jumpHold') || isFirstPress('fire'))) {
+            this.screen = 'play';
+          }
         }
         break;
       case 'play':
@@ -443,7 +478,7 @@ export class XaGame {
     let best = -1, bestD = 18 * 18;
     for (let i = 0; i < NODE_POS.length; i++) {
       const [px, py] = NODE_POS[i];
-      const d = (m.x - px) ** 2 + (m.y - py) ** 2;
+      const d = (m.x - px - 20) ** 2 + (m.y - py - 15) ** 2; // node centre (sprite is 40x30)
       if (d < bestD) { bestD = d; best = i; }
     }
     return best;
@@ -546,17 +581,18 @@ export class XaGame {
     if (this.t > 0.4) this.drawPressAnyKey(w);
   }
 
+  /** PreLoader: cargando_tile background; the 3-frame "CARGANDO" ribbon (anchor 260,0 at 512,288) covers the
+   *  baked-in "press any key" ribbon until loading finishes. */
   private renderLoading(w: CanvasRenderingContext2D): void {
     w.fillStyle = '#3a1010';
     w.fillRect(0, 0, VIEW_W, VIEW_H);
     const im = img('assets/images/menuElements/cargando_tile.png');
-    if (im) {
-      w.drawImage(im, 0, 0, 512, 384, 0, 0, VIEW_W, VIEW_H);
-      const f = Math.floor(this.t * 3) % 3;
-      w.drawImage(im, 1, 388 + f * 40, 259, 32, VIEW_W / 2 - 259, VIEW_H - 76, 518, 64);
+    if (!im) return;
+    w.drawImage(im, 0, 0, 512, 384, 0, 0, VIEW_W, VIEW_H);
+    if (!this.loadingIsBoot || this.t < this.bootReadyAt || !this.soundsReady) {
+      const f = Math.floor(this.t * 3) % 3; // 20 ticks @ 60 fps per frame
+      w.drawImage(im, 0, 384 + f * 40, 260, 40, 512 - 260, 288, 260, 40);
     }
-    // "Pulsa una tecla para continuar" (tipografía bitmap del juego)
-    if (this.t > 0.4) this.text(w, 'Pulsa una tecla para continuar', VIEW_W / 2, VIEW_H - 22, 13, '#e8f0e0');
   }
 
   private renderIntro(w: CanvasRenderingContext2D): void {
@@ -585,22 +621,58 @@ export class XaGame {
       const prog = num ? this.state.progress[num] : undefined;
       const perfect = !!prog?.done && prog.cows === prog.totalCows && prog.coins === prog.totalCoins;
       const current = i === this.levelIndex || i === this.hoverIndex;
+      if (i === this.levelIndex) {
+        // MAP_ANIMATED_SELECTION: glowing ring under the current node
+        const ring = frameOf('MAP_ANIMATED_SELECTION', Math.floor(this.t * 6) % 3);
+        if (ring) w.drawImage(ring.image, ring.sx, ring.sy, ring.sw, ring.sh, px - 10, py + 4, ring.sw, ring.sh);
+      }
       // original node buttons (BUTTONS_LEVELS / BUTTONS_PERFECT_LEVELS sprites from map.png)
       const name = perfect && !locked ? 'BUTTONS_PERFECT_LEVELS' : 'BUTTONS_LEVELS';
       const frame = locked ? 0 : current ? (perfect ? 2 : 3) : (perfect ? 0 : 1);
       const f = frameOf(name, frame);
-      if (f) w.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, Math.round(px - f.sw / 2), Math.round(py - f.sh / 2), f.sw, f.sh);
-      if (current) {
-        const ring = frameOf('MAP_ANIMATED_SELECTION', Math.floor(this.t * 3) % 3);
-        if (ring) w.drawImage(ring.image, ring.sx, ring.sy, ring.sw, ring.sh, Math.round(px - ring.sw / 2), Math.round(py - ring.sh / 2), ring.sw, ring.sh);
+      if (!f) continue;
+      w.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, px, py, f.sw, f.sh); // anchor (0,0): NODE_POS is the top-left
+      if (i === this.levelIndex) {
+        // ARROW (anchor 20,30) at node + (20,10), bobbing up to 6 px
+        const a = frameOf('ARROW', 0);
+        const bob = Math.round((0.5 + 0.5 * Math.sin(this.t * 6)) * 6);
+        if (a) w.drawImage(a.image, a.sx, a.sy, a.sw, a.sh, px + 20 - 20, py + 10 - 30 - bob, a.sw, a.sh);
       }
     }
-    // bottom bar
-    w.fillStyle = 'rgba(0,0,0,.6)';
-    w.fillRect(0, VIEW_H - 40, VIEW_W, 40);
-    const entry = this.levels[this.levelIndex];
-    drawText(w, entry ? entry.label : '', VIEW_W / 2, VIEW_H - 30, 'white', 'center', 0.8);
-    drawText(w, 'flechas: elegir · Enter: jugar · Esc: volver', VIEW_W / 2, VIEW_H - 14, 'white', 'center', 0.45);
+    this.renderInfoBar(w);
+  }
+
+  /** ButtonInformation: info_map.png bar slid up from the bottom (easeInOutQuad, 0.3 s) showing the selected
+   *  level's number, cows x / y, coin %, title and 6-digit score, all in the black game font (font 0). */
+  private renderInfoBar(w: CanvasRenderingContext2D): void {
+    const bar = img('assets/images/menuElements/info_map.png');
+    const entry = this.levels[this.infoIndex >= 0 ? this.infoIndex : this.levelIndex];
+    if (!bar || !entry) return;
+    const k = Math.min(1, this.infoT / 0.3);
+    const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    const top = VIEW_H - 60 + Math.round((1 - e) * 60);
+    w.drawImage(bar, 0, top);
+    const num = entry.num;
+    const prog = num ? this.state.progress[num] : undefined;
+    const totalCows = prog?.totalCows ?? (num ? this.totalCowsOf(num) : 0);
+    const pct = prog && prog.totalCoins ? Math.floor((prog.coins * 100) / prog.totalCoins) : 0;
+    const score = String(prog?.score ?? 0).padStart(6, '0');
+    const c = (t: string, x: number, y: number) => drawText(w, t, x, top + y - TEXT_VC, 'black', 'center');
+    c(num ? String(num) : '-', 96, 30);
+    c(String(prog?.cows ?? 0), 165, 30);
+    c(String(totalCows), 197, 30);
+    c(String(pct), 273, 30);
+    c(num ? (LEVEL_TITLES[num - 1] ?? entry.label) : entry.label, 257, 11);
+    c(score, 448, 30);
+  }
+
+  /** Cow count of a level, read once from its TMX, so the bar shows "0 / N" before the level is played. */
+  private totalCowsOf(num: number): number {
+    if (this.cowCache[num] === undefined) {
+      this.cowCache[num] = 0;
+      void loadText(`assets/data/level${num}.tmx`).then((t) => { this.cowCache[num] = (t.match(/type="Cow"/g) ?? []).length; }).catch(() => {});
+    }
+    return this.cowCache[num];
   }
 
   private renderFull(w: CanvasRenderingContext2D, path: string): void {
@@ -608,21 +680,40 @@ export class XaGame {
     if (this.t > 0.3) this.drawPressAnyKey(w);
   }
 
-  /** Animated "press any key" indicator (2-frame PRESS_ANY_KEY anim, bottom-right). */
-  private drawPressAnyKey(w: CanvasRenderingContext2D): void {
-    const idx = Math.floor(this.t * 2) % 2 === 0 ? 1 : 0;
+  /** PRESS_ANY_KEY anim (fondo_niveles.png rows 1/0, 18 ticks each), anchored bottom-right at (512, 384). */
+  private drawPressAnyKey(w: CanvasRenderingContext2D, t = this.t): void {
+    const idx = Math.floor(t / 0.3) % 2 === 0 ? 1 : 0;
     const f = frameOf('PRESS_ANY_KEY', idx);
-    if (f) w.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, VIEW_W - f.sw - 14, VIEW_H - f.sh - 10, f.sw, f.sh);
+    if (f) w.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, VIEW_W - f.sw, VIEW_H - f.sh, f.sw, f.sh);
   }
 
+  /** Intro(levelId): the level's preview strip (preview_levels_tile.jpg, 512x115 per level, 8 per column) at
+   *  y=128 under the fondo_niveles.png mask; description (font 0, centred on 256,57), "Nivel N" (font 1 at
+   *  425,212) and title (font 2, centred at 256,256). "CARGANDO..." shows until the level is ready. */
   private renderLevelIntro(w: CanvasRenderingContext2D): void {
-    const im = img('assets/lang/images/intros/fondo_niveles.png');
-    if (im) w.drawImage(im, 0, 0, im.width, Math.min(im.height, VIEW_H), 0, 0, VIEW_W, VIEW_H);
-    else { w.fillStyle = '#07131f'; w.fillRect(0, 0, VIEW_W, VIEW_H); }
-    w.fillStyle = 'rgba(0,0,0,.62)';
-    w.fillRect(0, VIEW_H / 2 - 46, VIEW_W, 92);
-    this.text(w, this.introLabel || 'Nivel', VIEW_W / 2, VIEW_H / 2 - 13, 20, '#ffffff');
-    this.text(w, 'Pulsa Enter para empezar', VIEW_W / 2, VIEW_H / 2 + 16, 12, '#e8f0e0');
+    w.fillStyle = '#000';
+    w.fillRect(0, 0, VIEW_W, VIEW_H);
+    const n = this.introNum;
+    const prev = img('assets/lang/images/intros/preview_levels_tile.jpg');
+    if (prev && n >= 1 && n <= LEVEL_COUNT) {
+      const sx = n <= 8 ? 0 : 512, sy = ((n - 1) % 8) * 115;
+      w.drawImage(prev, sx, sy, 512, 115, 0, 128, 512, 115);
+    }
+    const mask = img('assets/lang/images/intros/fondo_niveles.png');
+    if (mask) w.drawImage(mask, 0, 0, 512, 384, 0, 0, 512, 384);
+    const desc = n ? LANG.descriptions[n - 1] ?? '' : '';
+    if (desc) {
+      const lines = desc.split('\n').length;
+      drawText(w, desc, 256, Math.round(57 - (lines * LINE_H) / 2) - TEXT_TOP, 'black', 'center');
+    }
+    if (n) drawText(w, LANG.ids[n - 1] ?? `Nivel ${n}`, 425, 212 - TEXT_TOP, 'white', 'left');
+    drawText(w, this.introLabel, 256, 256 - TEXT_TOP, 'black2', 'center');
+    if (!this.levelReady) {
+      const f = frameOf('PRESS_ANY_KEY', 3); // "CARGANDO..."
+      if (f) w.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, VIEW_W - f.sw, VIEW_H - f.sh, f.sw, f.sh);
+    } else {
+      this.drawPressAnyKey(w, this.readyT);
+    }
   }
 
   private renderOptions(w: CanvasRenderingContext2D): void {

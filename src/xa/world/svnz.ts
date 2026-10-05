@@ -164,6 +164,13 @@ class SvEnemy extends Enemy {
     if (m) this.world.setMusic(m);
   }
 
+  /** Its own SVNZ knock-out (the original boss's BOSS_DEAD sprite must not show up); the big demon, which has no
+   *  death frames, staggers and collapses (BigDemon 5000). Drawn from the feet. */
+  override deathAnim(): { anim: string; feet: boolean } {
+    const own = this.an('DEATH');
+    return { anim: ANIMS[own] ? own : this.an('HIT'), feet: true };
+  }
+
   /** Beaten: tell Xa the gate key dropped and the exit stretch is still ahead. */
   override onDefeated(): void {
     const b = this.spec.boss;

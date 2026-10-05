@@ -833,3 +833,10 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   enemigos y el jefe originales no cambian (verificado: muerte en nivel 16 sin cambios).
 - Verificado: el ítem cae y se recoge (+3), el reinicio deja vidas al máximo/idle/sin barra/sin ayudantes, el
   cartel aparece y entra en el globo, suelta KEY, build OK.
+
+## Estado 2026-10-05 (ronda 49 — muerte de los jefes extra sin el sprite del jefe original)
+- Bug: World.killBoss siempre agregaba Anim('BOSS_DEAD') (la caída del jefe de Xa, jefe_tile.png) → al morir un
+  jefe SVNZ aparecía el jefe original muerto. Ahora Enemy.deathAnim() decide: base = BOSS_DEAD desde el centro
+  (jefe original sin cambios); SvEnemy = su knock-out SVNZ (SV_*_DEATH; el gran demonio, sin frames de muerte, usa
+  su secuencia de aturdido/derrumbe 5000) dibujado desde los pies, con 1.5 s de estallidos MEGA_POWER y, al terminar,
+  una nube ENEMY_DEATH y desaparece. Verificado en los 4 jefes (47/188/56/33 frames y la explosión se va).

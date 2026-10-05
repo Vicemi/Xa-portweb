@@ -42,7 +42,7 @@ Si encontrás algún problema, abrí un *issue* contando **en qué nivel**, **qu
 
 ### ✅ Lo que ya funciona
 
-- **Flujo completo del original:** logos de Batoví y Calcar (con su "dong" de piano y fundidos de 0,8 s), pantalla de carga, cómic de la historia, menú principal (de día o de noche según la hora, con el récord total), ayuda, créditos (rediseñados en alta resolución), opciones, mapa de selección de niveles, intro de cada nivel, pausa, game over y final.
+- **Flujo completo del original:** logos de Batoví y Calcar más el del port (vicemi.dev), cada uno con su "dong" de piano y fundidos de 0,8 s, pantalla de carga, cómic de la historia, menú principal (de día o de noche según la hora, con el récord total), ayuda, créditos (rediseñados en alta resolución), opciones, mapa de selección de niveles, intro de cada nivel, pausa, game over y final.
 - **Textos originales:** títulos, descripciones de los niveles y carteles salen del juego original (incluidos tildes, "ñ", "¡" y "¿").
 - **Héroe:** caminar, salto y doble salto (power-up que se reinicia en cada nivel, como en el original), escaleras, agacharse y cubrirse con el escudo (frena las balas enemigas), disparo en ráfaga, daño, vidas y puntos de guardado.
 - **Enemigos** con el comportamiento del original: patrulleros (también sobre plataformas), marcianos que te disparan cuando te ven, naves y pájaros con su vaivén, naves que disparan hacia donde apuntan, torretas, cañones en parábola, cobras saltarinas, bombas que estallan en balas, pirañas robot, guillotinas, pinchos y más. Cada uno da los puntos del original y los muestra flotando al morir.

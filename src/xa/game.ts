@@ -57,9 +57,15 @@ const NODE_POS = [
   [460, 60], [315, 40], [130, 135], [212, 211], [60, 293], [20, 109], [90, 77], [18, 30], [135, 30],
 ];
 
-const SCREEN_IMAGES = [
+// Opening logos, in order: the original's Batoví and Calcar, then the port's own (Vicemi)
+const SPLASH_LOGOS = [
   'assets/images/menuElements/screen_logo_batovi.jpg',
   'assets/images/menuElements/screen_logo_calcar.jpg',
+  'assets/images/menuElements/screen_logo_vicemi.jpg',
+];
+
+const SCREEN_IMAGES = [
+  ...SPLASH_LOGOS,
   'assets/images/menuElements/menu.jpg',
   'assets/images/menuElements/menu_night.jpg',
   'assets/images/menuElements/buttons_tile.png',
@@ -107,7 +113,7 @@ export class XaGame {
   private error = '';
   private needsPermission = false;
   private t = 0;                // time in the current screen
-  private splashStep = 0;       // 0 = Batovi, 1 = Calcar
+  private splashStep = 0;       // index into SPLASH_LOGOS (0 = Batovi, 1 = Calcar, 2 = Vicemi)
   private splashClose = -1;     // >= 0 while the current logo fades out (StateTransition closing)
   private introPage = 0;
   private loadingIsBoot = false;
@@ -399,7 +405,8 @@ export class XaGame {
     switch (this.screen) {
       case 'splash': {
         // SplashScreen: each logo is its own state that plays intro_piano once and sends itself "fadeToBlack"
-        // after 3.5 s (or on any key/click); leaving the state cuts its sound. Logo 2 → PreLoader with xa_intro.
+        // after 3.5 s (or on any key/click); leaving the state cuts its sound. After the last logo → PreLoader
+        // with xa_intro.
         if (this.splashClose < 0 && (this.t >= SPLASH_TIME || this.clicked || isFirstPress('any'))) this.splashClose = 0;
         if (this.splashClose >= 0) {
           this.splashClose += dt;
@@ -407,11 +414,11 @@ export class XaGame {
             this.splashClose = -1;
             this.splashStep++;
             this.t = 0;
-            if (this.splashStep >= 2) {
+            if (this.splashStep >= SPLASH_LOGOS.length) {
               this.screen = 'loading'; this.loadingIsBoot = true;
               playMusic('xa_intro');
             } else {
-              playMusic('intro_piano', false); // restarts the "dong" for the second logo
+              playMusic('intro_piano', false); // restarts the "dong" for the next logo
             }
           }
         }
@@ -738,7 +745,7 @@ export class XaGame {
   }
 
   private renderSplash(w: CanvasRenderingContext2D): void {
-    const logo = this.splashStep === 0 ? 'assets/images/menuElements/screen_logo_batovi.jpg' : 'assets/images/menuElements/screen_logo_calcar.jpg';
+    const logo = SPLASH_LOGOS[Math.min(this.splashStep, SPLASH_LOGOS.length - 1)];
     // StateTransition: opening 0→1 over 0.8 s, closing 1→0 over 0.8 s once the logo is done
     const a = this.splashClose >= 0 ? Math.max(0, 1 - this.splashClose / STATE_FADE) : Math.min(1, this.t / STATE_FADE);
     w.fillStyle = '#000';

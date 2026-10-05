@@ -601,3 +601,13 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   el pAsset del TMX (PLATFORM_EGYPT_SMALL, inexistente) se ignora. Antes todas eran verdes. Un solo sprite (66 px)
   por plataforma: level6 (512) y level12 (1600) estiran el rect del TMX al recorrido y daban plataformas gigantes.
   Todas las plataformas tienen pWait > 0 → ciclo ida/espera/vuelta (ya portado).
+
+## Estado 2026-10-05 (ronda 30 — repaso integral, parte 3)
+- **Transiciones** (bat::App + StateTransition(0.8, 0.8)): cada cambio de estado de la App cierra 0.8 s (1→0) y abre
+  0.8 s (0→1); SplashScreen usa ese valor como alpha del logo. Logos: fundido de entrada 0.8 s, a los 3.5 s (o tecla)
+  fundido de salida 0.8 s → 4.3 s por logo. La entrada a InGame (pantalla de carga) abre desde negro en 0.8 s.
+  El FadeTransition de InGame sólo se usa en la muerte del héroe (2 × deathWait), ya portado.
+- **Selector de niveles** (LevelSelectScreen::update): →/↑ = siguiente, ←/↓ = anterior, a lo largo del camino, SIN
+  vuelta y sin pasar del último desbloqueado (0x348); mantener la tecla sigue avanzando; la flecha se desliza entre
+  nodos; aceptar = disparar / saltar / Enter (isSelectionAccept). Al entrar, el cursor arranca en el último nivel
+  desbloqueado (0x34c = lastPlayedLevel). Antes: grilla ±1/±4 con vuelta y cursor en el nivel 1.

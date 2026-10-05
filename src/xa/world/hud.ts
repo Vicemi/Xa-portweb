@@ -27,6 +27,8 @@ export class Hud {
   messageTime = 0;
   private savingTime = 0;
   private doubleT = -1;
+  private lastEnergy = -1;
+  private lose: { from: number; w: number; t: number } | null = null;
 
   showMessage(raw: string, seconds = 4): void {
     this.message = decodeGameText(raw);
@@ -41,6 +43,7 @@ export class Hud {
       if (this.messageTime <= 0) this.message = '';
     }
     if (this.savingTime > 0) this.savingTime -= dt;
+    if (this.lose) { this.lose.t -= dt; if (this.lose.t <= 0) this.lose = null; }
     if (this.doubleT >= 0) this.doubleT += dt;
   }
 
@@ -48,7 +51,19 @@ export class Hud {
     // ---- top bar ----
     this.blit(ctx, 'AVATAR', 7, 13);                          // Xa head + "x"
     drawLine(ctx, pad(s.lives, 2), 66, 10, 'black', 'left', 1);
-    this.blit(ctx, 'ENERGY_BAR', 8, 48, Math.max(0, Math.min(9, s.energy)));
+    // Hud::render: ENERGY_BAR frame = energy - 1
+    if (s.energy !== this.lastEnergy) {
+      // Hud::setEnergy → initEnergyLoseDo: the lost chunk is drawn with ENERGY_BAR_LOSE and shrinks over 1 s
+      if (this.lastEnergy >= 0 && s.energy < this.lastEnergy) this.lose = { from: s.energy, w: (this.lastEnergy - s.energy) * 4 + 2, t: 1 };
+      else this.lose = null;
+      this.lastEnergy = s.energy;
+    }
+    if (s.energy > 0) this.blit(ctx, 'ENERGY_BAR', 8, 48, Math.max(0, Math.min(9, s.energy - 1)));
+    if (this.lose) {
+      const f = frameOf('ENERGY_BAR_LOSE', 0);
+      const x0 = this.lose.from * 4 + 2, w = Math.round(this.lose.w * this.lose.t);
+      if (f && w > 0) ctx.drawImage(f.image, f.sx + x0, f.sy, Math.min(w, f.sw - x0), f.sh, 8 + x0, 48, Math.min(w, f.sw - x0), f.sh);
+    }
     // Hud::setDouble: the power-up plays DOUBLE_JUMP_HUD (8 frames x 3 ticks) and rests on its last frame
     if (s.cereals > 0) {
       if (this.doubleT < 0) this.doubleT = 0;

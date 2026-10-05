@@ -639,3 +639,10 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - **Menú día/noche** (AssetsGeneral "MENU" + bat::DateAndTime): menu.jpg si 10 ≤ hora < 19, si no menu_night.jpg.
   Antes siempre noche.
 - Topes: vidas ≤ 99 (addLives), puntaje ≤ 999999 (addPoints). Energía: Hero::setState(9) recarga 10 (ya portado).
+
+## Estado 2026-10-05 (ronda 34 — repaso integral, parte 7: barra de energía)
+- **ENERGY_BAR**: Hud::render usa el frame `energía - 1` (10 frames: 1..10 de rojo a verde); el port usaba
+  `energía` → mostraba una barra de más. Con energía 0 no se dibuja.
+- **Pérdida de energía** (Hud::setEnergy → initEnergyLoseDo): el tramo perdido (x = nueva×4+2, ancho =
+  (vieja−nueva)×4+2) se dibuja con ENERGY_BAR_LOSE (barra roja) y se achica linealmente en 1 s.
+- Menú SALIR = App::postStopMsg (cierra la app) → en web vuelve a los logos (sin equivalente de cerrar pestaña).

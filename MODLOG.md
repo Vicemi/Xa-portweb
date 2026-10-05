@@ -684,3 +684,17 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - Menu::Menu crea el TextSprite del récord con GameFont 0 y `Pos2::setPos(419.0, 8.0)`. El port lo dibujaba en
   (419, 21): 13 px más abajo, fuera del recuadro "RÉCORD:". Ahora (419, 8) → los dígitos quedan bajo "RÉCORD:",
   dentro del recuadro (los glifos están en la parte baja de su celda de 30 px). Verificado con récord 123456.
+
+## Estado 2026-10-05 (ronda 40 — muerte del héroe 1:1)
+- Hero::setState(9) NO reproduce animación: pone en el sprite la imagen fija `HERO_DEAD` (Xa_animaciones.png
+  280,140 70x70, ancla 35,64), para la música y suena el SONIDO "HERO_DEATH". El port reproducía la anim
+  `HERO_DEATH` (explosión de planilla_blasts) → inventada; quitada. Se mantiene el sentido en que murió.
+- InGame::update: con Xa muerto sólo se actualizan el héroe y la transición; Hero::update llama a
+  Scenario::updateAnimations → efectos/puntos siguen, enemigos, balas y plataformas quedan CONGELADOS. Antes el
+  mundo seguía andando.
+- Al terminar la espera: setImage("HERO"), anim JUMP, setScaleX(1) (mira a la derecha), y Scenario::init(Vector2)
+  borra todos los objetos volátiles (balas, efectos, puntos) y el mensaje del HUD. Implementado.
+- ENTRANCE: la caída ya viene en las anclas de HERO_IM_0..29 (y 384 → 80). El port además restaba hasta 340 px
+  en render → caía desde el doble de altura. Quitado.
+- Verificado con g.step: enemigos se mueven antes, congelados durante la muerte, balas borradas al reaparecer,
+  1 vida por muerte, dir -1 durante / 1 después. Regresión 16 niveles (incluida una muerte por nivel): sin errores.

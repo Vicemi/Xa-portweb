@@ -238,6 +238,13 @@ export class Scenario implements World {
     }
     s.lives -= 1;
     if (this.music) playMusic(this.music); // the track a checkpoint switched to keeps playing (AudioLibrary state)
+    // Scenario::init(Vector2): every volatile object (bullets, effects, floating points) is removed and the HUD
+    // message is cleared
+    this.bullets = [];
+    this.effects = [];
+    this.pointsFx = [];
+    this.explosions = [];
+    this.events.message('', 0);
     this.hero.vel = { x: 0, y: 0 };
     this.hero.spawn(this.restore.x, this.restore.y);
     this.camera.goToGoal(this.restore.x, this.restore.y, this.hero.height);
@@ -247,7 +254,14 @@ export class Scenario implements World {
   // ---------- update ----------
   update(dt: number): void {
     const h = this.hero;
-    h.update(dt);
+    if (!h.isAlive()) {
+      // InGame::update: while Xa is dead only the hero (its death wait) and the transition run; the hero itself
+      // calls Scenario::updateAnimations, so effects keep playing but enemies, bullets and platforms freeze
+      h.update(dt);
+      if (!h.isAlive()) { this.updateAnimations(dt); return; }
+    } else {
+      h.update(dt);
+    }
     this.camera.update(dt, h.pos.x, h.pos.y, h.height, h.dir, h.vel.x, h.vel.y, this.winner);
 
     // platforms: move + hero landing/riding
@@ -397,6 +411,11 @@ export class Scenario implements World {
     }
     this.bullets = this.bullets.filter((b) => b.alive);
 
+    this.updateAnimations(dt);
+  }
+
+  /** Scenario::updateAnimations: the volatile effects (blasts, shines, floating points, boss explosion). */
+  private updateAnimations(dt: number): void {
     for (const x of this.explosions) {
       x.anim.update(dt);
       x.t -= dt;

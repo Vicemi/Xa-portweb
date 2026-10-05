@@ -159,9 +159,8 @@ export class Hero {
         this.deathWait = DEATH_WAIT;
         W.startDeathTransition(DEATH_WAIT * 2);
         stopMusic();
-        playSound('HERO_DEATH');
+        playSound('HERO_DEATH');         // the SOUND; there is no death animation
         this.state = s;
-        this.setAnim('HERO_DEATH');
         return;
       case HS.Entrance: {
         this.acc = { x: 0, y: 0 };
@@ -279,6 +278,8 @@ export class Hero {
       if (this.deathWait <= 0) {
         this.integrate(dt);
         this.state = HS.Fall;
+        this.setAnim('JUMP');
+        this.dir = 1;                    // Hero::update: setImage("HERO"), setScaleX(1)
         this.world.onHeroDeathFinished();
       } else {
         this.deathWait -= dt;
@@ -596,10 +597,11 @@ export class Hero {
     if (!this.visible) return;
     this.frameCounter = (this.frameCounter + 1) & 3;
     const x = Math.floor(this.pos.x) - Math.floor(camX);
-    let y = Math.floor(this.pos.y) - Math.floor(camY);
-    // entrance: drop in from the top of the screen during the first half of the animation
-    if (this.state === HS.Entrance && this.entranceActive) y -= Math.max(0, 1 - this.anim.time / 0.5) * 340;
-    const f = this.currentFrame();
+    const y = Math.floor(this.pos.y) - Math.floor(camY);
+    // the ENTRANCE drop needs no offset: its frames HERO_IM_0..29 carry it in their anchors (y 384 → 80)
+    // Hero::setState(9): the sprite shows the single still image HERO_DEAD (Xa lying down) while the death
+    // transition runs; the facing of the moment of death is kept
+    const f = this.state === HS.Dead ? frameOf('HERO_DEAD', 0) : this.currentFrame();
     // Hero::render swaps to the red "_R" sheet while flashing after a hit (blinks 2 of every 4 frames).
     if (f) drawFrame(ctx, f, x, y, this.dir);
   }

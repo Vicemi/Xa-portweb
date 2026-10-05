@@ -664,3 +664,13 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - Propiedades TMX revisadas: pHard/pPlatform/pLadder/pLadderEnd/pKilling/pInvisible son de TILES (ya manejadas en
   tilemap); pBulletAsset siempre BULLET_ENEMY/SIMPLE_ENEMY y XABulletFactory dibuja todo con BULLET_ENEMY → correcto.
   Meteoritos no aparecen en ningún nivel original → sacados de pendientes.
+
+## Estado 2026-10-05 (ronda 37 — menú de día/noche en alta resolución)
+- El usuario rehízo `menu.jpg` (1254x1254) y `menu_night.jpg` (1024x1024), mismo encuadre que los 512x512 originales
+  (imagen en la banda 4:3 superior). Regla del original intacta: día de 10:00 a 18:59 del reloj del jugador, noche
+  el resto.
+- La pasada HD tapaba todo lo dibujado encima (botones, récord). Ahora `cover()` deja transparente el área del arte
+  HD en el frame 512x384, `render()` dibuja el arte HD primero a resolución de pantalla y el frame encima. Sirve para
+  cualquier tamaño (menús y créditos) y conserva cinta "Presiona cualquier tecla" y fundidos.
+- Verificado en navegador: menú de noche (9 h) y de día (hora forzada a 14), botones y récord visibles, créditos OK,
+  sin errores de consola.

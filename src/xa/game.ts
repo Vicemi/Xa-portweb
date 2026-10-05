@@ -662,8 +662,10 @@ export class XaGame {
     c.fillRect(0, 0, cw, ch);
     c.imageSmoothingEnabled = true;
     c.imageSmoothingQuality = 'high';
-    c.drawImage(this.world, v.x, v.y, v.w, v.h);
+    // high-res screen art goes underneath, straight at display resolution; the 512x384 frame (buttons, texts,
+    // ribbons, fades drawn after the art) is laid on top with the art's area left transparent
     if (this.hdArt) this.renderHdArt(c, v);
+    c.drawImage(this.world, v.x, v.y, v.w, v.h);
 
     // custom cursor (original POINTER sprite) — hidden while playing so it doesn't get in the way
     const cur = this.screen === 'play' ? null : frameOf('POINTER', 0);
@@ -682,17 +684,18 @@ export class XaGame {
   private cover(w: CanvasRenderingContext2D, path: string): void {
     const im = img(path);
     if (!im) { w.fillStyle = '#000'; w.fillRect(0, 0, VIEW_W, VIEW_H); return; }
+    // art at a higher resolution than the 512x384 frame (redrawn menu.jpg / menu_night.jpg / creditos.jpg) is
+    // drawn straight onto the screen canvas in render() so it stays sharp instead of being halved and blown up
+    // again; here its area is left transparent so whatever the screen draws next lands on top of it
+    if (im.width > VIEW_W) { w.clearRect(0, 0, VIEW_W, VIEW_H); this.hdArt = path; return; }
     w.drawImage(im, 0, 0, im.width, XaGame.band(im), 0, 0, VIEW_W, VIEW_H);
-    // art drawn at a higher resolution than the 512x384 frame is re-drawn straight onto the screen canvas
-    // in render() so it stays sharp instead of being halved and blown up again
-    if (im.width > VIEW_W) this.hdArt = path;
   }
   private coverTop(w: CanvasRenderingContext2D, path: string): void {
     this.cover(w, path);
   }
 
-  /** Full-resolution pass for high-res screen art (e.g. the redrawn 1024x1024 creditos.jpg): the picture is drawn
-   *  at the display's own resolution, then the PRESS_ANY_KEY ribbon is laid on top, scaled the same way. */
+  /** Full-resolution pass for high-res screen art (redrawn menus and credits, any size): the picture's top 4:3 band
+   *  is drawn at the display's own resolution, under the 512x384 frame. */
   private renderHdArt(c: CanvasRenderingContext2D, v: { x: number; y: number; w: number; h: number }): void {
     const im = img(this.hdArt!);
     this.hdArt = null;
@@ -700,14 +703,6 @@ export class XaGame {
     c.imageSmoothingEnabled = true;
     c.imageSmoothingQuality = 'high';
     c.drawImage(im, 0, 0, im.width, XaGame.band(im), v.x, v.y, v.w, v.h);
-    if (this.t > 0.3) {
-      const idx = Math.floor(this.t / 0.3) % 2 === 0 ? 1 : 0;
-      const f = frameOf('PRESS_ANY_KEY', idx);
-      if (f) {
-        const sx = v.w / VIEW_W, sy = v.h / VIEW_H;
-        c.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, v.x + (VIEW_W - f.sw) * sx, v.y + (VIEW_H - f.sh) * sy, f.sw * sx, f.sh * sy);
-      }
-    }
   }
 
   private renderScreens(w: CanvasRenderingContext2D): void {

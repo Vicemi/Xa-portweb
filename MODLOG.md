@@ -421,3 +421,17 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - Corregido el doble prefijo de URLs de assets (`/assets/assets/...` → `/assets/...`) que causaba la pantalla negra.
 - Flujo git: solo `main` y `develop`; el trabajo va a develop y se sincroniza (merge) a main.
 - Verificación: `tsc --noEmit` y `npm run build` OK.
+
+## Estado 2026-10 (plataformas + texto de intro + saltarín)
+- **El héroe traspasaba las plataformas móviles**: `prev.y` quedaba sobreescrito por la colisión (el `setPosition`
+  al final de `processIntersections` ponía `prev=pos`), así que la condición de aterrizaje se reducía a una ventana
+  de ~2px que saltaba al caer (~11px/frame). Ahora detecta el cruce con la velocidad: `pos.y - vel.y*dt <= p.y+2`.
+- **Enemigos sobre plataformas**: el ride ahora aplica también el desplazamiento horizontal (`e.x += p.x-p.prevX`),
+  no solo vertical.
+- **Saltarín (Jumper)**: aterrizaba solo sobre tiles (`isHard`); ahora usa `hasFloor` (tiles O plataformas), así
+  que no atraviesa las plataformas flotantes.
+- **Intro de nivel**: `fondo_niveles.png`/`preview_levels_tile.jpg` precargados (antes no se cargaban → pantalla
+  oscura); la pantalla de carga de nivel tiene duración mínima (600ms) para que no parpadee.
+- **Tipografía**: `text()` tiene fallback a fuente de sistema si `fuente_blanca.png` no está cargada (defensivo).
+  Verificado por test aislado que la hoja `fuente_blanca.png` renderiza glifos blancos correctamente (drawImage OK).
+- Verificación: `tsc --noEmit` y `npm run build` OK.

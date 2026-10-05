@@ -45,13 +45,16 @@ export function feetOf(x: number, y: number, ts: number): { x: number; y: number
   return { x: Math.floor(x / ts) * ts + ts * 0.5, y: Math.floor(y / ts) * ts + ts - 1 };
 }
 
-const ITEM_POINTS = 10; // coin value observed in xa.exe (Puntos +10 per coin)
+const ITEM_POINTS = 10;
+const ITEM_FLOAT = 1.5; // Item float period (0x3fc00000) // coin value observed in xa.exe (Puntos +10 per coin)
 
 class Thing {
   alive = true;
   anim: Anim | null = null;
   t = 0;
   touching = false;
+  /** float phase offset (Item::setTime) so neighbouring items don't bob in lockstep */
+  phase = 0;
   /** seconds left before a rescued cow is removed (-1 = not rescued) */
   rescueTime = -1;
   constructor(public o: TmxObject, public x: number, public y: number, public mapName: string | null) {
@@ -127,6 +130,7 @@ export class Scenario implements World {
         case 'Item':
           if (o.props.pRequiredItem === 'POINTS') coins++;
           this.things.push(new Thing(o, f.x, f.y, o.props.pAsset ?? null));
+          this.things[this.things.length - 1].phase = ((o.x / 32) * 0.15) % ITEM_FLOAT; // Item::setTime
           break;
         case 'Information':
         case 'SavePoint':
@@ -474,6 +478,10 @@ export class Scenario implements World {
         if (p.pIsKey === 'true') s.keys.push(req ?? '');
         playSound('KEY');
     }
+    // Item::intersects: pickup flash at the item's centre — POWER for ordinary items, MEGA_POWER for the
+    // special power-up (inferred: the double-jump yogurt; ENDING has none)
+    const b = t.bounds();
+    this.addEffect(req === 'ENERGY_DOUBLE_JUMP' ? 'MEGA_POWER' : 'POWER', b.x + b.w / 2, b.y + b.h / 2, 1);
     t.alive = false;
   }
 
@@ -530,7 +538,13 @@ export class Scenario implements World {
       // checkpoints rest on their SAVE image and only the active one plays its SHINE anim
       const idleSave = t.o.type === 'SavePoint' && t !== this.activeSave;
       const f = (idleSave ? null : t.anim?.frame()) ?? (t.mapName ? frameOf(t.mapName, 0) : null);
-      if (f) drawFrame(ctx, f, sx, sy);
+      // Item: floats up and down 7 px, easeInOutSin yoyo over 1.5 s (Item::Item / internalUpdate)
+      let bob = 0;
+      if (t.o.type === 'Item' && t.o.props.pAsset !== 'ENDING') {
+        const ph = ((t.t + t.phase) % ITEM_FLOAT) / ITEM_FLOAT, k = ph < 0.5 ? ph * 2 : 2 - ph * 2;
+        bob = Math.round(-7 * (1 - Math.cos(Math.PI * k)) / 2);
+      }
+      if (f) drawFrame(ctx, f, sx, sy + bob);
     }
 
     // doors + platforms (behind the hero)

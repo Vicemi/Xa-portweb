@@ -611,3 +611,12 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   vuelta y sin pasar del último desbloqueado (0x348); mantener la tecla sigue avanzando; la flecha se desliza entre
   nodos; aceptar = disparar / saltar / Enter (isSelectionAccept). Al entrar, el cursor arranca en el último nivel
   desbloqueado (0x34c = lastPlayedLevel). Antes: grilla ±1/±4 con vuelta y cursor en el nivel 1.
+
+## Estado 2026-10-05 (ronda 31 — repaso integral, parte 4: ítems)
+- **Item** (Item::Item / internalUpdate): los ítems flotan -7 px con yoyó easeInOutSin de 1.5 s (0x3fc00000); el
+  desfase por posición imita Item::setTime (fila de monedas en ola; el valor exacto que pasa loadObjects no se
+  pudo leer).
+- **Item::intersects**: al tomar un ítem aparece un efecto en su centro: POWER (destello verde) para los normales,
+  MEGA_POWER para uno especial y ninguno para otro. Las cadenas comparadas no se resolvieron (la ref a MEGA_POWER
+  del exe es del registro de assets); INFERIDO: MEGA_POWER = ENERGY_DOUBLE_JUMP, ENDING sin efecto.
+- Verificado: rebote al pisar = VELOCITY_JUMP[4].y × 0.6 = -510 (igual al port); deathWait 1 s.

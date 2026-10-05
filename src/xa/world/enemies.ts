@@ -25,6 +25,7 @@ const AUTO_SHOOTERS: Record<string, string> = {
   UFO: 'SIMPLE_ENEMY', // EnemyUFO: Shooter SIMPLE_ENEMY, offset (30,-4), toward the side it flies
 };
 const BOSS = new Set(['Boss']);
+const NO_CONTACT = new Set(['Thrower', 'Cannon', 'Down3', 'FixedShooter']);
 // InteractiveObject::isInvisibleForBullet → these are ignored by hero bullets.
 const BULLET_PROOF = new Set(['Guillotine', 'Rocket']);
 // Hazards that kill the hero outright on contact (Hero::setState(9)). "Stub" = the spiky balls (UFO_SPIKY):
@@ -104,6 +105,11 @@ export class Enemy {
   }
 
   get isBoss(): boolean { return BOSS.has(this.type); }
+  /** intersects returns 0 without touching the hero: EnemyThrower and the fixed turrets (Cannon / Down3 share the
+   *  EnemyFixedShooter-style ctor 0x434e10 in the Windows loadObjects). */
+  get ignoresContact(): boolean { return NO_CONTACT.has(this.type); }
+  /** EnemySmartUFO::intersects: any touch hurts (4) and removes it — it can't be stomped. */
+  get unstompable(): boolean { return this.type === 'SmartUFO'; }
   get points(): number { return POINTS[this.type] ?? 0; }
   get isBulletProof(): boolean { return BULLET_PROOF.has(this.type); }
   get isIndestructible(): boolean { return INDESTRUCTIBLE.has(this.type); }

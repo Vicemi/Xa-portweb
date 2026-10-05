@@ -646,3 +646,11 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - **Pérdida de energía** (Hud::setEnergy → initEnergyLoseDo): el tramo perdido (x = nueva×4+2, ancho =
   (vieja−nueva)×4+2) se dibuja con ENERGY_BAR_LOSE (barra roja) y se achica linealmente en 1 s.
 - Menú SALIR = App::postStopMsg (cierra la app) → en web vuelve a los logos (sin equivalente de cerrar pestaña).
+
+## Estado 2026-10-05 (ronda 35 — repaso integral, parte 8: contacto por clase)
+- `intersects` de cada clase: EnemyThrower y las torretas fijas (Cannon y Down3 llaman al mismo ctor 0x434e10 en
+  Windows loadObjects, estilo EnemyFixedShooter) devuelven 0 → tocarlas NO hace nada (antes dañaban y desaparecían).
+- EnemySmartUFO::intersects: cualquier contacto → onCollisionEnemy(4) + se quita, SIN pisotón ni puntos.
+- EnemyBird (Bird/UFO/Double), Enemy, Jumper, FloorCannon, PiranhaRobot: pisotón desde arriba mata con puntos;
+  si no, daño 4 y el enemigo se quita. Bomb / Ultraton / Boss / Stub / Guillotine: contacto = muerte.
+- Verificado: pisar pájaro +10, pato robot +5; SmartUFO -4 energía y 0 puntos; Thrower sin efecto.

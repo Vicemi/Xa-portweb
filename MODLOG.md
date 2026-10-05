@@ -404,3 +404,20 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   `XABulletFactory`); los nombres "SIMPLE_ENEMY"/"8_BULLETS"/"TO_HERO"… son IDs de PATRÓN, no sprites. Así que
   el render actual de balas (todo "BULLET_ENEMY") es correcto.
 - Verificación: `tsc --noEmit` y `npm run build` OK.
+
+## Estado 2026-10 (pulido integral — feedback del usuario)
+- **Pinchos (Stub/UFO_SPIKY)**: antes mataban de una (setState 9); ahora **restan vida** (daño de contacto 4 con
+  ventana de invulnerabilidad). Separado `INSTANT_KILL` (familia DeathBarrier + Bomb) de `INDESTRUCTIBLE` (Stub +
+  DeathBarrier). "Stub" ahora es indestructible PERO hace daño, no mata.
+- **Pantalla de carga**: texto "Pulsa una tecla para continuar" (tipografía bitmap) abajo, y espera input (ya no
+  auto-avanza a los 0.9s).
+- **Sonido de arranque**: splash reproduce `intro_piano.ogg` (música que faltaba). Niveles ya usaban
+  xa_1..xa_4/xa_boss vía `pMusic`.
+- **Móvil**: D-pad **arrastrable** (deslizar cambia de dirección sin levantar el dedo, con deadzone) y más
+  separación entre SALTO y FUEGO.
+- **Enemigos**: detección de pared muestreando **todo el alto** del enemigo (los altos ya no atraviesan paredes);
+  los enemigos de suelo (patrol/static/boss/slide) **montan las plataformas móviles** (se desplazan con ellas).
+- **Volumen**: sliders + toggles persistidos en `localStorage` (clave `xa-audio`) y restaurados al arrancar.
+- Corregido el doble prefijo de URLs de assets (`/assets/assets/...` → `/assets/...`) que causaba la pantalla negra.
+- Flujo git: solo `main` y `develop`; el trabajo va a develop y se sincroniza (merge) a main.
+- Verificación: `tsc --noEmit` y `npm run build` OK.

@@ -5,7 +5,8 @@ Desc layout (offsets relative to the desc local, e.g. local_1bc):
   -0x08 path (wstring)      -0x0c type  (1 = strip from rect, cols x rows; 2 = grid; 3 = single rect;
   -0x18 rect.x              4 = explicit rect list)
   -0x1c rect.y   -0x20 rect.w   -0x24 rect.h
-  -0x28 cols     -0x2c rows     -0x30 count    -0x34 ?   -0x38 anchor.x   -0x3c anchor.y
+  -0x28 cols     -0x2c rows     -0x30 count    -0x34 anchor mode (0 = frame centre, 1 = explicit)
+  -0x38 anchor.x   -0x3c anchor.y
 usage: python imagemaps.py <Assets*.c> ... > imagemaps.json
 """
 import re, sys, json, struct
@@ -46,6 +47,16 @@ class Interp:
 
     def stmt(self, s):
         s = ' '.join(s.split())
+        # ImageMapDesc::setDefault resets every field of the desc (the decompiler reuses the same locals for
+        # consecutive descs, so stale anchors/rects must not leak into the next one): type 1, rect 0, cols/rows/
+        # count 0, anchor mode 0 (= centre of the frame, bat::Image::Image) and anchor (0,0)
+        dm = re.search(r'ImageMapDesc::setDefault\(\(ImageMapDesc \*\)&?(local_[0-9a-f]+)\)', s)
+        if dm:
+            b = local_off(dm.group(1))
+            for off, v in ((0xc, 1), (0x18, 0), (0x1c, 0), (0x20, 0), (0x24, 0), (0x28, 0), (0x2c, 0), (0x30, 0),
+                           (0x34, 0), (0x38, 0), (0x3c, 0)):
+                self.vars['local_%x' % (b - off)] = v
+            return
         for m in re.finditer(r'L"([^"]*)"', s):
             self.last_str = m.group(1)
             if m.group(1).startswith('assets/'):
@@ -78,7 +89,7 @@ class Interp:
             name = self.last_str
             d = {'name': name, 'path': self.last_path, 'type': g(0xc),
                  'rect': [g(0x18), g(0x1c), g(0x20), g(0x24)], 'cols': g(0x28), 'rows': g(0x2c),
-                 'count': g(0x30), 'anchor': [g(0x38), g(0x3c)]}
+                 'count': g(0x30), 'anchorMode': g(0x34), 'anchor': [g(0x38), g(0x3c)]}
             if d['type'] == 4:
                 d['rects'] = self.rects[-int(d['count'] or 0):] if d['count'] else list(self.rects)
             self.rects = []

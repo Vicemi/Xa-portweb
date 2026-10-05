@@ -732,3 +732,18 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - Shooter::shooterUpdate: con frameSync ≥ 0 la bala sale cuando la anim sincronizada llega a ese cuadro (no al
   terminar). `FRAME_SYNC` = {SmartUFO: 1, FloorCannon: 3}.
 - Tabla tipo→(pAsset,pAnim) de los 16 niveles revisada; todos los sprites resuelven. Regresión 16 niveles OK.
+
+## Estado 2026-10-05 (ronda 44 — balas del jefe desde el cañón + destellos de impacto)
+- XABulletFactory "BOSS_BULLETS": origen x = bound.left + (dir+1)·w/2 + dir·offset.x, y = bound.top + offset.y +
+  h/2 (offset EnemyBoss = (-22, 15), setFrameSync 1); abanico de 5 a 200 px/s a 60°..120° desde arriba. El port
+  usaba x − dir·22 y la mitad del rect TMX de 32x32 → salían de los pies, detrás. Ahora BOSS_BODY 112x172 → boca del
+  cañón de jefe_tile.png (+34, −71 desde los pies; medido sobre el sprite). Inferido: el tamaño exacto del bound
+  del jefe en el original no se pudo leer del exe (loadObjects Windows); se eligió el que cuadra con el cañón.
+- Destellos SHINE (ORANGE_SHINE y GREEN_SHINE): bat::Image::Image usa el CENTRO del cuadro cuando el modo de ancla
+  (ImageMapDesc +0x34) es 0, el valor de setDefault. La desc de SHINE no define ancla → (12,12). El extractor
+  arrastraba (40,50) de SHIELD_DOWN → todos los impactos salían 50 px arriba (en la cabeza). Arreglado en
+  sprites.json y build_data.py; tools/imagemaps.py ahora resetea los campos en setDefault y exporta anchorMode.
+  Otras descs en modo 0 (HUD/menús: SAVING, AVATAR, COW, COINS, BUTTONS_*, CONFIRMATION, PAUSE_DIALOG,
+  COW_COUNTER, BACK_SELECTION) se dibujan con coordenadas propias → sin cambio visible.
+- Hero::onCollision(Bullet): el choque es contra el bound del héroe aunque bloquee; al bloquear de frente deja
+  ORANGE_SHINE en bala + (−sign(vx)·15, 0) mirando al tirador. Quitado SHIELD_REACH (30 px, invento del port).

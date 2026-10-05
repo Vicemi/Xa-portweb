@@ -118,6 +118,7 @@ export class XaGame {
   private soundsReady = false;   // ...and until every sound is decoded
   private infoT = 0;             // level-select info bar slide-in timer (ButtonInformation, easeInOutQuad 0.3 s)
   private infoIndex = -1;
+  private hdArt: string | null = null; // high-res screen art redrawn at display resolution this frame
   private stretch = false;
   private resizeObs: ResizeObserver | null = null;       // "Estirar pantalla"
   private pauseIndex = 0;        // PauseDialog: 0 = JUGAR, 1 = SALIR
@@ -617,6 +618,7 @@ export class XaGame {
     c.imageSmoothingEnabled = true;
     c.imageSmoothingQuality = 'high';
     c.drawImage(this.world, v.x, v.y, v.w, v.h);
+    if (this.hdArt) this.renderHdArt(c, v);
 
     // custom cursor (original POINTER sprite) — hidden while playing so it doesn't get in the way
     const cur = this.screen === 'play' ? null : frameOf('POINTER', 0);
@@ -627,22 +629,44 @@ export class XaGame {
   }
 
   // ---------- screens (original art) ----------
+  /** Screen art keeps the visible picture in its TOP 4:3 band (512x512 sheets → top 512x384; a redrawn
+   *  1024x1024 sheet → top 1024x768). Returns that band's source height. */
+  private static band(im: HTMLImageElement): number {
+    return Math.min(im.height, Math.round((im.width * VIEW_H) / VIEW_W));
+  }
   private cover(w: CanvasRenderingContext2D, path: string): void {
     const im = img(path);
     if (!im) { w.fillStyle = '#000'; w.fillRect(0, 0, VIEW_W, VIEW_H); return; }
-    // All 512x512 screen art shows the visible band in the TOP 384px; crop the extra bottom rows.
-    const h = Math.min(im.height, VIEW_H);
-    w.drawImage(im, 0, 0, im.width, h, 0, 0, VIEW_W, VIEW_H);
+    w.drawImage(im, 0, 0, im.width, XaGame.band(im), 0, 0, VIEW_W, VIEW_H);
+    // art drawn at a higher resolution than the 512x384 frame is re-drawn straight onto the screen canvas
+    // in render() so it stays sharp instead of being halved and blown up again
+    if (im.width > VIEW_W) this.hdArt = path;
   }
-  /** Draws the top 512x384 of a 512x512 sheet (menu_night.jpg / map.png art lives in the top band). */
   private coverTop(w: CanvasRenderingContext2D, path: string): void {
-    const im = img(path);
-    if (!im) { w.fillStyle = '#000'; w.fillRect(0, 0, VIEW_W, VIEW_H); return; }
-    const h = Math.min(im.height, VIEW_H);
-    w.drawImage(im, 0, 0, im.width, h, 0, 0, VIEW_W, VIEW_H);
+    this.cover(w, path);
+  }
+
+  /** Full-resolution pass for high-res screen art (e.g. the redrawn 1024x1024 creditos.jpg): the picture is drawn
+   *  at the display's own resolution, then the PRESS_ANY_KEY ribbon is laid on top, scaled the same way. */
+  private renderHdArt(c: CanvasRenderingContext2D, v: { x: number; y: number; w: number; h: number }): void {
+    const im = img(this.hdArt!);
+    this.hdArt = null;
+    if (!im) return;
+    c.imageSmoothingEnabled = true;
+    c.imageSmoothingQuality = 'high';
+    c.drawImage(im, 0, 0, im.width, XaGame.band(im), v.x, v.y, v.w, v.h);
+    if (this.t > 0.3) {
+      const idx = Math.floor(this.t / 0.3) % 2 === 0 ? 1 : 0;
+      const f = frameOf('PRESS_ANY_KEY', idx);
+      if (f) {
+        const sx = v.w / VIEW_W, sy = v.h / VIEW_H;
+        c.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, v.x + (VIEW_W - f.sw) * sx, v.y + (VIEW_H - f.sh) * sy, f.sw * sx, f.sh * sy);
+      }
+    }
   }
 
   private renderScreens(w: CanvasRenderingContext2D): void {
+    this.hdArt = null;
     switch (this.screen) {
       case 'pick': this.renderPick(w); break;
       case 'error': this.renderError(w); break;

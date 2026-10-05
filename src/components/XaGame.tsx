@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { XaGame } from '../xa/game';
+import TouchControls from './TouchControls';
 
-/** Full-window, responsive game canvas (4:3 letterboxed). On touch devices it adds a rotate prompt
- *  and transparent virtual controls. Click or any key = user gesture for folder/audio. */
+/** Full-window, responsive game canvas (4:3 letterboxed, or stretched from Options). On touch devices it adds
+ *  a rotate prompt and, while playing, the TouchControls overlay. Click or any key = user gesture for audio. */
 export default function XaGameView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const gameRef = useRef<XaGame | null>(null);
   const [isTouch, setIsTouch] = useState(false);
   const [portrait, setPortrait] = useState(false);
-  const dpadRef = useRef<HTMLDivElement>(null);
-  const dpadDir = useRef<string | null>(null);
+  const [screen, setScreen] = useState('');
 
   useEffect(() => {
     const g = new XaGame(canvasRef.current!);
+    gameRef.current = g;
     if (import.meta.env.DEV) (window as unknown as { __xa: XaGame }).__xa = g;
     void g.start();
     const gesture = () => void g.userGesture();
@@ -24,8 +26,10 @@ export default function XaGameView() {
     };
   }, []);
 
+  // touch detection + orientation
   useEffect(() => {
-    const isT = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const forced = new URLSearchParams(location.search).get('touch'); // ?touch=1 / ?touch=0 overrides detection
+    const isT = forced !== null ? forced !== '0' : 'ontouchstart' in window || navigator.maxTouchPoints > 0 || matchMedia('(pointer: coarse)').matches;
     setIsTouch(isT);
     const update = () => setPortrait(window.innerHeight > window.innerWidth);
     update();
@@ -37,45 +41,11 @@ export default function XaGameView() {
     };
   }, []);
 
-  // Dispatch synthetic key events so the existing keyboard input system drives the game.
-  const press = (code: string) => (down: boolean) => {
-    window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code }));
-  };
-
-  // Draggable D-pad: direction follows the finger position relative to the pad centre, so sliding
-  // from one side to another switches direction without lifting the finger.
-  const dpadDirFrom = (clientX: number, clientY: number): string | null => {
-    const el = dpadRef.current;
-    if (!el) return null;
-    const r = el.getBoundingClientRect();
-    const dx = clientX - (r.left + r.width / 2);
-    const dy = clientY - (r.top + r.height / 2);
-    const dead = Math.max(10, r.width * 0.12);
-    if (Math.abs(dx) < dead && Math.abs(dy) < dead) return null;
-    if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 'ArrowRight' : 'ArrowLeft';
-    return dy > 0 ? 'ArrowDown' : 'ArrowUp';
-  };
-  const setDpadDir = (dir: string | null) => {
-    if (dir === dpadDir.current) return;
-    if (dpadDir.current) press(dpadDir.current)(false);
-    if (dir) press(dir)(true);
-    dpadDir.current = dir;
-  };
-  const dpadHandlers = {
-    onPointerDown: (e: React.PointerEvent) => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); setDpadDir(dpadDirFrom(e.clientX, e.clientY)); },
-    onPointerMove: (e: React.PointerEvent) => { if (dpadDir.current !== null) setDpadDir(dpadDirFrom(e.clientX, e.clientY)); },
-    onPointerUp: () => setDpadDir(null),
-    onPointerCancel: () => setDpadDir(null),
-    onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
-  };
-
-  const bind = (code: string) => ({
-    onPointerDown: (e: React.PointerEvent) => { e.preventDefault(); e.stopPropagation(); press(code)(true); },
-    onPointerUp: (e: React.PointerEvent) => { e.preventDefault(); e.stopPropagation(); press(code)(false); },
-    onPointerLeave: () => press(code)(false),
-    onPointerCancel: () => press(code)(false),
-    onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
-  });
+  // the controls are only mounted while a level is being played (menus use plain taps = clicks)
+  useEffect(() => {
+    const id = window.setInterval(() => setScreen(gameRef.current?.currentScreen ?? ''), 120);
+    return () => window.clearInterval(id);
+  }, []);
 
   return (
     <div className="xa-stage">
@@ -90,23 +60,7 @@ export default function XaGameView() {
         </div>
       )}
 
-      {isTouch && !portrait && (
-        <div className="xa-controls">
-          <div className="xa-dpad" ref={dpadRef} {...dpadHandlers}>
-            <span className="xa-dpad-arrow xa-up">▲</span>
-            <span className="xa-dpad-arrow xa-left">◀</span>
-            <span className="xa-dpad-arrow xa-down">▼</span>
-            <span className="xa-dpad-arrow xa-right">▶</span>
-          </div>
-
-          <div className="xa-actions">
-            <button className="xa-btn xa-fire" {...bind('KeyX')} aria-label="Disparar">FUEGO</button>
-            <button className="xa-btn xa-jump" {...bind('Space')} aria-label="Saltar">SALTO</button>
-          </div>
-
-          <button className="xa-btn xa-back" {...bind('Escape')} aria-label="Volver">↩</button>
-        </div>
-      )}
+      <TouchControls active={isTouch && !portrait && screen === 'play'} />
     </div>
   );
 }

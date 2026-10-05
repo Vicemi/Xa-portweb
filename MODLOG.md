@@ -493,3 +493,15 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   desde el bucle del juego). Estirar = viewport sin letterbox (persistido `xa-stretch`). Tecla F = pantalla completa.
 - Cursor POINTER oculto en `play`. Responsive: ResizeObserver + fullscreenchange, 100dvh, safe-area, controles
   táctiles más chicos en pantallas bajas.
+
+## Estado 2026-10-04 (ronda 22 — controles táctiles nuevos + README)
+- `src/components/TouchControls.tsx` reemplaza el D-pad: mitad izquierda = joystick flotante (origen en el toque,
+  radio 56 px, el origen sigue al dedo si se pasa → invertir dirección es instantáneo; zona muerta 14 px; diagonales
+  pulsan 2 teclas). Mitad derecha = SALTO (6rem) / FUEGO (4.8rem) separados, hit-area ampliada, deslizar entre
+  botones cambia la tecla; cualquier otro toque a la derecha = salto. Multitouch por pointerId con conteo de
+  referencias por tecla; al pausar / perder foco se sueltan todas. Vibración corta al saltar. Solo se monta en
+  `play` (getter `XaGame.currentScreen`); en menús los toques son clics. `?touch=1|0` fuerza/desactiva.
+  Verificado con PointerEvents sintéticos: 3 dedos simultáneos (mover + saltar + disparar), slide SALTO→FUEGO.
+- `?level=N` y `?map=ruta.tmx` entran directo a un nivel. `npm run manifest` (tools/gen-manifest.mjs) regenera
+  public/assets/manifest.json para mapas nuevos.
+- README reescrito: estado, controles (teclado y táctil), opciones, atajos URL, cómo crear mapas, estructura.

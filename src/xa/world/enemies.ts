@@ -14,6 +14,10 @@ const POINTS: Record<string, number> = {
 };
 
 // type -> movement pattern
+// Sprites hard-coded by the class constructors (Windows Scenario::loadObjects / Enemy*::Enemy*).
+const FIXED_ANIM: Record<string, string> = { Boss: 'BOSS', SmartUFO: 'UFO_1' };
+// Shooter::setFrameSync per class (EnemySmartUFO 1, EnemyFloorCannon 3; Android/Boss handle theirs below).
+const FRAME_SYNC: Record<string, number> = { SmartUFO: 1, FloorCannon: 3 };
 const FLYERS = new Set(['Bird', 'UFO', 'SmartUFO', 'Double', 'Bomb', 'Rocket']);
 const JUMPERS = new Set(['Jumper', 'Jumper2', 'JumperShooter']);
 const STATIC = new Set(['Cannon', 'Stub', 'Spikes', 'Stalactite', 'Lava', 'AcidDrop', 'DeathBarrier', 'DummyDeathBarrier', 'Fire', 'Thrower', 'FixedShooter', 'Down3']);
@@ -87,7 +91,9 @@ export class Enemy {
     if (this.type === 'Thrower') this.dir = (+(this.p.pxOffset ?? 1) || 1) > 0 ? 1 : -1;
     this.vy = +(this.p.pyVel ?? 0) || 0;
     this.fireT = this.randomWait();
-    const animName = o.type === 'Boss' ? 'BOSS' : this.p.pAnim ?? '';
+    // classes that hard-code their sprite ignore the TMX pAsset/pAnim defaults (EnemyBoss "BOSS", EnemySmartUFO
+    // "UFO_1": every SmartUFO in the maps carries pAsset=DOUBLE_SIDE, which the original never shows)
+    const animName = FIXED_ANIM[o.type] ?? this.p.pAnim ?? '';
     if (animName) this.anim = new Anim(animName);
     else this.img = this.p.pAsset ?? null;
   }
@@ -179,7 +185,11 @@ export class Enemy {
       this.anim?.goToAndPlay(0);
       this.shotPending = true;
     }
-    if (this.anim && !this.anim.isOver() && this.anim.type?.loop === 0) return;
+    // Shooter::shooterUpdate: with a frame sync the shot leaves when the sync anim reaches that frame, otherwise
+    // when the anim is over
+    const sync = FRAME_SYNC[this.type];
+    if (this.anim && sync !== undefined) { if (this.anim.frameNum() < sync && !this.anim.isOver()) return; }
+    else if (this.anim && !this.anim.isOver() && this.anim.type?.loop === 0) return;
     this.shotPending = false;
     this.createBullets(pattern);
   }

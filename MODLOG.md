@@ -720,3 +720,15 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - Medido por píxeles: en fuente_negra los dígitos ocupan las filas 13-23 de la celda (mayúsculas 5-23). Ahora los
   números de la barra quedan en filas 34-44 de info_map.png, misma línea base que "Nivel:" (33-45) y "Puntaje:"
   (36-46) impresos en el arte; antes 32-42.
+
+## Estado 2026-10-05 (ronda 43 — sprites fijados por clase: SmartUFO)
+- Nueva herramienta `tools/xre_types.py`: para cada tipo comparado en Scenario::loadObjects (xa.exe Windows) lista
+  las cadenas que usa su rama. Sólo SmartUFO fija imagen ahí (L"UFO_1"); el resto toma pAsset/pAnim del TMX.
+- Cadenas fijas por clase (by_class): EnemySmartUFO "UFO_1" (imagen + anim) + Shooter "TO_HERO" con
+  setFrameSync(1); EnemyUFO "UFO"; EnemyAndroid "ANDROID"/"ANDROID_SHOOT"; EnemyBoss "BOSS"; EnemyFloorCannon
+  Shooter "4_FALL_RAND" con setFrameSync(3).
+- BUG: los 219 SmartUFO de los mapas traen los defaults de Tiled pAsset=DOUBLE_SIDE sin pAnim → el port los dibujaba
+  como la nave doble (p. ej. los dos del inicio del nivel 16). Ahora `FIXED_ANIM` = {Boss: BOSS, SmartUFO: UFO_1}.
+- Shooter::shooterUpdate: con frameSync ≥ 0 la bala sale cuando la anim sincronizada llega a ese cuadro (no al
+  terminar). `FRAME_SYNC` = {SmartUFO: 1, FloorCannon: 3}.
+- Tabla tipo→(pAsset,pAnim) de los 16 niveles revisada; todos los sprites resuelven. Regresión 16 niveles OK.

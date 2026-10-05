@@ -2,7 +2,17 @@
 export const MAX_ENERGY = 10;
 export const START_LIVES = 3;
 
-export interface LevelProgress { cows: number; totalCows: number; coins: number; totalCoins: number; score: number; done: boolean }
+export interface LevelProgress {
+  cows: number; totalCows: number; coins: number; totalCoins: number; score: number; done: boolean;
+  /** best coin percentage (HeroState::getCoinPercentage), stored like the original save */
+  coinPct?: number;
+}
+
+export function levelCoinPct(p: LevelProgress | undefined): number {
+  if (!p) return 0;
+  if (p.coinPct !== undefined) return p.coinPct;
+  return p.totalCoins ? Math.floor((p.coins * 100) / p.totalCoins) : 0; // saves from older builds
+}
 
 export class HeroState {
   lives = START_LIVES;
@@ -64,6 +74,23 @@ export class HeroState {
   }
   subEnergy(n: number): void { this.energy = Math.max(0, this.energy - n); }
   addEnergy(n: number): void { this.energy = Math.min(MAX_ENERGY, this.energy + n); }
+  /** HeroState::saveGame keeps the BEST result of each level: max cows, max coin %, max score. */
+  recordLevel(n: number): void {
+    const old = this.progress[n];
+    const pct = this.coinPercentage();
+    const best = (a: number, b: number | undefined) => Math.max(a, b ?? 0);
+    this.progress[n] = {
+      cows: best(this.cows, old?.cows), totalCows: this.totalCows,
+      coins: best(this.coins, old?.coins), totalCoins: this.totalCoinsInLevel,
+      coinPct: best(pct, levelCoinPct(old)), score: best(this.score, old?.score), done: true,
+    };
+    this.save();
+  }
+  /** LevelSelectScreen: a level is "perfect" when every cow was rescued and 100% of its coins were taken. */
+  isPerfect(n: number): boolean {
+    const p = this.progress[n];
+    return !!p?.done && p.cows >= p.totalCows && levelCoinPct(p) >= 100;
+  }
   coinPercentage(): number { return this.totalCoinsInLevel ? Math.floor((this.coins * 100) / this.totalCoinsInLevel) : 0; }
 
   save(): void {

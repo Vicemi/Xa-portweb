@@ -9,7 +9,7 @@ import { drawFrame, frameOf } from './core/sprites';
 import levelData from './data/levels.json';
 import { VIEW_H, VIEW_W } from './world/camera';
 import { Hud } from './world/hud';
-import { HeroState } from './world/state';
+import { HeroState, levelCoinPct } from './world/state';
 import { parseTmx } from './world/tmx';
 import { Scenario } from './world/world';
 
@@ -296,13 +296,7 @@ export class XaGame {
         },
         levelComplete: () => {
           const n = entry.num;
-          if (n) {
-            this.state.progress[n] = {
-              cows: this.state.cows, totalCows: this.state.totalCows, coins: this.state.coins,
-              totalCoins: this.state.totalCoinsInLevel, score: this.state.score, done: true,
-            };
-            this.state.save();
-          }
+          if (n) this.state.recordLevel(n);
           this.scenario = null;
           this.t = 0;
           if (n && n >= LEVEL_COUNT) {
@@ -729,8 +723,7 @@ export class XaGame {
       const entry = this.levels[i];
       const num = entry?.num ?? 0;
       const locked = num !== 0 && num > this.unlockedCount();
-      const prog = num ? this.state.progress[num] : undefined;
-      const perfect = !!prog?.done && prog.cows === prog.totalCows && prog.coins === prog.totalCoins;
+      const perfect = !!num && this.state.isPerfect(num);
       const current = i === this.levelIndex || i === this.hoverIndex;
       if (i === this.levelIndex) {
         // MAP_ANIMATED_SELECTION: glowing ring under the current node
@@ -766,7 +759,7 @@ export class XaGame {
     const num = entry.num;
     const prog = num ? this.state.progress[num] : undefined;
     const totalCows = prog?.totalCows ?? (num ? this.totalCowsOf(num) : 0);
-    const pct = prog && prog.totalCoins ? Math.floor((prog.coins * 100) / prog.totalCoins) : 0;
+    const pct = levelCoinPct(prog);
     const score = String(prog?.score ?? 0).padStart(6, '0');
     const c = (t: string, x: number, y: number) => drawText(w, t, x, top + y - TEXT_VC, 'black', 'center');
     c(num ? String(num) : '-', 96, 30);

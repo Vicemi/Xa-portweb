@@ -2,7 +2,7 @@
 
 > Un port web no oficial del clásico **XA: Contra los Cuatreros Galácticos** (2010), creado originalmente por **Batoví Games Studio** junto a **Calcar**, reconstruido para correr en el navegador con **Astro** y **React**. Se juega en PC y en el celular.
 
-🎮 **Jugalo online:** [xa-portweb.vicemi.dev](https://xa-portweb.vicemi.dev) *(próximamente)*
+🎮 **Jugalo online:** [xa-portweb.vicemi.dev](https://xa-portweb.vicemi.dev). No hay que instalar nada: anda en PC y en el celular, y se actualiza solo con cada cambio que llega a `main` (deploy continuo en Cloudflare Pages).
 
 ---
 
@@ -36,24 +36,26 @@ Después, usando **DeepSeek R4** con la misma skill, logré portear la **mayor p
 
 ## 🚧 Estado actual
 
-El juego es **jugable de principio a fin** (16 niveles y el jefe final), en PC y en celular. Sigue en desarrollo activo: se siguen puliendo detalles para que todo quede idéntico al original.
+El juego es **jugable de principio a fin** (16 niveles y el jefe final), en PC y en celular, y está **publicado online** en [xa-portweb.vicemi.dev](https://xa-portweb.vicemi.dev). Las mecánicas, enemigos, pantallas y textos se repasaron uno por uno contra el código del juego original; se siguen ajustando detalles finos a medida que aparecen.
 
 Si encontrás algún problema, abrí un *issue* contando **en qué nivel**, **qué hiciste** y **qué esperabas que pasara**. ¡Toda ayuda suma!
 
 ### ✅ Lo que ya funciona
 
-- **Flujo completo del original:** logos de Batoví y Calcar (con su "dong" de piano), pantalla de carga, cómic de la historia, menú principal, ayuda, créditos, opciones, mapa de selección de niveles, intro de cada nivel, pausa, game over y final.
+- **Flujo completo del original:** logos de Batoví y Calcar (con su "dong" de piano y fundidos de 0,8 s), pantalla de carga, cómic de la historia, menú principal (de día o de noche según la hora, con el récord total), ayuda, créditos (rediseñados en alta resolución), opciones, mapa de selección de niveles, intro de cada nivel, pausa, game over y final.
 - **Textos originales:** títulos, descripciones de los niveles y carteles salen del juego original (incluidos tildes, "ñ", "¡" y "¿").
-- **Héroe:** caminar, salto y doble salto (power-up que se reinicia en cada nivel, como en el original), escaleras, agacharse/bloquear, disparo en ráfaga, daño, vidas y puntos de guardado.
-- **Enemigos** con el comportamiento del original: patrulleros (también sobre plataformas), marcianos que te disparan cuando te ven, naves que disparan hacia donde vuelan, torretas, cañones en parábola, cobras saltarinas, bombas, trampas y más.
+- **Héroe:** caminar, salto y doble salto (power-up que se reinicia en cada nivel, como en el original), escaleras, agacharse y cubrirse con el escudo (frena las balas enemigas), disparo en ráfaga, daño, vidas y puntos de guardado.
+- **Enemigos** con el comportamiento del original: patrulleros (también sobre plataformas), marcianos que te disparan cuando te ven, naves y pájaros con su vaivén, naves que disparan hacia donde apuntan, torretas, cañones en parábola, cobras saltarinas, bombas que estallan en balas, pirañas robot, guillotinas, pinchos y más. Cada uno da los puntos del original y los muestra flotando al morir.
+- **Objetos:** monedas, vacas para rescatar, ítems flotantes, llaves y puertas que las gastan, plataformas móviles con la imagen de cada nivel y carteles con sus textos originales.
 - **Jefe final** con sus mecánicas: disparo en abanico, muerte por contacto, 200 impactos, explosión final y la llave que abre la salida.
-- **Mapa de niveles** con progreso guardado: vacas rescatadas, porcentaje de monedas y puntaje por nivel.
+- **Mapa de niveles** con progreso guardado: vacas rescatadas, porcentaje de monedas, puntaje por nivel e indicador de nivel perfecto.
 - **Opciones:** volumen de música y efectos, **pantalla completa** y **estirar pantalla**; todo se recuerda entre partidas.
 - **Celular:** controles táctiles con multitouch (ver abajo) y aviso para girar el teléfono.
 
 ### 🗺️ Planes a futuro
 
-- [ ] Terminar de pulir los detalles que todavía difieren del original (transiciones entre pantallas, meteoritos)
+- [x] Port fiel del juego completo, publicado online con deploy continuo
+- [ ] Comparación lado a lado con el original para los últimos detalles finos
 - [ ] Soporte para mods
 - [ ] Editor / creación de mapas nuevos
 - [ ] Nuevos personajes
@@ -137,7 +139,11 @@ Para compilar el sitio estático:
 npm run build
 ```
 
-Los archivos se generan en la carpeta `./dist/`, lista para subir a cualquier hosting estático (Vercel, Netlify, Cloudflare Pages, GitHub Pages, un servidor propio, etc.).
+Los archivos se generan en la carpeta `./dist/`, lista para subir a cualquier hosting estático (Cloudflare Pages, Vercel, Netlify, GitHub Pages, un servidor propio, etc.).
+
+### 🌐 Deploy
+
+La versión pública vive en **[Cloudflare Pages](https://pages.cloudflare.com/)** con deploy continuo: cada push a `main` compila el sitio y lo publica en [xa-portweb.vicemi.dev](https://xa-portweb.vicemi.dev). No hace falta ningún paso manual.
 
 Para previsualizar la build localmente antes de publicarla:
 
@@ -200,6 +206,7 @@ Los objetos del mapa usan los mismos tipos y propiedades que el original (`Enemy
 ├── tools/               # herramientas de ingeniería inversa y de datos
 │   ├── extract_texts.py # extrae títulos, descripciones y textos del xa.exe original
 │   ├── xre.py           # explora el xa.exe (strings, lecturas/escrituras, constantes)
+│   ├── xre_points.py    # busca los puntos de cada enemigo en el xa.exe
 │   ├── build_data.py    # genera sprites.json a partir de lo extraído
 │   ├── gen-manifest.mjs # regenera public/assets/manifest.json
 │   └── …                # anims.py, imagemaps.py, letterwidth.py, collision-sim.mjs, cap.ps1
@@ -226,7 +233,7 @@ Si querés colaborar, ¡bienvenido! Podés:
 - Proponer mejoras o ideas para mods, mapas o personajes.
 - Enviar un *pull request* con correcciones o nuevo contenido.
 
-El trabajo se hace en la rama `develop` y se integra en `main` cuando está probado.
+El trabajo se hace en la rama `develop` y se integra en `main` cuando está probado; al llegar a `main` se publica automáticamente en la web.
 
 ## ⚖️ Créditos y aviso legal
 

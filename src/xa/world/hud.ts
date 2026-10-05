@@ -97,11 +97,9 @@ export class Hud {
 
     // ---- "guardando" indicator ----
     if (this.savingTime > 0) {
-      ctx.save();
-      ctx.globalAlpha = Math.min(1, this.savingTime * 2);
-      // SAVING anim: frames 0,1,2 x 6 ticks @30 fps, five times (3 s), centred at (256, 365)
+      // SAVING anim: frames 0,1,2 x 6 ticks @30 fps, five times (3 s), centred at (256, 365); Hud::update hides it
+      // as soon as the anim is over (no fade)
       this.blit(ctx, 'SAVING', VIEW_W / 2 - 50, 352, Math.floor((SAVING_TIME - this.savingTime) / 0.2) % 3);
-      ctx.restore();
     }
   }
 

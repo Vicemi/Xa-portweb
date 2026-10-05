@@ -186,8 +186,8 @@ export class Enemy {
         this.vx *= -1;
         this.dir *= -1;
       }
-      // land on floor → pause for the "ready" animation, then hop again
-      if (this.vy > 0 && this.world.map.isHard(this.x, this.y + 2)) {
+      // land on floor/platform → pause for the "ready" animation, then hop again
+      if (this.vy > 0 && this.world.hasFloor(this.x, this.y + 2)) {
         const ts = this.world.map.ts;
         this.y = Math.floor((this.y + 2) / ts) * ts - 1;
         this.vy = 0;

@@ -65,9 +65,10 @@ export class Hud {
     this.blit(ctx, 'COW', 410, 10);
     drawLine(ctx, pad(s.cows, 2), 450, 10, 'black', 'left', 1);
     drawLine(ctx, pad(s.totalCows, 2), 480, 10, 'black', 'left', 1);
-    if (s.keys.length > 0) {
+    // Hud::start: the key counter is only shown from level 14 on (the levels with doors), even at 0
+    if (s.actualLevel >= 14) {
       this.blit(ctx, 'KEY_SMALL', 7, 349);
-      drawLine(ctx, String(s.keys.length), 30, 345, 'black', 'left', 1);
+      drawLine(ctx, String(s.keys.filter((k) => k === 'KEY').length), 30, 345, 'black', 'left', 1);
     }
     this.blit(ctx, 'LOGO', 448, 348);
 

@@ -620,3 +620,11 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   MEGA_POWER para uno especial y ninguno para otro. Las cadenas comparadas no se resolvieron (la ref a MEGA_POWER
   del exe es del registro de assets); INFERIDO: MEGA_POWER = ENERGY_DOUBLE_JUMP, ENDING sin efecto.
 - Verificado: rebote al pisar = VELOCITY_JUMP[4].y × 0.6 = -510 (igual al port); deathWait 1 s.
+
+## Estado 2026-10-05 (ronda 32 — repaso integral, parte 5: game over / final)
+- InGame::loadGameOverInternal / loadEnding: música `lose` / `xa_win` + Intro(0x12 / 0x11) con espera 2 s
+  (0x314 = 2.0) antes de aceptar tecla, y callback `loadMenu` → ambos vuelven al MENÚ PRINCIPAL (antes: al mapa,
+  con 0.6 s). La cinta PRESS_ANY_KEY aparece a los 2 s. El código que el final genera (Utils::generateCode) se
+  dibuja en y=802, fuera de la pantalla de 384 px de esta versión → no visible, no se porta.
+- Muerte con vidas: Scenario::init sólo rearma la escena/cámara (no resetea objetos) → el port ya coincide.
+- Down3 / Cannon: pxVel = ±1 es sólo la orientación (torretas fijas) → ya coincide.

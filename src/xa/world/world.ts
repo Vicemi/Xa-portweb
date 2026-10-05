@@ -18,7 +18,7 @@ export interface World {
   immortal: boolean;
   addEffect(anim: string, x: number, y: number, dir: number): void;
   spawnHeroBullet(x: number, y: number, vx: number): void;
-  spawnEnemyBullet(x: number, y: number, vx: number, vy: number, g?: number): void;
+  spawnEnemyBullet(x: number, y: number, vx: number, vy: number, g?: number, ax?: number): void;
   startDeathTransition(seconds: number): void;
   onHeroDeathFinished(): void;
   /** Is there a floor (hard tile OR moving platform) at the given world point? */
@@ -33,7 +33,7 @@ export interface WorldEvents {
 }
 
 interface Effect { anim: Anim; x: number; y: number; dir: number }
-interface Bullet { x: number; y: number; vx: number; vy: number; team: number; alive: boolean; g?: number }
+interface Bullet { x: number; y: number; vx: number; vy: number; team: number; alive: boolean; g?: number; ax?: number }
 
 /** StageManager::getFeetsPosition: centre-bottom of the tile containing (x, y). */
 export function feetOf(x: number, y: number, ts: number): { x: number; y: number } {
@@ -150,8 +150,8 @@ export class Scenario implements World {
   spawnHeroBullet(x: number, y: number, vx: number): void {
     this.bullets.push({ x, y, vx, vy: 0, team: 0, alive: true });
   }
-  spawnEnemyBullet(x: number, y: number, vx: number, vy: number, g = 0): void {
-    this.bullets.push({ x, y, vx, vy, team: 1, alive: true, g });
+  spawnEnemyBullet(x: number, y: number, vx: number, vy: number, g = 0, ax = 0): void {
+    this.bullets.push({ x, y, vx, vy, team: 1, alive: true, g, ax });
   }
   /** Remove an enemy with a death burst (no points). */
   private removeEnemy(e: Enemy): void {
@@ -182,7 +182,9 @@ export class Scenario implements World {
     this.addEffect('BOSS_DEAD', e.x, e.y - e.h / 2, 1);
   }
   hasFloor(x: number, y: number): boolean {
-    if (this.map.isHard(x, y)) return true;
+    // MobileObject::internalUpdate edge test: Scenario::isFloor || isPlatform (one-way tile) || isOverLadder.
+    const m = this.map;
+    if (m.isHard(x, y) || m.isPlatform(x, y) || m.isOverLadder(x, y - 1)) return true;
     for (const p of this.platforms) {
       if (x >= p.x && x <= p.x + p.w && y >= p.y - 4 && y <= p.y + 8) return true;
     }
@@ -283,8 +285,12 @@ export class Scenario implements World {
     }
 
     // enemies: update + hero contact (stomp vs. damage)
+    // Scenario::processWorldView: only objects inside the camera rect grown by (400, 100) on each side are awake
+    const cam0 = this.camera;
+    const wx0 = cam0.x - 400, wx1 = cam0.x + VIEW_W + 400, wy0 = cam0.y - 100, wy1 = cam0.y + VIEW_H + 100;
     for (const e of this.enemies) {
       if (!e.alive) continue;
+      if (e.x < wx0 || e.x > wx1 || e.y < wy0 || e.y - e.h > wy1) continue;
       e.update(dt);
       if (h.isAlive()) {
         const eb = e.bounds();
@@ -310,6 +316,7 @@ export class Scenario implements World {
     for (const b of this.bullets) {
       if (!b.alive) continue;
       if (b.g) b.vy += b.g * dt;
+      if (b.ax) b.vx += b.ax * dt;
       b.x += b.vx * dt;
       b.y += b.vy * dt;
       if (b.x < cam.x - 32 || b.x > cam.x + cam.w + 32 || b.y < cam.y - 32 || b.y > cam.y + cam.h + 32) {
@@ -389,7 +396,7 @@ export class Scenario implements World {
         playSound('HERO_ENERGY');
         break;
       case 'ENERGY_DOUBLE_JUMP':
-        s.cereals = Math.min(4, s.cereals + 1);
+        s.cereals = Math.min(1, s.cereals + 1); // HeroState::addCereals caps at 1
         playSound('POWERUP');
         break;
       case 'ENERGY_JUMP':

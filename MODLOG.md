@@ -435,3 +435,40 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - **Tipografía**: `text()` tiene fallback a fuente de sistema si `fuente_blanca.png` no está cargada (defensivo).
   Verificado por test aislado que la hoja `fuente_blanca.png` renderiza glifos blancos correctamente (drawImage OK).
 - Verificación: `tsc --noEmit` y `npm run build` OK.
+
+## Estado 2026-10-04 (ronda 20 — bugs del usuario + pantallas fieles)
+- **Enemigos trabados sobre plataformas**: `hasFloor` solo aceptaba tiles duros; los enemigos sobre tiles `pPlatform`
+  giraban cada frame. Ahora = `isFloor || isPlatform || isOverLadder` (MobileObject::internalUpdate, punto
+  (left-5|right+5, bottom+1)). Dirección inicial = signo de pLookDir o de pxVel (pxVel=-120 arranca a la izquierda).
+  Verificado: 0 enemigos de patrulla quietos en niveles 1, 6, 13, 14, 15.
+- **Doble salto en todos los niveles**: `cereals` no se reseteaba nunca. HeroState::goToLevelSelect/changeStage
+  resetea llaves, cereals, heros, monedas, vacas y PUNTAJE (por nivel) y sube vidas a mínimo 3 → `beginLevel()`.
+  `addCereals` tope 1 (BatMath::min(x,1)). No existe ENERGY_JUMP en ningún TMX.
+- **Escaleras**: setState(Ladder) centra al héroe en la columna (`(floor(cx/ts)+0.5)*ts`) pero solo movía `pos`;
+  el `setPosition(ppos)` de fin de frame lo deshacía → descentrado chocaba con paredes. Ahora también `ppos.x`.
+  Verificado: sube desde −14..+14 px de desfase, junto a pared.
+- **Disparos enemigos** (Shooter.c, EnemyAndroid.c, EnemyThrower.c, JumperShooter.c, XABulletFactory.c):
+  - Shooter: temporizador random(pMinTime,pMaxTime) → rewind+play anim sync → dispara al terminar (frameSync -1).
+  - Android (123): cada wait, si el héroe está DELANTE en su dirección de marcha → se para, ANDROID_SHOOT, bala en
+    frame 1 offset (22,5) a 240; detrás → ignora. Antes no disparaba nunca.
+  - Thrower/WALLE: dispara solo hacia su lado fijo (signo de pxOffset) desde pos+(pxOffset,pyOffset), en frame>2.
+  - Jumper2/COBRA_SHOOT: dispara hacia donde mira al salir del frame 3 de su anim, offset (26,-15).
+  - Down3/UFO_3 = `3_FALL` (3 balas: recta + ±100 frenando ∓70, g 300). Cannon = PARABLE hacia signo(pxVel).
+  - 4_FALL (220±25) / 4_FALL_RAND (300±25): 4 balas a ±30°/±15°, ax ∓15, g 300.
+  - Ventana activa (Scenario::processWorldView): solo se actualizan enemigos en cámara ±(400,100).
+  - Orden de IDs en xa.exe: SIMPLE_HERO, SIMPLE_ENEMY, 8_BULLETS, DOUBLE_SIDE, ENEMY_THROWER, TO_HERO, PARABLE,
+    3_FALL, 4_FALL, 4_FALL_RAND, BOSS_BULLETS.
+- **Textos**: `tools/extract_texts.py` saca de xa.exe (UTF-16, orden inverso) títulos, descripciones, "Nivel N" y
+  textos de pausa → `src/xa/data/levels.json`. Fuentes: 0 = negra, 1 = blanca, 2 = negra_2.
+- **Carteles**: decodificador original (Utils): `\! ¡ \? ¿ \a\e\i\o\u` tildes (mayúsc. también), `\m`=ñ, `\M`=Ñ,
+  `\n` salto, `\`. Globo BACK_HUD en contenedor (256+24, 80), texto fuente 0 escala 1 centrado en y+5.
+- **Intro de nivel** (Intro/AssetsIntro): preview_levels_tile.jpg 512×115 por nivel (niveles 1-8 x=0, 9-16 x=512)
+  en y=128, máscara fondo_niveles.png, descripción centrada (256,57), "Nivel N" (425,212) blanca, título (256,256)
+  negra_2; PRESS_ANY_KEY fila 3 = "CARGANDO..." mientras carga, luego anim filas 1/0 (anchor 260,30 en 512,384).
+- **PreLoader**: cargando_tile fondo + anim BUTTONS (0,384+40i,260,40) anchor (260,0) en (512,288) cubriendo la cinta
+  "Presiona…" hasta terminar de cargar sonidos.
+- **Selector** (LevelSelectScreen/ButtonInformation): nodos con anchor (0,0) en NODE_POS (antes centrados → 20,15 px
+  corridos), ARROW en nodo+(20,10) con bob 6px, barra info_map.png en y=324 (sube con easeInOutQuad 0.3 s):
+  nivel (96,30), vacas (165,30)/(197,30), % monedas (273,30), título (257,11), puntaje 6 dígitos (448,30), fuente 0.
+- **Audio**: intro_piano es un sonido de una vez en SplashScreen (no bucle); xa_intro arranca al salir de los logos.
+- Pendiente: transición FadeTransition entre pantallas, DOUBLE_SIDE exacto, meteoritos.

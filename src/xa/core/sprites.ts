@@ -1,6 +1,7 @@
 // bat::ImageMap + bat::Anim equivalents. Frame layouts come from src/xa/data/sprites.json
 // (extracted from xa.exe's Assets* tables); the pixels come from the user's own sheets at runtime.
 import data from '../data/sprites.json';
+import svnz from '../data/svnz.json';
 import { img } from './assets';
 
 export interface MapDef {
@@ -18,6 +19,9 @@ export interface AnimDef { name: string; loop: number; base: number; frames: Fra
 
 export const MAPS = (data as unknown as { maps: Record<string, MapDef> }).maps;
 export const ANIMS = (data as unknown as { anims: Record<string, AnimDef> }).anims;
+// extra characters of the map-2 levels (Super Vampire Ninja Zero, tools/import_svnz.py)
+Object.assign(MAPS, (svnz as unknown as { maps: Record<string, MapDef> }).maps);
+Object.assign(ANIMS, (svnz as unknown as { anims: Record<string, AnimDef> }).anims);
 
 export interface Frame { image: HTMLImageElement; sx: number; sy: number; sw: number; sh: number; ax: number; ay: number }
 

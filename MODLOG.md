@@ -747,3 +747,33 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   COW_COUNTER, BACK_SELECTION) se dibujan con coordenadas propias → sin cambio visible.
 - Hero::onCollision(Bullet): el choque es contra el bound del héroe aunque bloquee; al bloquear de frente deja
   ORANGE_SHINE en bala + (−sign(vx)·15, 0) mirando al tirador. Quitado SHIELD_REACH (30 px, invento del port).
+
+## Estado 2026-10-05 (ronda 45 — mapa 2: niveles extra con enemigos de Super Vampire Ninja Zero)
+- Fuente: F:\Games\SuperVampireNinjaZero (prototipo gratis de Batoví, 2009; beat'em up). Formato de personajes
+  FighterFactory: <Char>.png (hoja) + <Char>.xml (rect de cada imagen "char#G_III.png") + <Char>.fgt:
+  `addImage:G,I,axisX,axisY` (eje = pies), `addBlueRect/addRedRect:x1,y1,x2,y2` (cuerpo / golpe, x hacia adelante,
+  y negativo = arriba, valen para el addFrame siguiente), `addFrame:G,I,offX,offY,ticks(60 fps),flip`,
+  `addAnim:id,loop` (−1 sin bucle). Ids: 0 parado, 10 caminar, 20 salto, 1000 ataque, 1500 ataque aéreo, 2000
+  conjuro (Drácula), 3010-3060 capa/teletransporte, 5000-5510 golpes/caída/muerte. Los sprites miran a la derecha.
+- tools/import_svnz.py → public/assets/svnz/characters/{ninja,red_ninja,bat,big_demon,dracula}(.png|_R.png) (copia
+  roja para el parpadeo de daño), src/xa/data/svnz.json (maps type 3 por imagen con ancla = eje − offset; anims
+  SV_<CHAR>_<NOMBRE> base 60 con `hit`/`body` por cuadro), fondos 480x272 → 1024x512 (escala a 384 de alto + espejo):
+  svnz_arena/dojo/grid/dungeon.jpg; música svnz_bgm/svnz_boss.ogg; efectos svnz_*.ogg (FX SV_*).
+- src/xa/world/svnz.ts: SvEnemy extiende Enemy (campos ahora protected). Comportamientos (mezcla SVNZ + reglas Xa):
+  SvNinja (persigue y tajo), SvRedNinja (salta sobre Xa y golpea), SvBat (vaivén + picada), SvBigDemon (blindado,
+  no se pisa, no desaparece al contacto, golpe al piso con temblor + 2 balas de onda de choque, salto aplastante),
+  SvDracula (jefe 60 vidas: combo, conjuro en abanico 3/5 balas, teletransporte detrás de Xa, patada en picada;
+  suelta KEY). Las zonas rojas de golpe dañan vía Enemy.attackRect() en world.ts; `contactRemoves` generaliza la
+  regla de contacto de Xa.
+- tools/gen_extra_levels.py → public/assets/data/extra/extra1..8.tmx + preview_extra.jpg (tira 512x115 por nivel):
+  terreno de niveles originales (2, 11, 8, 6, 4, 7, 9, 7) — los horizontales se recortan empalmando en una columna
+  idéntica (costura invisible), los altos se usan enteros, el 8 arma una arena repitiendo una columna plana con
+  Drácula, puerta GATE y SavePoint con música de jefe. Reemplazo sembrado de parte de los enemigos de Xa por los
+  nuevos; carteles tutoriales → uno nuevo + ninjas.
+- game.ts: página 0/1 del mapa de niveles (map_2.png, mismos NODE_POS porque comparte los arcos), flecha lateral
+  (ARROW rotado) + → en el último nivel abierto / ← en el primer extra, progreso en 101..108 (`base` = nivel visual
+  para plataformas), EXTRA_REQUIRES_ORIGINALS=false (por ahora abiertos), el 8 termina en la pantalla de victoria,
+  intro con descripción propia y "Extra N", ?extra=N. El récord del menú sigue sumando sólo los 16 originales.
+- Verificado: 8 niveles cargan y corren sin errores ni enemigos caídos, Drácula usa todo su repertorio y suelta la
+  llave, el gran demonio hace golpes/saltos con ondas de choque, completar E1 abre E2 sin tocar el progreso original,
+  regresión de los 16 originales OK, build OK.

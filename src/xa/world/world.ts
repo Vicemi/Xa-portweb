@@ -5,6 +5,7 @@ import { img } from '../core/assets';
 import { playMusic, playSound } from '../core/audio';
 import { GameCamera, VIEW_H, VIEW_W } from './camera';
 import { Enemy, createEnemy } from './enemies';
+import { createSvEnemy } from './svnz';
 import { Hero, HS } from './hero';
 import { Door, Platform } from './objects';
 import type { HeroState } from './state';
@@ -148,7 +149,7 @@ export class Scenario implements World {
           this.platforms.push(new Platform(o, o.x, o.y, this.levelNum));
           break;
         default: {
-          const e = createEnemy(o, this, f.x, f.y);
+          const e = createSvEnemy(o, this, f.x, f.y) ?? createEnemy(o, this, f.x, f.y);
           if (e) this.enemies.push(e);
           break;
         }
@@ -357,8 +358,12 @@ export class Scenario implements World {
             else this.killEnemy(e);
           } else {
             h.onCollisionEnemy(4);
-            if (!e.isBoss) this.removeEnemy(e); // original: contact removes the enemy (with death effect, no points)
+            if (e.contactRemoves) this.removeEnemy(e); // original: contact removes the enemy (death effect, no points)
           }
+        } else if (e.alive) {
+          // extra enemies' melee strikes (SVNZ red rects) hurt like a contact without consuming the enemy
+          const ar = e.attackRect();
+          if (ar && overlaps(h.rect, ar)) h.onCollisionEnemy(4);
         }
       }
     }

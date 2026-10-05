@@ -2,7 +2,7 @@
 // options, game over, victory). The world is drawn into a 512x384 offscreen canvas (integer pixels) and then
 // scaled to fit any window, keeping the 4:3 aspect ratio. All art comes from the user's own game files.
 import { hasGameFiles, img, listFiles, loadText, pickGameFolder, preloadImages, restoreGameFolder, useBundledAssets, useDevGameFiles } from './core/assets';
-import { attachInput, isFirstPress, keyPressed, pollInput } from './core/input';
+import { attachInput, isFirstPress, isPressed, keyPressed, pollInput } from './core/input';
 import { getMusicVolume, getSoundVolume, isMusicEnabled, isSoundEnabled, loadPrefs, playMusic, playSound, preloadSounds, setMusicEnabled, setMusicVolume, setSoundEnabled, setSoundVolume, stopMusic, unlockAudio } from './core/audio';
 import { drawText, fontPaths } from './core/font';
 import { drawFrame, frameOf } from './core/sprites';
@@ -19,7 +19,11 @@ const LANG = levelData as unknown as { titles: string[]; descriptions: string[];
 const LEVEL_TITLES = LANG.titles;
 const STEP = 1 / 60;
 const SPLASH_TIME = 3.5; // SplashScreen: sendMessage("fadeToBlack", delay 3.5 s)
-const SPLASH_FADE = 0.5;
+// bat::App state changes go through StateTransition(0.8, 0.8): the old state fades to black in 0.8 s, the new one
+// fades in from black in 0.8 s (SplashScreen uses that value as the logo's alpha).
+const STATE_FADE = 0.8;
+const ARROW_GLIDE = 0.25; // level-select arrow glide between nodes
+const ARROW_GLIDE_INIT = 0.25;
 // Checkbox centres of the Windows-only options rows in options_win.png ("Pantalla completa", "Estirar pantalla").
 const OPT_FULLSCREEN = [292, 260] as const;
 const OPT_STRETCH = [292, 285] as const;
@@ -101,6 +105,7 @@ export class XaGame {
   private needsPermission = false;
   private t = 0;                // time in the current screen
   private splashStep = 0;       // 0 = Batovi, 1 = Calcar
+  private splashClose = -1;     // >= 0 while the current logo fades out (StateTransition closing)
   private introPage = 0;
   private loadingIsBoot = false;
   private mouseX = 0;
@@ -118,6 +123,8 @@ export class XaGame {
   private soundsReady = false;   // ...and until every sound is decoded
   private infoT = 0;             // level-select info bar slide-in timer (ButtonInformation, easeInOutQuad 0.3 s)
   private infoIndex = -1;
+  private arrowFrom = 0;         // level-select arrow glides from this node to levelIndex
+  private arrowT = ARROW_GLIDE_INIT;
   private hdArt: string | null = null; // high-res screen art redrawn at display resolution this frame
   private stretch = false;
   private resizeObs: ResizeObserver | null = null;       // "Estirar pantalla"
@@ -155,7 +162,7 @@ export class XaGame {
         if (this.confirming) { this.confirming = false; playSound('CLICK'); } else this.resumeFromPause();
         break;
       case 'menu': this.toggleFullscreen(); break;
-      case 'splash': this.t = SPLASH_TIME; break;      // next logo
+      case 'splash': if (this.splashClose < 0) this.splashClose = 0; break; // next logo
       case 'loading': this.clicked = true; break;       // same as tapping the screen (once loaded)
       case 'intro': this.skipIntro(); break;
       case 'levelIntro': if (this.levelReady && this.scenario) this.screen = 'play'; break;
@@ -254,7 +261,7 @@ export class XaGame {
       const entry = map
         ? this.levels.find((l) => l.path === map.toLowerCase()) ?? { label: map.split('/').pop()!.replace('.tmx', ''), path: map, num: 0 }
         : this.levels[lv - 1];
-      this.levelIndex = Math.max(0, this.levels.indexOf(entry));
+      this.selectLevel(Math.max(0, this.levels.indexOf(entry)));
       playMusic('xa_menu');
       void this.loadLevel(entry);
       return;
@@ -308,7 +315,7 @@ export class XaGame {
             // otherwise: back to level select, cursor on the newly unlocked next level
             playMusic('xa_menu');
             this.screen = 'levels';
-            if (n) this.levelIndex = n; // index n = level n+1 (next)
+            if (n) this.selectLevel(Math.min(n, this.unlockedCount() - 1)); // cursor on the newly unlocked level
           }
         },
         message: (t, seconds) => this.hud.showMessage(t, seconds),
@@ -390,14 +397,19 @@ export class XaGame {
       case 'splash': {
         // SplashScreen: each logo is its own state that plays intro_piano once and sends itself "fadeToBlack"
         // after 3.5 s (or on any key/click); leaving the state cuts its sound. Logo 2 → PreLoader with xa_intro.
-        if (this.t >= SPLASH_TIME || this.clicked || isFirstPress('any')) {
-          this.splashStep++;
-          this.t = 0;
-          if (this.splashStep >= 2) {
-            this.screen = 'loading'; this.loadingIsBoot = true;
-            playMusic('xa_intro');
-          } else {
-            playMusic('intro_piano', false); // restarts the "dong" for the second logo
+        if (this.splashClose < 0 && (this.t >= SPLASH_TIME || this.clicked || isFirstPress('any'))) this.splashClose = 0;
+        if (this.splashClose >= 0) {
+          this.splashClose += dt;
+          if (this.splashClose >= STATE_FADE) {
+            this.splashClose = -1;
+            this.splashStep++;
+            this.t = 0;
+            if (this.splashStep >= 2) {
+              this.screen = 'loading'; this.loadingIsBoot = true;
+              playMusic('xa_intro');
+            } else {
+              playMusic('intro_piano', false); // restarts the "dong" for the second logo
+            }
           }
         }
         break;
@@ -430,20 +442,33 @@ export class XaGame {
         break;
       }
       case 'levels': {
-        const n = this.levels.length;
-        if (isFirstPress('up')) { this.levelIndex = (this.levelIndex + n - 4) % n; playSound('CLICK'); }
-        if (isFirstPress('down')) { this.levelIndex = (this.levelIndex + 4) % n; playSound('CLICK'); }
-        if (isFirstPress('left')) { this.levelIndex = (this.levelIndex + n - 1) % n; playSound('CLICK'); }
-        if (isFirstPress('right')) { this.levelIndex = (this.levelIndex + 1) % n; playSound('CLICK'); }
+        // LevelSelectScreen::update: right/up = next level, left/down = previous, along the map path (no wrap),
+        // never past the last unlocked one; holding the key keeps stepping once the arrow has glided over
+        this.arrowT = Math.min(ARROW_GLIDE, this.arrowT + dt);
+        if (this.arrowT >= ARROW_GLIDE) {
+          const next = isPressed('right') || isPressed('up');
+          const prev = isPressed('left') || isPressed('down');
+          const last = this.lastSelectable();
+          let to = this.levelIndex;
+          if (next && !prev) to = Math.min(last, this.levelIndex + 1);
+          else if (prev && !next) to = Math.max(0, this.levelIndex - 1);
+          if (to !== this.levelIndex) {
+            this.arrowFrom = this.levelIndex;
+            this.levelIndex = to;
+            this.arrowT = 0;
+            playSound('CLICK');
+          }
+        }
         if (isFirstPress('back')) { this.screen = 'menu'; this.menuIndex = -1; }
         this.hoverIndex = this.levelHoverIndex();
         const shown = this.hoverIndex >= 0 ? this.hoverIndex : this.levelIndex;
         if (shown !== this.infoIndex) { this.infoIndex = shown; this.infoT = 0; }
         this.infoT += dt;
         if (this.clicked && this.hoverIndex >= 0 && this.isUnlocked(this.hoverIndex)) {
-          this.levelIndex = this.hoverIndex;
+          this.selectLevel(this.hoverIndex);
           void this.loadLevel(this.levels[this.hoverIndex]);
-        } else if (isFirstPress('confirm') || isFirstPress('jumpHold')) {
+        } else if (isFirstPress('confirm') || isFirstPress('jumpHold') || isFirstPress('jumpTap') || isFirstPress('fire')) {
+          // isSelectionAccept: fire, jump or Enter
           playSound('CLICK');
           if (this.isUnlocked(this.levelIndex)) void this.loadLevel(this.levels[this.levelIndex]);
         }
@@ -537,12 +562,26 @@ export class XaGame {
   private activateMenu(action: string): void {
     playSound('CLICK');
     switch (action) {
-      case 'levels': this.screen = 'levels'; this.levelIndex = 0; this.t = 0; playMusic('xa_menu'); break;
+      case 'levels': this.screen = 'levels'; this.selectLevel(this.unlockedCount() - 1); this.t = 0; playMusic('xa_menu'); break; // cursor on the newest unlocked level
       case 'help': this.screen = 'help'; this.t = 0; break;
       case 'options': this.screen = 'options'; this.t = 0; break;
       case 'credits': this.screen = 'credits'; this.t = 0; break;
       case 'splash': window.location.reload(); break;
     }
+  }
+
+  /** Jump the level-select cursor (no glide). */
+  private selectLevel(i: number): void {
+    this.levelIndex = this.arrowFrom = Math.max(0, i);
+    this.arrowT = ARROW_GLIDE;
+  }
+
+  /** Index of the last level the cursor may reach (LevelSelectScreen 0x348): the last unlocked one, plus any
+   *  custom maps listed after level 16. */
+  private lastSelectable(): number {
+    let last = 0;
+    for (let i = 0; i < this.levels.length; i++) if (this.isUnlocked(i)) last = i;
+    return last;
   }
 
   /** Highest level number the player may play (1 + last completed). */
@@ -700,7 +739,8 @@ export class XaGame {
 
   private renderSplash(w: CanvasRenderingContext2D): void {
     const logo = this.splashStep === 0 ? 'assets/images/menuElements/screen_logo_batovi.jpg' : 'assets/images/menuElements/screen_logo_calcar.jpg';
-    const a = Math.min(1, this.t / SPLASH_FADE, Math.max(0, (SPLASH_TIME - this.t) / SPLASH_FADE));
+    // StateTransition: opening 0→1 over 0.8 s, closing 1→0 over 0.8 s once the logo is done
+    const a = this.splashClose >= 0 ? Math.max(0, 1 - this.splashClose / STATE_FADE) : Math.min(1, this.t / STATE_FADE);
     w.fillStyle = '#000';
     w.fillRect(0, 0, VIEW_W, VIEW_H);
     const im = img(logo);
@@ -719,6 +759,11 @@ export class XaGame {
     const im = img('assets/images/menuElements/cargando_tile.png');
     if (!im) return;
     w.drawImage(im, 0, 0, 512, 384, 0, 0, VIEW_W, VIEW_H);
+    if (this.loadingIsBoot && this.t < STATE_FADE) {
+      // entering InGame: StateTransition opening from black
+      w.fillStyle = `rgba(0,0,0,${1 - this.t / STATE_FADE})`;
+      w.fillRect(0, 0, VIEW_W, VIEW_H);
+    }
     if (!this.loadingIsBoot || this.t < this.bootReadyAt || !this.soundsReady) {
       const f = Math.floor(this.t * 3) % 3; // 20 ticks @ 60 fps per frame
       w.drawImage(im, 0, 384 + f * 40, 260, 40, 512 - 260, 288, 260, 40);
@@ -762,10 +807,13 @@ export class XaGame {
       if (!f) continue;
       w.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, px, py, f.sw, f.sh); // anchor (0,0): NODE_POS is the top-left
       if (i === this.levelIndex) {
-        // ARROW (anchor 20,30) at node + (20,10), bobbing up to 6 px
+        // ARROW (anchor 20,30) at node + (20,10), bobbing up to 6 px, gliding from the previous node
         const a = frameOf('ARROW', 0);
         const bob = Math.round((0.5 + 0.5 * Math.sin(this.t * 6)) * 6);
-        if (a) w.drawImage(a.image, a.sx, a.sy, a.sw, a.sh, px + 20 - 20, py + 10 - 30 - bob, a.sw, a.sh);
+        const [fx, fy] = NODE_POS[this.arrowFrom] ?? NODE_POS[i];
+        const k = this.arrowT / ARROW_GLIDE, e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+        const ax = Math.round(fx + (px - fx) * e), ay = Math.round(fy + (py - fy) * e);
+        if (a) w.drawImage(a.image, a.sx, a.sy, a.sw, a.sh, ax + 20 - 20, ay + 10 - 30 - bob, a.sw, a.sh);
       }
     }
     this.renderInfoBar(w);

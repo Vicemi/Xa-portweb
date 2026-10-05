@@ -125,6 +125,47 @@ export class XaGame {
   private confirmIndex = 1;      // 0 = SÍ, 1 = NO
   private cowCache: Record<number, number> = {};
   levelNum = 1;
+  private skipIntro(): void {
+    this.screen = 'menu';
+    this.menuIndex = -1;
+    this.t = 0;
+    playMusic('xa_menu');
+  }
+
+  /** Icon for the always-visible mobile back button (it does what Esc / "any key" does on each screen). */
+  backLabel(): string {
+    switch (this.screen) {
+      case 'play': return '❚❚';
+      case 'paused': return this.confirming ? '↩' : '▶';
+      case 'menu': return document.fullscreenElement ? '🗗' : '⛶';
+      case 'splash': case 'loading': case 'intro': return '⏭';
+      case 'levelIntro': return '▶';
+      default: return '↩';
+    }
+  }
+  /** Mobile back button action. Runs inside the tap handler, so fullscreen requests are allowed. */
+  backAction(): void {
+    switch (this.screen) {
+      case 'play':
+        this.screen = 'paused'; this.pauseIndex = 0; this.confirming = false;
+        stopMusic(); playSound('CLICK');
+        break;
+      case 'paused':
+        if (this.confirming) { this.confirming = false; playSound('CLICK'); } else this.resumeFromPause();
+        break;
+      case 'menu': this.toggleFullscreen(); break;
+      case 'splash': this.t = SPLASH_TIME; break;      // next logo
+      case 'loading': this.clicked = true; break;       // same as tapping the screen (once loaded)
+      case 'intro': this.skipIntro(); break;
+      case 'levelIntro': if (this.levelReady && this.scenario) this.screen = 'play'; break;
+      case 'gameover': case 'win': this.screen = 'levels'; this.t = 0; break;
+      case 'levels': case 'options': case 'help': case 'credits':
+        this.screen = 'menu'; this.menuIndex = -1; this.draggingSlider = null; playSound('CLICK');
+        break;
+      default: break;
+    }
+  }
+
   /** Current screen (the React shell shows the touch controls only while playing). */
   get currentScreen(): Screen { return this.screen; }
 
@@ -370,10 +411,12 @@ export class XaGame {
         if (this.loadingIsBoot && this.t >= this.bootReadyAt && this.soundsReady && (this.clicked || isFirstPress('confirm') || isFirstPress('jumpHold') || isFirstPress('fire'))) { this.screen = 'intro'; this.introPage = 0; this.t = 0; }
         break;
       case 'intro':
-        if (this.t > 0.4 && (this.clicked || isFirstPress('confirm') || isFirstPress('jumpHold') || isFirstPress('fire'))) {
+        // comic: Space / click / fire turn one page, Enter (or Esc) skips the whole story (as in the original)
+        if (this.t > 0.4 && (isFirstPress('confirm') || isFirstPress('back'))) { this.skipIntro(); break; }
+        if (this.t > 0.4 && (this.clicked || isFirstPress('jumpHold') || isFirstPress('fire'))) {
           this.introPage++;
           this.t = 0;
-          if (this.introPage >= INTRO_PAGES.length) { this.screen = 'menu'; this.menuIndex = -1; this.t = 0; playMusic('xa_menu'); }
+          if (this.introPage >= INTRO_PAGES.length) this.skipIntro();
           else playSound('CLICK');
         }
         break;

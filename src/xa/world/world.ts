@@ -160,21 +160,26 @@ export class Scenario implements World {
     playSound('ENEMY_DEATH');
     this.addEffect('ENEMY_DEATH', e.x, e.y - e.h / 2, 1);
   }
-  private killEnemy(e: Enemy): void {
+  private killEnemy(e: Enemy, byBullet = false): void {
     if (e.isBomb) {
       // EnemyBomb::onCollision: explode into an 8-way radial burst ("8_BULLETS", speed 200).
       e.alive = false;
       playSound('ENEMY_DEATH');
       this.addEffect('BOMBA_DEATH', e.x, e.y - e.h / 2, 1);
-      for (let i = 0; i < 8; i++) {
-        const a = i * (Math.PI / 4);
-        this.spawnEnemyBullet(e.x, e.y - e.h / 2, Math.sin(a) * 200, -Math.cos(a) * 200);
-      }
+      this.burst8(e);
       this.state.addPoints(100);
       return;
     }
     this.removeEnemy(e);
+    if (byBullet && e.burstsOnShotDeath) this.burst8(e); // Jumper::onCollision
     this.state.addPoints(100);
+  }
+  /** XABulletFactory "8_BULLETS": 8 bullets from the centre, every 45° starting straight up, 200 px/s. */
+  private burst8(e: Enemy): void {
+    for (let i = 0; i < 8; i++) {
+      const a = i * (Math.PI / 4);
+      this.spawnEnemyBullet(e.x, e.y - e.h / 2, Math.sin(a) * 200, -Math.cos(a) * 200);
+    }
   }
   /** EnemyBoss::onCollision death: camera shake 3 s, BOSS_DEAD explosion that keeps popping MEGA_POWER blasts
    *  over the boss rect while its first 3 frames play (VolatileExplosion), and the BOSS_KEY for the last gate. */
@@ -348,7 +353,7 @@ export class Scenario implements World {
             if (e.isBoss) {
               this.camera.shake(0.2); // EnemyBoss::onCollision: every hit shakes the camera
               if (e.onBullet()) this.killBoss(e);
-            } else if (e.onBullet()) { this.killEnemy(e); this.grantKey(e); }
+            } else if (e.onBullet()) { this.killEnemy(e, true); this.grantKey(e); }
             break;
           }
         }

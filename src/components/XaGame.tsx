@@ -10,6 +10,7 @@ export default function XaGameView() {
   const [isTouch, setIsTouch] = useState(false);
   const [portrait, setPortrait] = useState(false);
   const [screen, setScreen] = useState('');
+  const [backLabel, setBackLabel] = useState('↩');
 
   useEffect(() => {
     const g = new XaGame(canvasRef.current!);
@@ -43,7 +44,11 @@ export default function XaGameView() {
 
   // the controls are only mounted while a level is being played (menus use plain taps = clicks)
   useEffect(() => {
-    const id = window.setInterval(() => setScreen(gameRef.current?.currentScreen ?? ''), 120);
+    const id = window.setInterval(() => {
+      const g = gameRef.current;
+      setScreen(g?.currentScreen ?? '');
+      setBackLabel(g?.backLabel() ?? '↩');
+    }, 120);
     return () => window.clearInterval(id);
   }, []);
 
@@ -61,6 +66,23 @@ export default function XaGameView() {
       )}
 
       <TouchControls active={isTouch && !portrait && screen === 'play'} />
+
+      {/* always-visible back / Esc button on touch screens; its icon and action follow the current screen */}
+      {isTouch && !portrait && screen && screen !== 'pick' && (
+        <button
+          className="xa-back-btn"
+          aria-label="Volver"
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            gameRef.current?.backAction();
+            setBackLabel(gameRef.current?.backLabel() ?? '↩');
+          }}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          {backLabel}
+        </button>
+      )}
     </div>
   );
 }

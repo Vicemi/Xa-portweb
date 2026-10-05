@@ -100,11 +100,27 @@ export function stopMusic(): void {
   }
 }
 
-export function setSoundEnabled(on: boolean): void { soundOn = on; }
-export function setMusicEnabled(on: boolean): void { musicOn = on; if (!on) stopMusic(); }
+function savePrefs(): void {
+  try { localStorage.setItem('xa-audio', JSON.stringify({ soundOn, musicOn, soundVol, musicVol })); } catch { /* ignore */ }
+}
+/** Restore saved audio prefs (called once at boot). */
+export function loadPrefs(): void {
+  try {
+    const s = JSON.parse(localStorage.getItem('xa-audio') ?? 'null');
+    if (s) {
+      soundOn = s.soundOn ?? true;
+      musicOn = s.musicOn ?? true;
+      soundVol = s.soundVol ?? 1;
+      musicVol = s.musicVol ?? 1;
+    }
+  } catch { /* ignore */ }
+}
+
+export function setSoundEnabled(on: boolean): void { soundOn = on; savePrefs(); }
+export function setMusicEnabled(on: boolean): void { musicOn = on; if (!on) stopMusic(); savePrefs(); }
 export function isSoundEnabled(): boolean { return soundOn; }
 export function isMusicEnabled(): boolean { return musicOn; }
-export function setSoundVolume(v: number): void { soundVol = v; if (ctx) fxGain.gain.value = v; }
-export function setMusicVolume(v: number): void { musicVol = v; if (ctx) musicGain.gain.value = v; }
+export function setSoundVolume(v: number): void { soundVol = v; if (ctx) fxGain.gain.value = v; savePrefs(); }
+export function setMusicVolume(v: number): void { musicVol = v; if (ctx) musicGain.gain.value = v; savePrefs(); }
 export function getSoundVolume(): number { return soundVol; }
 export function getMusicVolume(): number { return musicVol; }

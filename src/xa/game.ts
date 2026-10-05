@@ -3,7 +3,7 @@
 // scaled to fit any window, keeping the 4:3 aspect ratio. All art comes from the user's own game files.
 import { hasGameFiles, img, listFiles, loadText, pickGameFolder, preloadImages, restoreGameFolder, useBundledAssets, useDevGameFiles } from './core/assets';
 import { attachInput, isFirstPress, keyPressed, pollInput } from './core/input';
-import { getMusicVolume, getSoundVolume, isMusicEnabled, isSoundEnabled, playMusic, playSound, preloadSounds, setMusicEnabled, setMusicVolume, setSoundEnabled, setSoundVolume, stopMusic, unlockAudio } from './core/audio';
+import { getMusicVolume, getSoundVolume, isMusicEnabled, isSoundEnabled, loadPrefs, playMusic, playSound, preloadSounds, setMusicEnabled, setMusicVolume, setSoundEnabled, setSoundVolume, stopMusic, unlockAudio } from './core/audio';
 import { drawText, fontPaths } from './core/font';
 import { drawFrame, frameOf } from './core/sprites';
 import levelData from './data/levels.json';
@@ -100,6 +100,7 @@ export class XaGame {
     this.world.height = VIEW_H;
     this.wctx = this.world.getContext('2d')!;
     this.canvas.style.cursor = 'none';
+    loadPrefs();
     this.state.load();
   }
 

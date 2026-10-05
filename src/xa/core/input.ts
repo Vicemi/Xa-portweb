@@ -30,16 +30,34 @@ export function attachInput(target: Window = window): () => void {
     down.add(e.code);
     if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
   };
-  const ku = (e: KeyboardEvent) => down.delete(e.code);
+  const ku = (e: KeyboardEvent) => {
+    down.delete(e.code);
+    // a focused page button must not be "clicked" by the jump key when it is released
+    if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
+  };
   const clear = () => down.clear();
+  const vis = () => { if (document.hidden) down.clear(); };
   target.addEventListener('keydown', kd);
   target.addEventListener('keyup', ku);
   target.addEventListener('blur', clear);
+  target.addEventListener('focus', clear);
+  document.addEventListener('visibilitychange', vis);
   return () => {
     target.removeEventListener('keydown', kd);
     target.removeEventListener('keyup', ku);
     target.removeEventListener('blur', clear);
+    target.removeEventListener('focus', clear);
+    document.removeEventListener('visibilitychange', vis);
   };
+}
+
+/** Forget every key (level start, respawn): a key whose release was missed can't stay stuck "held", which would
+ *  keep Xa ducking or swallow the next jump press. */
+export function resetInput(): void {
+  down.clear();
+  tapped.clear();
+  prev = new Set();
+  curr = new Set();
 }
 
 /** Call once per fixed update, before game logic reads input. */

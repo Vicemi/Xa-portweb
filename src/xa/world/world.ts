@@ -3,6 +3,7 @@ import { Anim, drawFrame, drawTinted, frameOf, MAPS } from '../core/sprites';
 import { drawLine } from '../core/font';
 import { img } from '../core/assets';
 import { playMusic, playSound } from '../core/audio';
+import { resetInput } from '../core/input';
 import { GameCamera, VIEW_H, VIEW_W } from './camera';
 import { Enemy, createEnemy } from './enemies';
 import { createSvEnemy } from './svnz';
@@ -302,6 +303,7 @@ export class Scenario implements World {
       return;
     }
     s.lives -= 1;
+    resetInput(); // no key may stay stuck "held" across the death
     s.clearPower(); // mod: power-ups are lost with the life
     for (const e of this.enemies) if (e.alive) e.onHeroRespawn(); // extra-level bosses start over at full life
     if (this.music) playMusic(this.music); // the track a checkpoint switched to keeps playing (AudioLibrary state)

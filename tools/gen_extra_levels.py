@@ -220,6 +220,7 @@ class Grid:
         self.w, self.h = len(cols), h
         self.s = [[state.get(cols[x][y]) for y in range(h)] for x in range(self.w)]
         self.virtual = set()
+        self.blocked = set()       # cells closed by a door (tested with the door shut)
 
     def st(self, x, y):
         if x < 0 or x >= self.w or y < 0:
@@ -229,7 +230,7 @@ class Grid:
         return self.s[x][y]
 
     def free(self, x, y):
-        return self.st(x, y) not in ('pHard', 'pKilling')
+        return (x, y) not in self.blocked and self.st(x, y) not in ('pHard', 'pKilling')
 
     def floor(self, x, y):
         s = self.st(x, y)
@@ -382,6 +383,17 @@ def compose(i, spec, bases, out, arena_at, rnd, tpl):
     b0 = bases[0]
     nw, h = len(out), b0.h
     cols = [bases[bi].cols[x] for (bi, x) in out]
+
+    # boss gate: on the last arena column, standing on the arena floor, with solid blocks from the top of the map
+    # down to the top of the gate (like the gates of the original levels) so it can't be jumped over
+    gate = None
+    if arena_at is not None:
+        gate_col = arena_at + ARENA - 1
+        acol = cols[gate_col]
+        ground = next(y for y in range(5, h) if b0.state.get(acol[y]) == 'pHard')
+        fill = next((acol[y] for y in range(ground + 1, h) if b0.state.get(acol[y]) == 'pHard'), acol[ground])
+        cols[gate_col] = tuple(fill if y < ground - 4 else acol[y] for y in range(h))
+        gate = (gate_col, ground)
     g = Grid(cols, b0.state, h)
 
     # runs of consecutive source columns: moving platforms, the hero and the exit travel with them
@@ -444,6 +456,14 @@ def compose(i, spec, bases, out, arena_at, rnd, tpl):
         return None
     if arena_at is not None and not any((arena_at + 10, y) in reach for y in range(h)):
         return None
+    if gate:
+        # with the gate shut the exit must be out of reach: the boss's key is the only way through
+        gx, gy = gate
+        g.blocked = {(gx, y) for y in range(gy - 4, gy)}
+        shut = reachable(g, (hx, sy))
+        g.blocked = set()
+        if any((cx, cy) in shut for cx in range(ex - 1, ex + 2) for cy in range(ey, ey + eh + 3)):
+            return None
 
     floors = sorted(reach)
     by_col = defaultdict(list)
@@ -587,7 +607,8 @@ def compose(i, spec, bases, out, arena_at, rnd, tpl):
         for kk, v in (('pRequiredItem', 'KEY'), ('pLookDir', '-1'), ('pArenaX0', str(ax0)), ('pArenaX1', str(ax1))):
             prop(boss, kk, v)
         objs.append(at(boss, arena_at + 17, ground))
-        door = ET.Element('object', name='Puerta', type='Door', x=str(ax1 + 2 * TS), y=str(ground * TS - 128),
+        gx, gy = gate
+        door = ET.Element('object', name='Puerta', type='Door', x=str(gx * TS), y=str(gy * TS - 128),
                           width='32', height='128')
         for kk, v in (('pAsset', 'GATE'), ('pIsKey', 'true'), ('pRequiredCount', '1'), ('pRequiredItem', 'KEY')):
             prop(door, kk, v)

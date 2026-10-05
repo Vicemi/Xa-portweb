@@ -849,3 +849,12 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   de ~14 px de tinta. font.ts: letterWidth('pixel') = 30.
 - Ajuste (pedido del usuario): con el avance de 30 px los dígitos quedaban demasiado separados. Paso fijo de 16 px
   (tinta ~14 px + 2 de aire): "1000", "45", "80" juntos y legibles (PIXEL_STEP en font.ts).
+
+## Estado 2026-10-05 (ronda 51 — la puerta del jefe ya no se puede saltar)
+- Bug: en los niveles extra la puerta GATE (4 baldosas) estaba en el tramo de salida sin nada arriba → se saltaba
+  y se terminaba el nivel sin vencer al jefe. gen_extra_levels.py: la puerta va en la última columna de la arena
+  (mismo piso) y esa columna se rellena con la baldosa sólida de relleno del tileset desde la fila 0 hasta el tope
+  de la puerta, como las puertas de los originales. Nuevo chequeo: con la puerta cerrada (celdas bloqueadas) la
+  salida debe ser INALCANZABLE y con la puerta abierta alcanzable; si no, se descarta el layout.
+- Verificado en los 4 niveles de jefe: 10 s corriendo/saltando contra la puerta cerrada no la pasan; con la llave
+  se abre y se cruza. La lógica de puertas del juego no cambió (originales intactos).

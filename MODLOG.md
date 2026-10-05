@@ -590,3 +590,14 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - FloorCannon: su deslizamiento del port ya era idéntico al yoyó easeInOutSin del original.
 - Tipos de loadObjects (Windows) sin uso en los 16 niveles: WATER (pAnimSplash), meteoritos (pMeteorites,
   pAssetMeteorites), ElectricField, Acid, VRocket/HRocket, Piranha. No afectan la fidelidad del juego publicado.
+
+## Estado 2026-10-05 (ronda 29 — repaso integral, parte 2)
+- **Door**: Door::intersects con pRequiredCount × pRequiredItem → Hero::consumeItems (las llaves se GASTAN),
+  DOOR_OPENED, y Door::internalUpdate hunde la reja linealmente en 1 s: texture rect y += sink, alto -= sink, bound
+  se achica desde arriba (sigue siendo sólida hasta desaparecer). Antes: fundido de 0.5 s y no gastaba llaves.
+- **HUD llaves** (Hud::start): el contador KEY_SMALL sólo se muestra desde el nivel 14, siempre (aunque sea 0).
+- **PlatformInterp**: la imagen sale de una tabla por NIVEL en Windows loadObjects (jmp [actualLevel*4+0x421b80]):
+  1 GREEN, 2 BORDEAUX, 3 SKYBLUE, 4-5 GREEN, 6 CAVE, 7 PURPLE, 8 BROWN, 9-11 CITY, 12 ICE, 13-14 MOON, 15-16 SPACE;
+  el pAsset del TMX (PLATFORM_EGYPT_SMALL, inexistente) se ignora. Antes todas eran verdes. Un solo sprite (66 px)
+  por plataforma: level6 (512) y level12 (1600) estiran el rect del TMX al recorrido y daban plataformas gigantes.
+  Todas las plataformas tienen pWait > 0 → ciclo ida/espera/vuelta (ya portado).

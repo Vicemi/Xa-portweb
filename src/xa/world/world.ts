@@ -141,7 +141,7 @@ export class Scenario implements World {
           break;
         case 'PlatformInterp':
         case 'PlatformLinear':
-          this.platforms.push(new Platform(o, o.x, o.y));
+          this.platforms.push(new Platform(o, o.x, o.y, this.levelNum));
           break;
         default: {
           const e = createEnemy(o, this, f.x, f.y);
@@ -277,10 +277,11 @@ export class Scenario implements World {
     // doors: block until opened with the right key
     for (const d of this.doors) {
       d.update(dt);
-      if (d.open) continue;
+      if (d.gone) continue;
       const db = d.bounds();
       if (overlaps(h.rect, db)) {
-        if (d.tryOpen(this.state.keys)) continue;
+        if (!d.open && d.tryOpen(this.state.keys)) continue;
+        if (d.open) continue; // sinking: no longer pushes the hero back
         if (h.vel.x > 0) h.pushX(db.x - (h.rect.x + h.rect.w));
         else if (h.vel.x < 0) h.pushX(db.x + db.w - h.rect.x);
         h.vel.x = 0;

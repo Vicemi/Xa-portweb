@@ -794,8 +794,9 @@ export class XaGame {
       w.drawImage(bt, sx, sy, sw, sh, it.x - sw / 2, it.y - sh / 2, sw, sh);
     });
     // Menu::init → setHighScore(HeroState::getHighScore): the record = sum of every level's best score (saveGame),
-    // zero-padded to 6 digits, black font, left-aligned inside the "RÉCORD:" box
-    drawText(w, String(this.state.recordTotal()).padStart(6, '0'), 419, 21, 'black', 'left');
+    // zero-padded to 6 digits, black font (GameFont 0), TextSprite at (419, 8) per Menu::Menu — the glyphs sit low
+    // in their 30 px cells, so that lands the digits under "RÉCORD:", inside the box
+    drawText(w, String(this.state.recordTotal()).padStart(6, '0'), 419, 8, 'black', 'left');
   }
 
   private renderLevels(w: CanvasRenderingContext2D): void {

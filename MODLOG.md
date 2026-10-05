@@ -679,3 +679,8 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - Nuevo `screen_logo_vicemi.jpg` (512x512, banda 4:3 superior como los originales) como TERCER logo: Batoví →
   Calcar → Vicemi → PreLoader (xa_intro). Lista `SPLASH_LOGOS` en game.ts; cada logo con su "dong" (intro_piano),
   3.5 s y fundidos de 0.8 s; se salta con cualquier tecla/clic. Manifest regenerado. Verificado en navegador.
+
+## Estado 2026-10-05 (ronda 39 — récord del menú en su lugar)
+- Menu::Menu crea el TextSprite del récord con GameFont 0 y `Pos2::setPos(419.0, 8.0)`. El port lo dibujaba en
+  (419, 21): 13 px más abajo, fuera del recuadro "RÉCORD:". Ahora (419, 8) → los dígitos quedan bajo "RÉCORD:",
+  dentro del recuadro (los glifos están en la parte baja de su celda de 30 px). Verificado con récord 123456.

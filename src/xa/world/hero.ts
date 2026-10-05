@@ -401,7 +401,7 @@ export class Hero {
       }
     }
 
-    const sx = Math.sign(dirX());
+    const sx = this.winner ? 1 : Math.sign(dirX()); // ganador: camina solo hacia la derecha (ControllerHero::process)
     switch (this.state) {
       case HS.Stand: case HS.State1:
         this.vel.x = sx * VELOCITY_WALK;

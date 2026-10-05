@@ -78,6 +78,12 @@ export class Enemy {
     const m = this.movement();
     return m === 'patrol' || m === 'static' || m === 'boss' || m === 'slide';
   }
+  /** True when close enough to the hero that its sounds should be audible (audio proximity). */
+  private nearHero(): boolean {
+    const hero = this.world.hero;
+    if (!hero.isAlive()) return false;
+    return Math.abs(hero.pos.x - this.x) < 420;
+  }
 
   /** Called when a hero bullet (team 0) hits this enemy. Returns true if it died. */
   onBullet(): boolean {
@@ -173,7 +179,7 @@ export class Enemy {
         this.jumpPhase = 'air';
         this.vy = -200;
         this.vx = this.dir * spd;
-        playSound('ENEMY_JUMP');
+        if (this.nearHero()) playSound('ENEMY_JUMP');
       }
     } else {
       this.vy += grav * dt;

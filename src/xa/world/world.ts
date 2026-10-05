@@ -371,9 +371,13 @@ export class Scenario implements World {
       }
       if (b.team === 0) {
         for (const e of this.enemies) {
-          if (!e.alive || e.isBulletProof || e.isIndestructible) continue;
-          if (overlaps({ x: b.x - 4, y: b.y - 4, w: 8, h: 8 }, e.bounds())) {
+          // only Guillotine / Rocket are isInvisibleForBullet; everything else stops the shot (spikes included, even
+          // though they take no damage) and SimpleBullet::onNeutralized leaves a GREEN_SHINE where it hit
+          if (!e.alive || e.isBulletProof) continue;
+          if (overlaps({ x: b.x - 3, y: b.y - 3, w: 6, h: 6 }, e.bounds())) {
             b.alive = false;
+            this.addEffect('GREEN_SHINE', b.x, b.y, -Math.sign(b.vx) || 1);
+            if (e.isIndestructible) break;
             if (e.isBoss) {
               this.camera.shake(0.2); // EnemyBoss::onCollision: every hit shakes the camera
               if (e.onBullet()) this.killBoss(e);

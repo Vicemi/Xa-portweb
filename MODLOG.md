@@ -561,3 +561,5 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   resolución real, con la cinta PRESS_ANY_KEY escalada encima → nítidas en vez de pasar por el lienzo de 512x384.
   Cualquier otra pantalla (ayuda, menú, cómic…) que se rediseñe en HD con la misma convención funciona igual.
 - La cinta "Presiona cualquier tecla" (presente en Credits del original) tapa la última línea del diseño nuevo.
+- Créditos / ayuda (Credits::update): se cierran con CUALQUIER tecla o clic (Keyboard "any" + Mouse 0), no solo
+  Esc/Enter. Game over / final: también cualquier tecla.

@@ -628,3 +628,6 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   dibuja en y=802, fuera de la pantalla de 384 px de esta versión → no visible, no se porta.
 - Muerte con vidas: Scenario::init sólo rearma la escena/cámara (no resetea objetos) → el port ya coincide.
 - Down3 / Cannon: pxVel = ±1 es sólo la orientación (torretas fijas) → ya coincide.
+- **Cómic** (corrección): InGame::loadIntroGeneral → General2..5 → loadMenu; cada página es una Intro que avanza con
+  CUALQUIER tecla o clic tras 0.6 s (Intro::update). NO existe "Enter salta toda la historia" (era de la instalación
+  modificada); quitado. El botón ⏭ móvil = pasar página.

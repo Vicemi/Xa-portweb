@@ -505,3 +505,11 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - `?level=N` y `?map=ruta.tmx` entran directo a un nivel. `npm run manifest` (tools/gen-manifest.mjs) regenera
   public/assets/manifest.json para mapas nuevos.
 - README reescrito: estado, controles (teclado y táctil), opciones, atajos URL, cómo crear mapas, estructura.
+
+## Estado 2026-10-04 (ronda 23 — hotfix pantallas negras)
+- **Causa**: `tools/gen-manifest.mjs` pasaba las rutas a minúsculas (`menuElements` → `menuelements`,
+  `Xa_animaciones` → `xa_animaciones`); el servidor distingue mayúsculas → 404 en menú/carga/héroe → negro.
+  Ahora conserva el caso real. Verificado: 0 respuestas 404, flujo completo logos → carga → cómic → menú → mapa →
+  intro de nivel, y todas las rutas del manifest existen en `dist/`.
+- **Input**: una tecla pulsada y soltada entre dos updates se perdía (toques rápidos / frames lentos). `pollInput`
+  ahora agrega las teclas `tapped` desde el último poll como pulsación de un update.

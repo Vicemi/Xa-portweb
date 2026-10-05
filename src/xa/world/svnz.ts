@@ -41,8 +41,9 @@ export const SV_TYPES = new Set(Object.keys(SPEC));
 
 const GRAVITY = 1200;
 // Mod rules of the extra-level boss fights: an energy item drops into the arena now and then while Xa is hurt
-const HEAL_FIRST = 8;
-const HEAL_EVERY = 12;
+const HEAL_FIRST = 6;
+const HEAL_EVERY = 10;
+export const POWER_UPS = ['PU_CRYSTAL', 'PU_POTION', 'PU_BATTERY', 'PU_GEARS'];
 
 export function createSvEnemy(o: TmxObject, world: World, x: number, y: number): Enemy | null {
   return SV_TYPES.has(o.type) ? new SvEnemy(world, o, x, y) : null;
@@ -114,9 +115,9 @@ class SvEnemy extends Enemy {
     return this.spec.boss || this.p.pIsKey === 'true' ? this.p.pRequiredItem ?? 'KEY' : null;
   }
 
-  override onBullet(): boolean {
+  override onBullet(damage = 1): boolean {
     if (this.spec.boss && !this.awake) this.wake(); // shooting it from outside the arena starts the fight too
-    const dead = super.onBullet();
+    const dead = super.onBullet(damage);
     // the small ones flinch; the big demon and the bosses have SVNZ armour (armorMode) and keep going
     if (!dead && !this.spec.boss && this.type !== 'SvBigDemon' && this.st === 'walk') this.play('HIT_IN');
     return dead;
@@ -133,16 +134,18 @@ class SvEnemy extends Enemy {
     this.setSt('walk', 'WALK');
   }
 
-  /** Energy drops during the fight, at the arena spot farthest from the boss, one at a time, only when Xa is hurt. */
+  /** Drops during the fight, at the arena spot farthest from the boss, one at a time: energy when Xa is hurt, or one
+   *  of the timed power-ups (mod items of items_tile.png). */
   private healing(dt: number): void {
     if (this.heal?.alive) return;
     this.healT -= dt;
     if (this.healT > 0) return;
     this.healT = HEAL_EVERY;
-    if (this.world.state.energy >= 10) return;
+    const hurt = this.world.state.energy < 10;
+    const asset = hurt && Math.random() < 0.45 ? 'ENERGY' : POWER_UPS[Math.floor(Math.random() * POWER_UPS.length)];
     const [x0, x1] = this.arena;
     const x = this.x - x0 > x1 - this.x ? x0 + 96 : x1 - 96;
-    this.heal = this.world.spawnItem('ENERGY', x, this.hy, 3);
+    this.heal = this.world.spawnItem(asset, x, this.hy, asset === 'ENERGY' ? 3 : 1);
   }
 
   /** Xa lost a life: the boss gets all its life back and waits in its arena again (bar and helpers gone). */
@@ -175,6 +178,7 @@ class SvEnemy extends Enemy {
   override onDefeated(): void {
     const b = this.spec.boss;
     if (!b) return;
+    this.world.state.clearPower(); // power-ups only last for the boss fight
     this.world.message(`${b.defeat}\nTomá la llave: te falta la parte final.`, 5);
     const m = this.world.levelMusic;
     if (m) this.world.setMusic(m);

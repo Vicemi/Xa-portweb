@@ -570,7 +570,7 @@
     <property name="pAsset" value="SAVE" />
    </properties>
   </object>
-  <object name="SavePoint" type="SavePoint" x="9728" y="480" width="32" height="32">
+  <object name="SavePoint" type="SavePoint" x="9920" y="480" width="32" height="32">
    <properties>
     <property name="pAnim" value="SHINE" />
     <property name="pAsset" value="SAVE" />
@@ -582,7 +582,7 @@
     <property name="pAsset" value="SAVE" />
    </properties>
   </object>
-  <object name="SavePoint" type="SavePoint" x="17024" y="480" width="32" height="32">
+  <object name="SavePoint" type="SavePoint" x="17280" y="480" width="32" height="32">
    <properties>
     <property name="pAnim" value="SHINE" />
     <property name="pAsset" value="SAVE" />
@@ -939,7 +939,7 @@
     <property name="pRequiredItem" value="POINTS" />
    </properties>
   </object>
-  <object name="COIN" type="Item" x="8896" y="480" width="32" height="32">
+  <object name="COIN" type="Item" x="9280" y="512" width="32" height="32">
    <properties>
     <property name="pAnim" value="COIN" />
     <property name="pAsset" value="COIN" />
@@ -948,7 +948,7 @@
     <property name="pRequiredItem" value="POINTS" />
    </properties>
   </object>
-  <object name="COIN" type="Item" x="8928" y="448" width="32" height="32">
+  <object name="COIN" type="Item" x="9312" y="512" width="32" height="32">
    <properties>
     <property name="pAnim" value="COIN" />
     <property name="pAsset" value="COIN" />
@@ -957,7 +957,7 @@
     <property name="pRequiredItem" value="POINTS" />
    </properties>
   </object>
-  <object name="COIN" type="Item" x="8960" y="448" width="32" height="32">
+  <object name="COIN" type="Item" x="9344" y="512" width="32" height="32">
    <properties>
     <property name="pAnim" value="COIN" />
     <property name="pAsset" value="COIN" />
@@ -966,7 +966,7 @@
     <property name="pRequiredItem" value="POINTS" />
    </properties>
   </object>
-  <object name="COIN" type="Item" x="8992" y="448" width="32" height="32">
+  <object name="COIN" type="Item" x="9376" y="512" width="32" height="32">
    <properties>
     <property name="pAnim" value="COIN" />
     <property name="pAsset" value="COIN" />
@@ -975,7 +975,7 @@
     <property name="pRequiredItem" value="POINTS" />
    </properties>
   </object>
-  <object name="COIN" type="Item" x="9024" y="480" width="32" height="32">
+  <object name="COIN" type="Item" x="9888" y="480" width="32" height="32">
    <properties>
     <property name="pAnim" value="COIN" />
     <property name="pAsset" value="COIN" />
@@ -1011,45 +1011,13 @@
     <property name="pRequiredItem" value="POINTS" />
    </properties>
   </object>
-  <object name="COIN" type="Item" x="14080" y="480" width="32" height="32">
+  <object name="COIN" type="Item" x="10016" y="480" width="32" height="32">
    <properties>
     <property name="pAnim" value="COIN" />
     <property name="pAsset" value="COIN" />
     <property name="pCount" value="0" />
     <property name="pIsKey" value="true" />
     <property name="pRequiredItem" value="POINTS" />
-   </properties>
-  </object>
-  <object name="COIN" type="Item" x="14112" y="448" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="COIN" />
-    <property name="pAsset" value="COIN" />
-    <property name="pCount" value="0" />
-    <property name="pIsKey" value="true" />
-    <property name="pRequiredItem" value="POINTS" />
-   </properties>
-  </object>
-  <object name="COIN" type="Item" x="14144" y="448" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="COIN" />
-    <property name="pAsset" value="COIN" />
-    <property name="pCount" value="0" />
-    <property name="pIsKey" value="true" />
-    <property name="pRequiredItem" value="POINTS" />
-   </properties>
-  </object>
-  <object name="COIN" type="Item" x="14176" y="480" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="COIN" />
-    <property name="pAsset" value="COIN" />
-    <property name="pCount" value="0" />
-    <property name="pIsKey" value="true" />
-    <property name="pRequiredItem" value="POINTS" />
-   </properties>
-  </object>
-  <object name="COW" type="Cow" x="7104" y="448" width="32" height="32">
-   <properties>
-    <property name="pIsKey" value="false" />
    </properties>
   </object>
   <object name="COW" type="Cow" x="5024" y="352" width="32" height="32">
@@ -1057,12 +1025,17 @@
     <property name="pIsKey" value="false" />
    </properties>
   </object>
-  <object name="COW" type="Cow" x="18432" y="512" width="32" height="32">
+  <object name="COW" type="Cow" x="19072" y="480" width="32" height="32">
    <properties>
     <property name="pIsKey" value="false" />
    </properties>
   </object>
-  <object name="COW" type="Cow" x="9248" y="512" width="32" height="32">
+  <object name="COW" type="Cow" x="10944" y="480" width="32" height="32">
+   <properties>
+    <property name="pIsKey" value="false" />
+   </properties>
+  </object>
+  <object name="COW" type="Cow" x="1056" y="512" width="32" height="32">
    <properties>
     <property name="pIsKey" value="false" />
    </properties>
@@ -1075,7 +1048,7 @@
     <property name="pRequiredItem" value="ENERGY_DOUBLE_JUMP" />
    </properties>
   </object>
-  <object name="Energy" type="Item" x="6816" y="480" width="32" height="32">
+  <object name="Energy" type="Item" x="7488" y="480" width="32" height="32">
    <properties>
     <property name="pAsset" value="ENERGY" />
     <property name="pCount" value="3" />
@@ -1083,7 +1056,7 @@
     <property name="pRequiredItem" value="ENERGY" />
    </properties>
   </object>
-  <object name="Energy" type="Item" x="15168" y="512" width="32" height="32">
+  <object name="Energy" type="Item" x="18976" y="448" width="32" height="32">
    <properties>
     <property name="pAsset" value="ENERGY" />
     <property name="pCount" value="3" />
@@ -1091,7 +1064,7 @@
     <property name="pRequiredItem" value="ENERGY" />
    </properties>
   </object>
-  <object name="Live" type="Item" x="10336" y="384" width="32" height="32">
+  <object name="Live" type="Item" x="14432" y="480" width="32" height="32">
    <properties>
     <property name="pAsset" value="LIVES" />
     <property name="pCount" value="1" />
@@ -1099,86 +1072,7 @@
     <property name="pRequiredItem" value="LIVES" />
    </properties>
   </object>
-  <object name="SvBat" type="SvBat" x="1088" y="384" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="1632" y="512" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="DOUBLE" type="Double" x="2176" y="416" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="DOUBLE_SIDE" />
-    <property name="pAsset" value="DOUBLE_SIDE" />
-    <property name="pCollidesH" value="true" />
-    <property name="pCollidesV" value="false" />
-    <property name="pDuration" value="8.0" />
-    <property name="pIsKey" value="false" />
-    <property name="pLives" value="3" />
-    <property name="pMaxTime" value="3.0" />
-    <property name="pMinTime" value="1.0" />
-    <property name="pTeam" value="1" />
-    <property name="pyDelta" value="20.0" />
-   </properties>
-  </object>
-  <object name="SvRedNinja" type="SvRedNinja" x="2720" y="480" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBigDemon" type="SvBigDemon" x="3136" y="512" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBat" type="SvBat" x="3648" y="384" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="Cobra" type="Jumper" x="4128" y="512" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="COBRA" />
-    <property name="pAsset" value="COBRA" />
-    <property name="pCollidesFloor" value="false" />
-    <property name="pCollidesH" value="true" />
-    <property name="pCollidesV" value="true" />
-    <property name="pIsKey" value="true" />
-    <property name="pLives" value="5" />
-    <property name="pTeam" value="1" />
-    <property name="pxAccel" value="0.0" />
-    <property name="pxVel" value="-60" />
-    <property name="pyAccel" value="300.0" />
-    <property name="pyVel" value="100.0" />
-   </properties>
-  </object>
-  <object name="SvBat" type="SvBat" x="4672" y="416" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="Cobra" type="Jumper" x="5088" y="512" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="COBRA" />
-    <property name="pAsset" value="COBRA" />
-    <property name="pCollidesFloor" value="false" />
-    <property name="pCollidesH" value="true" />
-    <property name="pCollidesV" value="true" />
-    <property name="pIsKey" value="true" />
-    <property name="pLives" value="5" />
-    <property name="pTeam" value="1" />
-    <property name="pxAccel" value="0.0" />
-    <property name="pxVel" value="-120" />
-    <property name="pyAccel" value="300.0" />
-    <property name="pyVel" value="100.0" />
-   </properties>
-  </object>
-  <object name="SvNinja" type="SvNinja" x="5472" y="512" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="Cobra" type="Jumper" x="6592" y="480" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="COBRA" />
-    <property name="pAsset" value="COBRA" />
-    <property name="pCollidesFloor" value="false" />
-    <property name="pCollidesH" value="true" />
-    <property name="pCollidesV" value="true" />
-    <property name="pIsKey" value="true" />
-    <property name="pLives" value="5" />
-    <property name="pTeam" value="1" />
-    <property name="pxAccel" value="0.0" />
-    <property name="pxVel" value="-120" />
-    <property name="pyAccel" value="300.0" />
-    <property name="pyVel" value="100.0" />
-   </properties>
-  </object>
-  <object name="SvNinja" type="SvNinja" x="7072" y="416" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="Cobra" type="Jumper" x="7424" y="512" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="COBRA" />
-    <property name="pAsset" value="COBRA" />
-    <property name="pCollidesFloor" value="false" />
-    <property name="pCollidesH" value="true" />
-    <property name="pCollidesV" value="true" />
-    <property name="pIsKey" value="true" />
-    <property name="pLives" value="5" />
-    <property name="pTeam" value="1" />
-    <property name="pxAccel" value="0.0" />
-    <property name="pxVel" value="-60" />
-    <property name="pyAccel" value="300.0" />
-    <property name="pyVel" value="100.0" />
-   </properties>
-  </object>
-  <object name="DOUBLE" type="Double" x="8768" y="320" width="32" height="32">
+  <object name="SvBigDemon" type="SvBigDemon" x="864" y="544" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvNinja" type="SvNinja" x="1248" y="480" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBat" type="SvBat" x="1664" y="384" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="DOUBLE" type="Double" x="2144" y="416" width="32" height="32">
    <properties>
     <property name="pAnim" value="DOUBLE_SIDE" />
     <property name="pAsset" value="DOUBLE_SIDE" />
@@ -1193,7 +1087,38 @@
     <property name="pyDelta" value="60.0" />
    </properties>
   </object>
-  <object name="SvBigDemon" type="SvBigDemon" x="9344" y="512" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="DOUBLE" type="Double" x="9536" y="384" width="32" height="32">
+  <object name="SvNinja" type="SvNinja" x="2720" y="480" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="Cobra" type="Jumper" x="3168" y="512" width="32" height="32">
+   <properties>
+    <property name="pAnim" value="COBRA" />
+    <property name="pAsset" value="COBRA" />
+    <property name="pCollidesFloor" value="false" />
+    <property name="pCollidesH" value="true" />
+    <property name="pCollidesV" value="true" />
+    <property name="pIsKey" value="true" />
+    <property name="pLives" value="5" />
+    <property name="pTeam" value="1" />
+    <property name="pxAccel" value="0.0" />
+    <property name="pxVel" value="-120" />
+    <property name="pyAccel" value="300.0" />
+    <property name="pyVel" value="100.0" />
+   </properties>
+  </object>
+  <object name="SvBat" type="SvBat" x="3616" y="384" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvNinja" type="SvNinja" x="4096" y="512" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBigDemon" type="SvBigDemon" x="4416" y="544" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="DOUBLE" type="Double" x="4704" y="352" width="32" height="96">
+   <properties>
+    <property name="pAnim" value="DOUBLE_SIDE" />
+    <property name="pAsset" value="DOUBLE_SIDE" />
+    <property name="pCollidesH" value="true" />
+    <property name="pCollidesV" value="false" />
+    <property name="pDuration" value="8.0" />
+    <property name="pIsKey" value="false" />
+    <property name="pLives" value="3" />
+    <property name="pMaxTime" value="3.0" />
+    <property name="pMinTime" value="1.0" />
+    <property name="pTeam" value="1" />
+    <property name="pyDelta" value="64.0" />
+   </properties>
+  </object>
+  <object name="SvNinja" type="SvNinja" x="5216" y="480" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="5664" y="544" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="6048" y="512" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvNinja" type="SvNinja" x="6816" y="512" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="DOUBLE" type="Double" x="9504" y="384" width="32" height="32">
    <properties>
     <property name="pAnim" value="DOUBLE_SIDE" />
     <property name="pAsset" value="DOUBLE_SIDE" />
@@ -1208,7 +1133,7 @@
     <property name="pyDelta" value="60.0" />
    </properties>
   </object>
-  <object name="SvRedNinja" type="SvRedNinja" x="10624" y="480" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="11008" y="480" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvNinja" type="SvNinja" x="11360" y="512" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="Cobra" type="Jumper" x="11680" y="480" width="32" height="32">
+  <object name="Cobra" type="Jumper" x="10240" y="416" width="32" height="32">
    <properties>
     <property name="pAnim" value="COBRA" />
     <property name="pAsset" value="COBRA" />
@@ -1224,39 +1149,7 @@
     <property name="pyVel" value="100.0" />
    </properties>
   </object>
-  <object name="Cobra" type="Jumper" x="12128" y="480" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="COBRA" />
-    <property name="pAsset" value="COBRA" />
-    <property name="pCollidesFloor" value="false" />
-    <property name="pCollidesH" value="true" />
-    <property name="pCollidesV" value="true" />
-    <property name="pIsKey" value="true" />
-    <property name="pLives" value="5" />
-    <property name="pTeam" value="1" />
-    <property name="pxAccel" value="0.0" />
-    <property name="pxVel" value="-120" />
-    <property name="pyAccel" value="300.0" />
-    <property name="pyVel" value="100.0" />
-   </properties>
-  </object>
-  <object name="SvRedNinja" type="SvRedNinja" x="13952" y="512" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBat" type="SvBat" x="14336" y="384" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvBat" type="SvBat" x="14976" y="416" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="15488" y="480" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBigDemon" type="SvBigDemon" x="15904" y="512" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvNinja" type="SvNinja" x="16256" y="544" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvNinja" type="SvNinja" x="16832" y="512" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvNinja" type="SvNinja" x="17312" y="480" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="Cobra" type="Jumper" x="17856" y="512" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="COBRA" />
-    <property name="pAsset" value="COBRA" />
-    <property name="pCollidesFloor" value="false" />
-    <property name="pCollidesH" value="true" />
-    <property name="pCollidesV" value="true" />
-    <property name="pIsKey" value="true" />
-    <property name="pLives" value="5" />
-    <property name="pTeam" value="1" />
-    <property name="pxAccel" value="0.0" />
-    <property name="pxVel" value="-120" />
-    <property name="pyAccel" value="300.0" />
-    <property name="pyVel" value="100.0" />
-   </properties>
-  </object>
-  <object name="SvNinja" type="SvNinja" x="18272" y="544" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvNinja" type="SvNinja" x="18752" y="480" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="DOUBLE" type="Double" x="19008" y="352" width="32" height="32">
+  <object name="SvNinja" type="SvNinja" x="10624" y="480" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="DOUBLE" type="Double" x="12128" y="352" width="32" height="32">
    <properties>
     <property name="pAnim" value="DOUBLE_SIDE" />
     <property name="pAsset" value="DOUBLE_SIDE" />
@@ -1271,23 +1164,52 @@
     <property name="pyDelta" value="60.0" />
    </properties>
   </object>
-  <object name="Cobra" type="Jumper" x="19424" y="480" width="32" height="32">
+  <object name="SvRedNinja" type="SvRedNinja" x="13888" y="512" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBigDemon" type="SvBigDemon" x="14336" y="512" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="14816" y="544" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="DOUBLE" type="Double" x="15200" y="416" width="32" height="32">
    <properties>
-    <property name="pAnim" value="COBRA" />
-    <property name="pAsset" value="COBRA" />
-    <property name="pCollidesFloor" value="false" />
+    <property name="pAnim" value="DOUBLE_SIDE" />
+    <property name="pAsset" value="DOUBLE_SIDE" />
     <property name="pCollidesH" value="true" />
-    <property name="pCollidesV" value="true" />
-    <property name="pIsKey" value="true" />
-    <property name="pLives" value="5" />
+    <property name="pCollidesV" value="false" />
+    <property name="pDuration" value="8.0" />
+    <property name="pIsKey" value="false" />
+    <property name="pLives" value="3" />
+    <property name="pMaxTime" value="3.0" />
+    <property name="pMinTime" value="1.0" />
     <property name="pTeam" value="1" />
-    <property name="pxAccel" value="0.0" />
-    <property name="pxVel" value="-120" />
-    <property name="pyAccel" value="300.0" />
-    <property name="pyVel" value="100.0" />
+    <property name="pyDelta" value="60.0" />
    </properties>
   </object>
-  <object name="SvNinja" type="SvNinja" x="19552" y="480" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvLucy" type="SvLucy" x="12960" y="512" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pRequiredItem" value="KEY" /><property name="pLookDir" value="-1" /><property name="pArenaX0" value="12416" /><property name="pArenaX1" value="13568" /></properties></object><object name="Puerta" type="Door" x="13536" y="416" width="32" height="128"><properties><property name="pAsset" value="GATE" /><property name="pIsKey" value="true" /><property name="pRequiredCount" value="1" /><property name="pRequiredItem" value="KEY" /></properties></object><object name="SavePoint" type="SavePoint" x="12320" y="512" width="32" height="32">
+  <object name="DOUBLE" type="Double" x="15648" y="288" width="32" height="96">
+   <properties>
+    <property name="pAnim" value="DOUBLE_SIDE" />
+    <property name="pAsset" value="DOUBLE_SIDE" />
+    <property name="pCollidesH" value="true" />
+    <property name="pCollidesV" value="false" />
+    <property name="pDuration" value="8.0" />
+    <property name="pIsKey" value="false" />
+    <property name="pLives" value="3" />
+    <property name="pMaxTime" value="3.0" />
+    <property name="pMinTime" value="1.0" />
+    <property name="pTeam" value="1" />
+    <property name="pyDelta" value="64.0" />
+   </properties>
+  </object>
+  <object name="DOUBLE" type="Double" x="16160" y="416" width="32" height="32">
+   <properties>
+    <property name="pAnim" value="DOUBLE_SIDE" />
+    <property name="pAsset" value="DOUBLE_SIDE" />
+    <property name="pCollidesH" value="true" />
+    <property name="pCollidesV" value="false" />
+    <property name="pDuration" value="8.0" />
+    <property name="pIsKey" value="false" />
+    <property name="pLives" value="3" />
+    <property name="pMaxTime" value="3.0" />
+    <property name="pMinTime" value="1.0" />
+    <property name="pTeam" value="1" />
+    <property name="pyDelta" value="60.0" />
+   </properties>
+  </object>
+  <object name="SvRedNinja" type="SvRedNinja" x="18208" y="544" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvNinja" type="SvNinja" x="18432" y="512" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="18720" y="480" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="19264" y="480" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvLucy" type="SvLucy" x="12960" y="512" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pRequiredItem" value="KEY" /><property name="pLookDir" value="-1" /><property name="pArenaX0" value="12416" /><property name="pArenaX1" value="13568" /></properties></object><object name="Puerta" type="Door" x="13536" y="416" width="32" height="128"><properties><property name="pAsset" value="GATE" /><property name="pIsKey" value="true" /><property name="pRequiredCount" value="1" /><property name="pRequiredItem" value="KEY" /></properties></object><object name="SavePoint" type="SavePoint" x="12160" y="480" width="32" height="32">
    <properties>
     <property name="pAnim" value="SHINE" />
     <property name="pAsset" value="SAVE" />

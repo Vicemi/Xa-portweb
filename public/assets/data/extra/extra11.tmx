@@ -750,6 +750,78 @@
     <property name="pRequiredItem" value="POINTS" />
    </properties>
   </object>
+  <object name="COIN" type="Item" x="4608" y="1216" width="32" height="32">
+   <properties>
+    <property name="pAnim" value="COIN" />
+    <property name="pAsset" value="COIN" />
+    <property name="pCount" value="0" />
+    <property name="pIsKey" value="true" />
+    <property name="pRequiredItem" value="POINTS" />
+   </properties>
+  </object>
+  <object name="COIN" type="Item" x="4640" y="1216" width="32" height="32">
+   <properties>
+    <property name="pAnim" value="COIN" />
+    <property name="pAsset" value="COIN" />
+    <property name="pCount" value="0" />
+    <property name="pIsKey" value="true" />
+    <property name="pRequiredItem" value="POINTS" />
+   </properties>
+  </object>
+  <object name="COIN" type="Item" x="4672" y="1216" width="32" height="32">
+   <properties>
+    <property name="pAnim" value="COIN" />
+    <property name="pAsset" value="COIN" />
+    <property name="pCount" value="0" />
+    <property name="pIsKey" value="true" />
+    <property name="pRequiredItem" value="POINTS" />
+   </properties>
+  </object>
+  <object name="COIN" type="Item" x="4704" y="1216" width="32" height="32">
+   <properties>
+    <property name="pAnim" value="COIN" />
+    <property name="pAsset" value="COIN" />
+    <property name="pCount" value="0" />
+    <property name="pIsKey" value="true" />
+    <property name="pRequiredItem" value="POINTS" />
+   </properties>
+  </object>
+  <object name="COIN" type="Item" x="4736" y="1216" width="32" height="32">
+   <properties>
+    <property name="pAnim" value="COIN" />
+    <property name="pAsset" value="COIN" />
+    <property name="pCount" value="0" />
+    <property name="pIsKey" value="true" />
+    <property name="pRequiredItem" value="POINTS" />
+   </properties>
+  </object>
+  <object name="COIN" type="Item" x="5408" y="1216" width="32" height="32">
+   <properties>
+    <property name="pAnim" value="COIN" />
+    <property name="pAsset" value="COIN" />
+    <property name="pCount" value="0" />
+    <property name="pIsKey" value="true" />
+    <property name="pRequiredItem" value="POINTS" />
+   </properties>
+  </object>
+  <object name="COIN" type="Item" x="5440" y="1216" width="32" height="32">
+   <properties>
+    <property name="pAnim" value="COIN" />
+    <property name="pAsset" value="COIN" />
+    <property name="pCount" value="0" />
+    <property name="pIsKey" value="true" />
+    <property name="pRequiredItem" value="POINTS" />
+   </properties>
+  </object>
+  <object name="COIN" type="Item" x="5472" y="1216" width="32" height="32">
+   <properties>
+    <property name="pAnim" value="COIN" />
+    <property name="pAsset" value="COIN" />
+    <property name="pCount" value="0" />
+    <property name="pIsKey" value="true" />
+    <property name="pRequiredItem" value="POINTS" />
+   </properties>
+  </object>
   <object name="COIN" type="Item" x="5504" y="1216" width="32" height="32">
    <properties>
     <property name="pAnim" value="COIN" />
@@ -759,7 +831,7 @@
     <property name="pRequiredItem" value="POINTS" />
    </properties>
   </object>
-  <object name="COIN" type="Item" x="5536" y="1216" width="32" height="32">
+  <object name="COIN" type="Item" x="5792" y="1216" width="32" height="32">
    <properties>
     <property name="pAnim" value="COIN" />
     <property name="pAsset" value="COIN" />
@@ -768,7 +840,7 @@
     <property name="pRequiredItem" value="POINTS" />
    </properties>
   </object>
-  <object name="COIN" type="Item" x="5568" y="1216" width="32" height="32">
+  <object name="COIN" type="Item" x="5824" y="1216" width="32" height="32">
    <properties>
     <property name="pAnim" value="COIN" />
     <property name="pAsset" value="COIN" />
@@ -777,7 +849,7 @@
     <property name="pRequiredItem" value="POINTS" />
    </properties>
   </object>
-  <object name="COIN" type="Item" x="5888" y="1216" width="32" height="32">
+  <object name="COIN" type="Item" x="5856" y="1216" width="32" height="32">
    <properties>
     <property name="pAnim" value="COIN" />
     <property name="pAsset" value="COIN" />
@@ -786,7 +858,7 @@
     <property name="pRequiredItem" value="POINTS" />
    </properties>
   </object>
-  <object name="COIN" type="Item" x="5920" y="1216" width="32" height="32">
+  <object name="COIN" type="Item" x="6112" y="1216" width="32" height="32">
    <properties>
     <property name="pAnim" value="COIN" />
     <property name="pAsset" value="COIN" />
@@ -795,7 +867,16 @@
     <property name="pRequiredItem" value="POINTS" />
    </properties>
   </object>
-  <object name="COIN" type="Item" x="5952" y="1216" width="32" height="32">
+  <object name="COIN" type="Item" x="6144" y="1216" width="32" height="32">
+   <properties>
+    <property name="pAnim" value="COIN" />
+    <property name="pAsset" value="COIN" />
+    <property name="pCount" value="0" />
+    <property name="pIsKey" value="true" />
+    <property name="pRequiredItem" value="POINTS" />
+   </properties>
+  </object>
+  <object name="COIN" type="Item" x="6176" y="1216" width="32" height="32">
    <properties>
     <property name="pAnim" value="COIN" />
     <property name="pAsset" value="COIN" />
@@ -822,99 +903,22 @@
     <property name="pRequiredItem" value="POINTS" />
    </properties>
   </object>
-  <object name="COIN" type="Item" x="6272" y="1216" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="COIN" />
-    <property name="pAsset" value="COIN" />
-    <property name="pCount" value="0" />
-    <property name="pIsKey" value="true" />
-    <property name="pRequiredItem" value="POINTS" />
-   </properties>
-  </object>
-  <object name="COIN" type="Item" x="6304" y="1216" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="COIN" />
-    <property name="pAsset" value="COIN" />
-    <property name="pCount" value="0" />
-    <property name="pIsKey" value="true" />
-    <property name="pRequiredItem" value="POINTS" />
-   </properties>
-  </object>
-  <object name="COIN" type="Item" x="6336" y="1216" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="COIN" />
-    <property name="pAsset" value="COIN" />
-    <property name="pCount" value="0" />
-    <property name="pIsKey" value="true" />
-    <property name="pRequiredItem" value="POINTS" />
-   </properties>
-  </object>
-  <object name="COIN" type="Item" x="6592" y="1216" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="COIN" />
-    <property name="pAsset" value="COIN" />
-    <property name="pCount" value="0" />
-    <property name="pIsKey" value="true" />
-    <property name="pRequiredItem" value="POINTS" />
-   </properties>
-  </object>
-  <object name="COIN" type="Item" x="6624" y="1184" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="COIN" />
-    <property name="pAsset" value="COIN" />
-    <property name="pCount" value="0" />
-    <property name="pIsKey" value="true" />
-    <property name="pRequiredItem" value="POINTS" />
-   </properties>
-  </object>
-  <object name="COIN" type="Item" x="6656" y="1184" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="COIN" />
-    <property name="pAsset" value="COIN" />
-    <property name="pCount" value="0" />
-    <property name="pIsKey" value="true" />
-    <property name="pRequiredItem" value="POINTS" />
-   </properties>
-  </object>
-  <object name="COIN" type="Item" x="6688" y="1184" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="COIN" />
-    <property name="pAsset" value="COIN" />
-    <property name="pCount" value="0" />
-    <property name="pIsKey" value="true" />
-    <property name="pRequiredItem" value="POINTS" />
-   </properties>
-  </object>
-  <object name="COIN" type="Item" x="6720" y="1216" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="COIN" />
-    <property name="pAsset" value="COIN" />
-    <property name="pCount" value="0" />
-    <property name="pIsKey" value="true" />
-    <property name="pRequiredItem" value="POINTS" />
-   </properties>
-  </object>
-  <object name="Cow" type="Cow" x="2208" y="704" width="32" height="32">
+  <object name="Cow" type="Cow" x="2432" y="576" width="32" height="32">
    <properties>
     <property name="pIsKey" value="false" />
    </properties>
   </object>
-  <object name="Cow" type="Cow" x="11168" y="960" width="32" height="32">
+  <object name="Cow" type="Cow" x="11776" y="928" width="32" height="32">
    <properties>
     <property name="pIsKey" value="false" />
    </properties>
   </object>
-  <object name="Cow" type="Cow" x="672" y="1024" width="32" height="32">
+  <object name="Cow" type="Cow" x="5088" y="576" width="32" height="32">
    <properties>
     <property name="pIsKey" value="false" />
    </properties>
   </object>
-  <object name="Cow" type="Cow" x="5216" y="480" width="32" height="32">
-   <properties>
-    <property name="pIsKey" value="false" />
-   </properties>
-  </object>
-  <object name="Cow" type="Cow" x="8704" y="1024" width="32" height="32">
+  <object name="Cow" type="Cow" x="8512" y="1024" width="32" height="32">
    <properties>
     <property name="pIsKey" value="false" />
    </properties>
@@ -927,7 +931,7 @@
     <property name="pRequiredItem" value="ENERGY_DOUBLE_JUMP" />
    </properties>
   </object>
-  <object name="Energy" type="Item" x="4512" y="832" width="32" height="32">
+  <object name="Energy" type="Item" x="5696" y="1184" width="32" height="32">
    <properties>
     <property name="pAsset" value="ENERGY" />
     <property name="pCount" value="3" />
@@ -935,7 +939,7 @@
     <property name="pRequiredItem" value="ENERGY" />
    </properties>
   </object>
-  <object name="Energy" type="Item" x="11360" y="960" width="32" height="32">
+  <object name="Energy" type="Item" x="10688" y="1024" width="32" height="32">
    <properties>
     <property name="pAsset" value="ENERGY" />
     <property name="pCount" value="3" />
@@ -943,7 +947,7 @@
     <property name="pRequiredItem" value="ENERGY" />
    </properties>
   </object>
-  <object name="Live" type="Item" x="8864" y="1184" width="32" height="32">
+  <object name="Live" type="Item" x="9312" y="1184" width="32" height="32">
    <properties>
     <property name="pAsset" value="LIVES" />
     <property name="pCount" value="1" />
@@ -951,7 +955,7 @@
     <property name="pRequiredItem" value="LIVES" />
    </properties>
   </object>
-  <object name="SvNinja" type="SvNinja" x="960" y="1216" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="FloorCannon" type="FloorCannon" x="1472" y="928" width="32" height="32">
+  <object name="SvNinja" type="SvNinja" x="960" y="1216" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="1472" y="928" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="FloorCannon" type="FloorCannon" x="1856" y="1216" width="32" height="32">
    <properties>
     <property name="pAnim" value="FLOOR_CANNON" />
     <property name="pAsset" value="FLOOR_CANNON" />
@@ -964,65 +968,7 @@
     <property name="pxDelta" value="-96" />
    </properties>
   </object>
-  <object name="FloorCannon" type="FloorCannon" x="1920" y="1216" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="FLOOR_CANNON" />
-    <property name="pAsset" value="FLOOR_CANNON" />
-    <property name="pBulletAsset" value="BULLET_ENEMY" />
-    <property name="pDuration" value="5.0" />
-    <property name="pLives" value="10" />
-    <property name="pMaxTime" value="3" />
-    <property name="pMinTime" value="2.0" />
-    <property name="pTeam" value="2" />
-    <property name="pxDelta" value="-96" />
-   </properties>
-  </object>
-  <object name="SvRedNinja" type="SvRedNinja" x="2432" y="704" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBat" type="SvBat" x="2592" y="1088" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvBat" type="SvBat" x="3104" y="1088" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="3840" y="1216" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="4192" y="1216" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBat" type="SvBat" x="4672" y="1088" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvBat" type="SvBat" x="5056" y="1088" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="FloorCannon" type="FloorCannon" x="5536" y="1024" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="FLOOR_CANNON" />
-    <property name="pAsset" value="FLOOR_CANNON" />
-    <property name="pBulletAsset" value="BULLET_ENEMY" />
-    <property name="pDuration" value="5.0" />
-    <property name="pLives" value="10" />
-    <property name="pMaxTime" value="3" />
-    <property name="pMinTime" value="2.0" />
-    <property name="pTeam" value="1" />
-    <property name="pxDelta" value="-96" />
-   </properties>
-  </object>
-  <object name="FloorCannon" type="FloorCannon" x="6080" y="1024" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="FLOOR_CANNON" />
-    <property name="pAsset" value="FLOOR_CANNON" />
-    <property name="pBulletAsset" value="BULLET_ENEMY" />
-    <property name="pDuration" value="5.0" />
-    <property name="pLives" value="10" />
-    <property name="pMaxTime" value="3" />
-    <property name="pMinTime" value="2.0" />
-    <property name="pTeam" value="2" />
-    <property name="pxDelta" value="-96" />
-   </properties>
-  </object>
-  <object name="Jump2" type="Jumper2" x="6496" y="1216" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="COBRA_SHOOT" />
-    <property name="pAsset" value="COBRA_SHOOT" />
-    <property name="pBulletAsset" value="SIMPLE_ENEMY" />
-    <property name="pCollidesFloor" value="false" />
-    <property name="pCollidesH" value="true" />
-    <property name="pCollidesV" value="true" />
-    <property name="pIsKey" value="true" />
-    <property name="pLives" value="5" />
-    <property name="pMaxTime" value="3" />
-    <property name="pMinTime" value="2" />
-    <property name="pTeam" value="1" />
-    <property name="pxAccel" value="0" />
-    <property name="pxVel" value="-100" />
-    <property name="pyAccel" value="700" />
-    <property name="pyVel" value="200" />
-   </properties>
-  </object>
-  <object name="SvBat" type="SvBat" x="6944" y="1088" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvBigDemon" type="SvBigDemon" x="7072" y="1056" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBat" type="SvBat" x="7488" y="800" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="CobraTiradora" type="Jumper2" x="7936" y="1216" width="32" height="32">
+  <object name="SvBat" type="SvBat" x="2336" y="1088" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="CobraTiradora" type="Jumper2" x="2656" y="1216" width="32" height="32">
    <properties>
     <property name="pAnim" value="COBRA_SHOOT" />
     <property name="pAsset" value="COBRA_SHOOT" />
@@ -1041,7 +987,7 @@
     <property name="pyVel" value="200.0" />
    </properties>
   </object>
-  <object name="SvBat" type="SvBat" x="8352" y="1088" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="Jump2" type="Jumper2" x="8608" y="1024" width="32" height="32">
+  <object name="SvBat" type="SvBat" x="3040" y="1088" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvNinja" type="SvNinja" x="3584" y="1216" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBat" type="SvBat" x="4128" y="1088" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvBat" type="SvBat" x="4512" y="1088" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="CobraTiradora" type="Jumper2" x="5216" y="1216" width="32" height="32">
    <properties>
     <property name="pAnim" value="COBRA_SHOOT" />
     <property name="pAsset" value="COBRA_SHOOT" />
@@ -1052,15 +998,15 @@
     <property name="pIsKey" value="true" />
     <property name="pLives" value="5" />
     <property name="pMaxTime" value="3" />
-    <property name="pMinTime" value="2" />
-    <property name="pTeam" value="1" />
-    <property name="pxAccel" value="0" />
+    <property name="pMinTime" value="2.0" />
+    <property name="pTeam" value="2" />
+    <property name="pxAccel" value="0.0" />
     <property name="pxVel" value="-100" />
-    <property name="pyAccel" value="700" />
-    <property name="pyVel" value="200" />
+    <property name="pyAccel" value="700.0" />
+    <property name="pyVel" value="200.0" />
    </properties>
   </object>
-  <object name="SvNinja" type="SvNinja" x="9120" y="1024" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBigDemon" type="SvBigDemon" x="9536" y="1024" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="10208" y="608" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBat" type="SvBat" x="10656" y="416" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="FloorCannon" type="FloorCannon" x="11040" y="1216" width="32" height="32">
+  <object name="SvBigDemon" type="SvBigDemon" x="5600" y="1216" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBat" type="SvBat" x="6176" y="896" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvBat" type="SvBat" x="6656" y="1088" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvBat" type="SvBat" x="7040" y="800" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvBigDemon" type="SvBigDemon" x="7424" y="1216" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvNinja" type="SvNinja" x="8000" y="928" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="FloorCannon" type="FloorCannon" x="8576" y="1216" width="32" height="32">
    <properties>
     <property name="pAnim" value="FLOOR_CANNON" />
     <property name="pAsset" value="FLOOR_CANNON" />
@@ -1069,9 +1015,92 @@
     <property name="pLives" value="10" />
     <property name="pMaxTime" value="3" />
     <property name="pMinTime" value="2.0" />
-    <property name="pTeam" value="1" />
+    <property name="pTeam" value="2" />
     <property name="pxDelta" value="-96" />
    </properties>
   </object>
-  <object name="SvBat" type="SvBat" x="11456" y="1088" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvNinja" type="SvNinja" x="11872" y="1216" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvNinja" type="SvNinja" x="12448" y="1216" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object></objectgroup>
+  <object name="FloorCannon" type="FloorCannon" x="8704" y="1024" width="32" height="32">
+   <properties>
+    <property name="pAnim" value="FLOOR_CANNON" />
+    <property name="pAsset" value="FLOOR_CANNON" />
+    <property name="pBulletAsset" value="BULLET_ENEMY" />
+    <property name="pDuration" value="5.0" />
+    <property name="pLives" value="10" />
+    <property name="pMaxTime" value="3" />
+    <property name="pMinTime" value="2.0" />
+    <property name="pTeam" value="2" />
+    <property name="pxDelta" value="-96" />
+   </properties>
+  </object>
+  <object name="SvNinja" type="SvNinja" x="9152" y="1216" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="CobraTiradora" type="Jumper2" x="9728" y="1216" width="32" height="32">
+   <properties>
+    <property name="pAnim" value="COBRA_SHOOT" />
+    <property name="pAsset" value="COBRA_SHOOT" />
+    <property name="pBulletAsset" value="SIMPLE_ENEMY" />
+    <property name="pCollidesFloor" value="false" />
+    <property name="pCollidesH" value="true" />
+    <property name="pCollidesV" value="true" />
+    <property name="pIsKey" value="true" />
+    <property name="pLives" value="5" />
+    <property name="pMaxTime" value="3" />
+    <property name="pMinTime" value="2.0" />
+    <property name="pTeam" value="2" />
+    <property name="pxAccel" value="0.0" />
+    <property name="pxVel" value="-100" />
+    <property name="pyAccel" value="700.0" />
+    <property name="pyVel" value="200.0" />
+   </properties>
+  </object>
+  <object name="FloorCannon" type="FloorCannon" x="10112" y="1216" width="32" height="32">
+   <properties>
+    <property name="pAnim" value="FLOOR_CANNON" />
+    <property name="pAsset" value="FLOOR_CANNON" />
+    <property name="pBulletAsset" value="BULLET_ENEMY" />
+    <property name="pDuration" value="5.0" />
+    <property name="pLives" value="10" />
+    <property name="pMaxTime" value="3" />
+    <property name="pMinTime" value="2.0" />
+    <property name="pTeam" value="2" />
+    <property name="pxDelta" value="-96" />
+   </properties>
+  </object>
+  <object name="SvBigDemon" type="SvBigDemon" x="10592" y="544" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="11008" y="544" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="HJump2" type="Jumper2" x="11488" y="1216" width="32" height="32">
+   <properties>
+    <property name="pAnim" value="COBRA_SHOOT" />
+    <property name="pAsset" value="COBRA_SHOOT" />
+    <property name="pBulletAsset" value="SIMPLE_ENEMY" />
+    <property name="pCollidesFloor" value="false" />
+    <property name="pCollidesH" value="true" />
+    <property name="pCollidesV" value="true" />
+    <property name="pIsKey" value="true" />
+    <property name="pLives" value="10" />
+    <property name="pMaxTime" value="3" />
+    <property name="pMinTime" value="2" />
+    <property name="pTeam" value="1" />
+    <property name="pxAccel" value="0" />
+    <property name="pxVel" value="-120" />
+    <property name="pyAccel" value="400" />
+    <property name="pyVel" value="600" />
+   </properties>
+  </object>
+  <object name="CobraTiradora" type="Jumper2" x="12128" y="1216" width="32" height="32">
+   <properties>
+    <property name="pAnim" value="COBRA_SHOOT" />
+    <property name="pAsset" value="COBRA_SHOOT" />
+    <property name="pBulletAsset" value="SIMPLE_ENEMY" />
+    <property name="pCollidesFloor" value="false" />
+    <property name="pCollidesH" value="true" />
+    <property name="pCollidesV" value="true" />
+    <property name="pIsKey" value="true" />
+    <property name="pLives" value="5" />
+    <property name="pMaxTime" value="3" />
+    <property name="pMinTime" value="2.0" />
+    <property name="pTeam" value="2" />
+    <property name="pxAccel" value="0.0" />
+    <property name="pxVel" value="-100" />
+    <property name="pyAccel" value="700.0" />
+    <property name="pyVel" value="200.0" />
+   </properties>
+  </object>
+  <object name="SvBat" type="SvBat" x="12448" y="1088" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object></objectgroup>
 </map>

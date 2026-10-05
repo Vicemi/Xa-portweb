@@ -73,6 +73,19 @@ export class Hud {
       this.doubleT = -1;
       this.blit(ctx, 'DOUBLE_JUMP_NONE', 100, 8);
     }
+    if (s.power) {
+      // mod power-up: its icon next to the double-jump slot, with the time it has left as a shrinking bar
+      const f = frameOf(s.power, 0);
+      if (f) {
+        const k = 0.7, x = 160, y = 8;
+        ctx.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, x, y, Math.round(f.sw * k), Math.round(f.sh * k));
+        const w = Math.round(40 * Math.max(0, Math.min(1, s.powerT / 15)));
+        ctx.fillStyle = '#000';
+        ctx.fillRect(x - 6, y + 36, 42, 6);
+        ctx.fillStyle = s.powerT > 3 ? '#7cf05a' : '#ff5a3c';
+        ctx.fillRect(x - 5, y + 37, w, 4);
+      }
+    }
     this.blit(ctx, 'BACK_POINTS', 226, 7);
     drawLine(ctx, 'Puntos', 271, 10, 'black', 'center', 1);
     drawLine(ctx, pad(s.score, 6), 271, 25, 'black', 'center', 1);

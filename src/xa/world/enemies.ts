@@ -152,8 +152,8 @@ export class Enemy {
   }
 
   /** Called when a hero bullet (team 0) hits this enemy. Returns true if it died. */
-  onBullet(): boolean {
-    this.lives -= 1;
+  onBullet(damage = 1): boolean {
+    this.lives -= damage;
     this.hitFlash = 0.5;
     playSound('ENEMY_HIT_' + (1 + ((Math.random() * 6) | 0)));
     return this.lives < 1;

@@ -73,6 +73,7 @@ export class Scenario implements World {
   fade = 0;
   fadeDir = 0;
   private effects: Effect[] = [];
+  private explosions: (Effect & { rect: Rect; t: number })[] = [];
   private bullets: Bullet[] = [];
   private things: Thing[] = [];
   private enemies: Enemy[] = [];
@@ -175,11 +176,19 @@ export class Scenario implements World {
     this.removeEnemy(e);
     this.state.addPoints(100);
   }
+  /** EnemyBoss::onCollision death: camera shake 3 s, BOSS_DEAD explosion that keeps popping MEGA_POWER blasts
+   *  over the boss rect while its first 3 frames play (VolatileExplosion), and the BOSS_KEY for the last gate. */
   private killBoss(e: Enemy): void {
     e.alive = false;
     this.camera.shake(3.0);
     playSound('ENEMY_DEATH');
-    this.addEffect('BOSS_DEAD', e.x, e.y - e.h / 2, 1);
+    const b = e.bounds();
+    this.explosions.push({ anim: new Anim('BOSS_DEAD'), x: e.x, y: e.y - e.h / 2, dir: e.dir, rect: b, t: 0 });
+    this.grantKey(e);
+  }
+  private grantKey(e: Enemy): void {
+    const k = e.dropsKey;
+    if (k) { this.state.keys.push(k); playSound('KEY'); }
   }
   hasFloor(x: number, y: number): boolean {
     // MobileObject::internalUpdate edge test: Scenario::isFloor || isPlatform (one-way tile) || isOverLadder.
@@ -336,7 +345,10 @@ export class Scenario implements World {
           if (!e.alive || e.isBulletProof || e.isIndestructible) continue;
           if (overlaps({ x: b.x - 4, y: b.y - 4, w: 8, h: 8 }, e.bounds())) {
             b.alive = false;
-            if (e.onBullet()) this.killEnemy(e);
+            if (e.isBoss) {
+              this.camera.shake(0.2); // EnemyBoss::onCollision: every hit shakes the camera
+              if (e.onBullet()) this.killBoss(e);
+            } else if (e.onBullet()) { this.killEnemy(e); this.grantKey(e); }
             break;
           }
         }
@@ -349,6 +361,18 @@ export class Scenario implements World {
     }
     this.bullets = this.bullets.filter((b) => b.alive);
 
+    for (const x of this.explosions) {
+      x.anim.update(dt);
+      x.t -= dt;
+      if (x.anim.frameNum() < 3 && x.t <= 0) {
+        x.t = Math.random() * 0.1;
+        const r = x.rect;
+        const px = r.x - 20 + Math.random() * (r.w + 35);
+        const py = r.y + x.anim.frameNum() * r.h * 0.2 + Math.random() * (r.h - x.anim.frameNum() * r.h * 0.2);
+        this.addEffect('MEGA_POWER', px, py, 1);
+      }
+    }
+    this.explosions = this.explosions.filter((x) => !x.anim.isOver());
     for (const e of this.effects) e.anim.update(dt);
     this.effects = this.effects.filter((e) => !e.anim.isOver());
   }
@@ -485,6 +509,10 @@ export class Scenario implements World {
     for (const b of this.bullets) {
       const f = frameOf(b.team === 0 ? 'BULLET' : 'BULLET_ENEMY', 0);
       if (f) drawFrame(ctx, f, Math.floor(b.x - cx), Math.floor(b.y - cy), Math.sign(b.vx) || 1);
+    }
+    for (const e of this.explosions) {
+      const f = e.anim.frame();
+      if (f) drawFrame(ctx, f, Math.floor(e.x - cx), Math.floor(e.y - cy), e.dir);
     }
     for (const e of this.effects) {
       const f = e.anim.frame();

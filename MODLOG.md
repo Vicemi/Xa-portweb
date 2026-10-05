@@ -472,3 +472,24 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   nivel (96,30), vacas (165,30)/(197,30), % monedas (273,30), título (257,11), puntaje 6 dígitos (448,30), fuente 0.
 - **Audio**: intro_piano es un sonido de una vez en SplashScreen (no bucle); xa_intro arranca al salir de los logos.
 - Pendiente: transición FadeTransition entre pantallas, DOUBLE_SIDE exacto, meteoritos.
+
+## Estado 2026-10-04 (ronda 21 — naves, jefe final, inicio, pausa, opciones, responsive)
+- **EnemyUFO** (naves): Shooter `SIMPLE_ENEMY` autoShoot, offset (30,-4), dispara hacia donde vuela (antes no
+  disparaba). **EnemyDouble**: `DOUBLE_SIDE` al terminar su anim, 2 balas ±224 desde (centro ±45, top+17).
+  SmartUFO = `TO_HERO` sync frame 1 (ya estaba).
+- **EnemyBoss** (subclase de EnemyUltraton): camina como Android; cada wait, si el héroe está DELANTE se para,
+  BOSS_SHOOT y en frame 1 `BOSS_BULLETS` (5 balas abanico, 200, offset -22,15). Cada impacto: shake 0.2; muerte:
+  shake 3 + VolatileExplosion BOSS_DEAD que suelta MEGA_POWER al azar sobre su rect mientras frame<3. Entrega
+  `BOSS_KEY` (pRequiredItem) → abre la puerta GATE final (x=7296) hacia el ENDING. Verificado: 200 impactos,
+  dispara 5/0 delante/detrás, puerta abre.
+- **EnemyUltraton::intersects** (y Boss): tocarlo = Hero::setState(9) (muerte), no se pisa; solo balas.
+- **SplashScreen**: cada logo es un estado que reproduce intro_piano (una vez) y se auto-envía "fadeToBlack" a
+  los 3.5 s (o tecla/clic); al salir se corta. Logo 1 dong → logo 2 dong de nuevo → PreLoader con xa_intro.
+- **Pausa** (PauseDialog/ConfirmationDialog): banner.png + BUTTONS_MENU JUGAR(0/1) y SALIR(2/3); SALIR abre
+  exit_confirmation.png con BUTTONS_YESNO SÍ(0/1) en (-85,100) y NO(2/3) en (+85,100) → SÍ va al menú principal.
+- **Opciones**: filas medidas en options_win.png (música 173 / barra 197, efectos 215 / barra 240 — antes las barras
+  estaban cruzadas), casillas "Pantalla completa" (292,260) y "Estirar pantalla" (292,285), ATRÁS = BUTTONS_MENU
+  12/13 en (256,320). Pantalla completa se pide dentro del evento pointerdown/keydown (los navegadores la rechazan
+  desde el bucle del juego). Estirar = viewport sin letterbox (persistido `xa-stretch`). Tecla F = pantalla completa.
+- Cursor POINTER oculto en `play`. Responsive: ResizeObserver + fullscreenchange, 100dvh, safe-area, controles
+  táctiles más chicos en pantallas bajas.

@@ -1,12 +1,12 @@
 // Scenario equivalent: one loaded level with its tilemap, background, objects, bullets and effects.
-import { Anim, drawFrame, frameOf, MAPS } from '../core/sprites';
+import { Anim, drawFrame, drawTinted, frameOf, MAPS } from '../core/sprites';
 import { drawLine } from '../core/font';
 import { img } from '../core/assets';
 import { playMusic, playSound } from '../core/audio';
 import { GameCamera, VIEW_H, VIEW_W } from './camera';
 import { Enemy, createEnemy } from './enemies';
 import { createSvEnemy } from './svnz';
-import { Hero, HS } from './hero';
+import { Hero, HS, POWER_TINT } from './hero';
 import { Door, Platform } from './objects';
 import type { HeroState } from './state';
 import { TileMap, type Rect } from './tilemap';
@@ -49,7 +49,17 @@ interface Effect { anim: Anim; x: number; y: number; dir: number }
 interface PointsFx { value: number; x: number; y: number; t: number }
 const POINTS_FX_TIME = 1.2;
 const COW_POINTS = 1000; // Cow points (loadObjects: mov [obj+0x394], 0x3e8)
-interface Bullet { x: number; y: number; vx: number; vy: number; team: number; alive: boolean; g?: number; ax?: number }
+interface Bullet {
+  x: number; y: number; vx: number; vy: number; team: number; alive: boolean; g?: number; ax?: number;
+  dmg?: number; tint?: string; big?: boolean;  // mod power-ups
+}
+const POWER_TIME = 15;  // seconds a power-up lasts
+const POWER_TEXT: Record<string, string> = {
+  PU_CRYSTAL: '\u00a1Cristal! Recib\u00eds la mitad de da\u00f1o.',
+  PU_POTION: '\u00a1Poci\u00f3n! Tus disparos pegan el triple.',
+  PU_BATTERY: '\u00a1Bater\u00eda! Dispar\u00e1s el doble de r\u00e1pido.',
+  PU_GEARS: '\u00a1Engranajes! Disparo triple.',
+};
 
 /** StageManager::getFeetsPosition: centre-bottom of the tile containing (x, y). */
 export function feetOf(x: number, y: number, ts: number): { x: number; y: number } {
@@ -179,7 +189,15 @@ export class Scenario implements World {
     if (a.type) this.effects.push({ anim: a, x, y, dir });
   }
   spawnHeroBullet(x: number, y: number, vx: number): void {
-    this.bullets.push({ x, y, vx, vy: 0, team: 0, alive: true });
+    const pw = this.state.power;
+    const tint = pw ? POWER_TINT[pw] : undefined;
+    const dmg = pw === 'PU_POTION' ? 3 : 1;
+    this.bullets.push({ x, y, vx, vy: 0, team: 0, alive: true, dmg, tint, big: pw === 'PU_POTION' });
+    if (pw === 'PU_GEARS') {
+      // mod power-up: triple shot in a fan
+      this.bullets.push({ x, y, vx: vx * 0.97, vy: -120, team: 0, alive: true, dmg, tint });
+      this.bullets.push({ x, y, vx: vx * 0.97, vy: 120, team: 0, alive: true, dmg, tint });
+    }
   }
   spawnEnemyBullet(x: number, y: number, vx: number, vy: number, g = 0, ax = 0): void {
     this.bullets.push({ x, y, vx, vy, team: 1, alive: true, g, ax });
@@ -284,6 +302,7 @@ export class Scenario implements World {
       return;
     }
     s.lives -= 1;
+    s.clearPower(); // mod: power-ups are lost with the life
     for (const e of this.enemies) if (e.alive) e.onHeroRespawn(); // extra-level bosses start over at full life
     if (this.music) playMusic(this.music); // the track a checkpoint switched to keeps playing (AudioLibrary state)
     // Scenario::init(Vector2): every volatile object (bullets, effects, floating points) is removed and the HUD
@@ -311,6 +330,11 @@ export class Scenario implements World {
       h.update(dt);
     }
     this.camera.update(dt, h.pos.x, h.pos.y, h.height, h.dir, h.vel.x, h.vel.y, this.winner);
+    if (this.state.power) {
+      // mod power-up timer
+      this.state.powerT -= dt;
+      if (this.state.powerT <= 0) { this.state.clearPower(); playSound('HERO_DEFENSE_2'); }
+    }
 
     // platforms: move + hero landing/riding
     for (const p of this.platforms) {
@@ -432,8 +456,14 @@ export class Scenario implements World {
         b.alive = false;
         playSound(Math.random() < 0.5 ? 'BULLET_WALL_1' : 'BULLET_WALL_2');
         const ts = this.map.ts;
-        const ex = Math.round(b.x / ts) * ts - 1;
-        this.addEffect(b.team === 0 ? 'SHIELD_GREEN' : 'SHIELD', ex, b.y, -Math.sign(b.vx));
+        if (Math.abs(b.vy) < Math.abs(b.vx) * 3) {
+          // Scenario: a shot going sideways splashes on the wall (SHIELD / SHIELD_GREEN, snapped to the tile edge)
+          const ex = Math.round(b.x / ts) * ts - 1;
+          this.addEffect(b.team === 0 ? 'SHIELD_GREEN' : 'SHIELD', ex, b.y - 3, -Math.sign(b.vx));
+        } else {
+          // ...a falling / rising one splashes on the floor (SHIELD_DOWN) or the ceiling (SHIELD_UP)
+          this.addEffect(b.vy <= 0 ? 'SHIELD_UP' : 'SHIELD_DOWN', b.x, b.y - 3, 1);
+        }
         continue;
       }
       if (b.team === 0) {
@@ -447,8 +477,8 @@ export class Scenario implements World {
             if (e.isIndestructible) break;
             if (e.isBoss) {
               this.camera.shake(0.2); // EnemyBoss::onCollision: every hit shakes the camera
-              if (e.onBullet()) this.killBoss(e);
-            } else if (e.onBullet()) { this.killEnemy(e, true); this.grantKey(e); }
+              if (e.onBullet(b.dmg ?? 1)) this.killBoss(e);
+            } else if (e.onBullet(b.dmg ?? 1)) { this.killEnemy(e, true); this.grantKey(e); }
             break;
           }
         }
@@ -535,6 +565,12 @@ export class Scenario implements World {
       case 'LIVES':
         s.addLives(count);
         playSound('HERO_LIFE');
+        break;
+      case 'PU_CRYSTAL': case 'PU_POTION': case 'PU_BATTERY': case 'PU_GEARS':
+        // mod power-ups (extra-level boss fights): timed, lost on death and when the boss falls
+        s.setPower(req, POWER_TIME);
+        playSound('POWERUP');
+        this.events.message(POWER_TEXT[req], 2.5);
         break;
       case 'ENERGY':
         s.addEnergy(count);
@@ -643,7 +679,8 @@ export class Scenario implements World {
 
     for (const b of this.bullets) {
       const f = frameOf(b.team === 0 ? 'BULLET' : 'BULLET_ENEMY', 0);
-      if (f) drawFrame(ctx, f, Math.floor(b.x - cx), Math.floor(b.y - cy), Math.sign(b.vx) || 1);
+      if (f && b.tint) drawTinted(ctx, f, Math.floor(b.x - cx), Math.floor(b.y - cy), Math.sign(b.vx) || 1, b.tint, 0.9, b.big ? 1.35 : 1);
+      else if (f) drawFrame(ctx, f, Math.floor(b.x - cx), Math.floor(b.y - cy), Math.sign(b.vx) || 1);
     }
     for (const e of this.explosions) {
       const f = e.anim.frame();

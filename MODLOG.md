@@ -858,3 +858,21 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   salida debe ser INALCANZABLE y con la puerta abierta alcanzable; si no, se descarta el layout.
 - Verificado en los 4 niveles de jefe: 10 s corriendo/saltando contra la puerta cerrada no la pasan; con la llave
   se abre y se cruza. La lógica de puertas del juego no cambió (originales intactos).
+
+## Estado 2026-10-05 (ronda 52 — power-ups de jefe, impactos piso/techo y objetos sólo sobre piso real)
+- Generador: vacas, guardados, ítems y monedas se ubican sólo sobre baldosas reales (pHard/pPlatform), nunca sobre
+  la trayectoria virtual de una plataforma móvil (que sólo cuenta para la alcanzabilidad); el guardado previo a la
+  arena busca el piso real más cercano. Verificado por script: 0 objetos fuera de piso en los 12 niveles.
+- Impactos de bala (Scenario, original): si |vy| < 3|vx| → SHIELD/SHIELD_GREEN en el borde de la baldosa (lateral);
+  si no → SHIELD_UP (subiendo) o SHIELD_DOWN (cayendo) donde está la bala. El port siempre usaba el lateral → las
+  balas en parábola/caída que pegaban en el piso mostraban la salpicadura de pared. (El 4.º cuadro verde de SHIELD
+  sale cortado en la propia hoja de 512 px del original: se deja igual.)
+- Power-ups (mod, sólo peleas de jefe SVNZ): 4 ítems nuevos del usuario en items_tile.png (fila inferior):
+  PU_CRYSTAL 168,210 26x40 · PU_POTION 226,207 30x43 · PU_BATTERY 289,211 26x39 · PU_GEARS 346,211 34x38 (maps en
+  sprites.ts). Caen junto a la energía (cada 10 s, primero a los 6 s, de a uno). HeroState.power/powerT (15 s);
+  se borran al reaparecer tras morir, al vencer al jefe y al empezar nivel. Efectos: cristal = contacto /2 y 50% de
+  balas bloqueadas; poción = balas daño 3 y 1.35x; batería = cadencia x2 y ráfagas x3 sin pausa; engranajes = 3 balas
+  en abanico (vy ±120). Tinte tipo paleta (drawTinted: blend 'color' + destination-in con la silueta) para Xa y
+  sus balas; parpadea los últimos 3 s. HUD: ícono + barra de tiempo junto al doble salto. Enemy.onBullet(damage).
+- Verificado: los 4 se recogen y aplican (cadencia, daño, abanico, contacto 4→2), se pierden al morir, tintes y
+  HUD vistos en captura; SHIELD_DOWN en balas que caen; regresión 16 originales + 12 extras sin errores, build OK.

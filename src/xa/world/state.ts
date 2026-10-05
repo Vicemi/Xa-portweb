@@ -28,7 +28,13 @@ export class HeroState {
   cereals = 0;
   keys: string[] = [];
   actualLevel = 1;
-  keysHud = false;          // mod: extra levels with a gate show the key counter too
+  keysHud = false;
+  /** Mod (extra-level boss fights): active power-up (PU_CRYSTAL / PU_POTION / PU_BATTERY / PU_GEARS) and the
+   *  seconds it has left. Never set in the original levels. */
+  power: string | null = null;
+  powerT = 0;
+  setPower(kind: string, seconds: number): void { this.power = kind; this.powerT = seconds; }
+  clearPower(): void { this.power = null; this.powerT = 0; }          // mod: extra levels with a gate show the key counter too
   lastPlayedLevel = 1;
   highScore = 0;
   progress: Record<number, LevelProgress> = {};
@@ -61,6 +67,7 @@ export class HeroState {
   startStage(level: number, totalCows: number, totalCoins: number): void {
     this.actualLevel = level;
     this.keysHud = level >= 14;
+    this.clearPower();
     this.lastPlayedLevel = level;
     this.cows = 0;
     this.coins = 0;

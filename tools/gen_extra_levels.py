@@ -465,7 +465,8 @@ def compose(i, spec, bases, out, arena_at, rnd, tpl):
         if any((cx, cy) in shut for cx in range(ex - 1, ex + 2) for cy in range(ey, ey + eh + 3)):
             return None
 
-    floors = sorted(reach)
+    # things only stand on real tiles: never on the moving platforms' paths (virtual floors) or ladders' tops
+    floors = sorted((x, y) for (x, y) in reach if (x, y) not in g.virtual and g.st(x, y) in ('pHard', 'pPlatform'))
     by_col = defaultdict(list)
     for (x, y) in floors:
         by_col[x].append(y)
@@ -475,8 +476,10 @@ def compose(i, spec, bases, out, arena_at, rnd, tpl):
     def free_spot(x, y, r=1):
         return all((xx, y) not in taken for xx in range(x - r, x + r + 1))
 
+    real = set(floors)
+
     def flat(x, y, n=1):
-        return all((xx, y) in reach for xx in range(x - n, x + n + 1))
+        return all((xx, y) in real for xx in range(x - n, x + n + 1))
 
     no_go = set(range(0, 8))
     if arena_at is not None:
@@ -516,7 +519,7 @@ def compose(i, spec, bases, out, arena_at, rnd, tpl):
             continue
         y = rnd.choice(ys)
         n = rnd.randint(3, 5)
-        if all((x + k, y) in reach for k in range(n)):
+        if all((x + k, y) in real for k in range(n)):
             arc = rnd.random() < 0.35
             for k in range(n):
                 lift = 1 if arc and 0 < k < n - 1 else 0
@@ -613,7 +616,9 @@ def compose(i, spec, bases, out, arena_at, rnd, tpl):
         for kk, v in (('pAsset', 'GATE'), ('pIsKey', 'true'), ('pRequiredCount', '1'), ('pRequiredItem', 'KEY')):
             prop(door, kk, v)
         objs.append(door)
-        objs.append(at(tpl['SavePoint'][0], arena_at - 3, max(by_col.get(arena_at - 3, [ground]))))
+        # checkpoint on the nearest real floor before the arena (or on its first column)
+        spot = next(((x, max(by_col[x])) for x in range(arena_at - 2, arena_at - 12, -1) if by_col.get(x)), (arena_at + 1, ground))
+        objs.append(at(tpl['SavePoint'][0], *spot))
 
     write(i, spec, b0, cols, h, platforms + objs)
     counts = defaultdict(int)

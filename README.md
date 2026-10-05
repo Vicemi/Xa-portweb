@@ -67,7 +67,11 @@ Además del juego original, el port suma un **segundo mapa con 12 niveles nuevos
   - **Murciélago**: revolotea y se lanza en picada.
   - **Gran demonio**: lento y blindado; golpea el piso (la pantalla tiembla y salen ondas de choque) y salta para aplastarte.
 - **Un jefe cada 3 niveles**, los mismos del modo historia de SVNZ y en su orden. Esperan en una arena al final del nivel. Cuando entrás, cambia la música, aparece el cartel de SVNZ y abajo se muestra **su barra de vida**.
-  - Durante la pelea caen **ítems de energía** en la arena, lejos del jefe, para que puedas curarte.
+  - Durante la pelea caen en la arena, lejos del jefe, **ítems de energía** y **power-ups** al azar. Cada power-up dura 15 segundos, tiñe a Xa y a sus disparos con su color (al estilo Mega Man) y se pierde si morís o cuando cae el jefe:
+    - **Cristal** (azul): recibís la mitad de daño y la mitad de las balas rebotan.
+    - **Poción** (verde): los disparos salen más grandes y pegan el triple.
+    - **Batería** (rojo): disparás el doble de rápido y sin pausas.
+    - **Engranajes** (dorado): disparo triple en abanico.
   - Si perdés una vida, el jefe **recupera toda su vida** y vuelve a esperarte en la arena.
   - Al vencerlo aparece un cartel que te avisa que lo derrotaste y que te falta la parte final, y suelta la llave de la puerta de salida.
   1. **Ninja Dorado** (nivel 3): rápido y con armadura; tajos y saltos. Llega con 2 ninjas de apoyo.

@@ -1,6 +1,6 @@
 // Hero: reimplementation of Hero::update / processState / setState / processIntersections from xa.exe.
 // Constants come from xa.exe's .data (see MODLOG "Constantes del binario").
-import { Anim, ANIMS, drawFrame, frameOf, type Frame } from '../core/sprites';
+import { Anim, ANIMS, drawFrame, drawTinted, frameOf, type Frame } from '../core/sprites';
 import { isFirstPress, isPressed } from '../core/input';
 import { playSound, stopMusic } from '../core/audio';
 import { Place, isFloorPlace, type Rect } from './tilemap';
@@ -16,6 +16,10 @@ export const MAX_FALL = 700;
 const HERO_W = 24;
 const HERO_H = 45;
 const IGNORE_Y = 0.49; // InteractiveObject::IGNORE_INTERSECTION.y
+// mod power-ups (extra-level boss fights): the colour Xa and his shots take
+export const POWER_TINT: Record<string, string> = {
+  PU_CRYSTAL: '#39c6ff', PU_POTION: '#45ff3a', PU_BATTERY: '#ff3b2e', PU_GEARS: '#ffd23a',
+};
 const FIRE_RATE = 12;  // bullets per second while holding fire
 const BURST = 3;
 const BURST_PAUSE = 0.25;
@@ -195,6 +199,7 @@ export class Hero {
   /** Hero::onCollisionEnemy: contact damage. redTime is the invulnerability window after a hit. */
   onCollisionEnemy(damage: number): void {
     if (this.state === HS.Dead || this.redTime > 0) return;
+    if (this.world.state.power === 'PU_CRYSTAL') damage = Math.ceil(damage / 2); // mod power-up: crystal armour
     this.world.state.subEnergy(damage);
     if (this.world.state.energy < 1) {
       this.setState(HS.Dead);
@@ -222,6 +227,12 @@ export class Hero {
       // the ORANGE_SHINE is left 15 px back along the shot, on the raised shield, facing the shooter
       const back = -Math.sign(bulletDir) || this.dir;
       W.addEffect('ORANGE_SHINE', bulletX + back * 15, bulletY, back);
+      return;
+    }
+    if (W.state.power === 'PU_CRYSTAL' && Math.random() < 0.5) {
+      // mod power-up: the crystal armour stops half of the shots
+      playSound('HERO_DEFENSE_1');
+      W.addEffect('ORANGE_SHINE', bulletX, bulletY, -Math.sign(bulletDir) || -this.dir);
       return;
     }
     W.state.subEnergy(1);
@@ -310,8 +321,9 @@ export class Hero {
     const yOff = this.state === HS.Jump ? -20 : this.state === HS.Block ? -13 : -15;
     this.world.spawnHeroBullet(this.pos.x + this.dir * 25, this.pos.y + yOff, this.dir * 500);
     this.shotCount++;
-    this.shotWait = 1 / FIRE_RATE;
-    if (this.shotCount >= BURST) {
+    const rapid = this.world.state.power === 'PU_BATTERY';
+    this.shotWait = 1 / (rapid ? FIRE_RATE * 2 : FIRE_RATE);
+    if (this.shotCount >= (rapid ? BURST * 3 : BURST)) {
       this.shotCount = 0;
       this.shotWait = BURST_PAUSE;
     }
@@ -599,6 +611,14 @@ export class Hero {
     // Hero::setState(9): the sprite shows the single still image HERO_DEAD (Xa lying down) while the death
     // transition runs; the facing of the moment of death is kept
     const f = this.state === HS.Dead ? frameOf('HERO_DEAD', 0) : this.currentFrame();
+    const tint = POWER_TINT[this.world.state.power ?? ''];
+    if (f && tint && this.state !== HS.Dead) {
+      // mod power-up: Xa takes the colour of the item, blinking during its last 3 seconds
+      if (this.world.state.powerT > 3 || Math.floor(this.world.state.powerT * 8) % 2 === 0) {
+        drawTinted(ctx, f, x, y, this.dir, tint);
+        return;
+      }
+    }
     // Hero::render swaps to the red "_R" sheet while flashing after a hit (blinks 2 of every 4 frames).
     if (f) drawFrame(ctx, f, x, y, this.dir);
   }

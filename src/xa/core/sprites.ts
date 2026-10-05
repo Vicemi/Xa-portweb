@@ -22,6 +22,42 @@ export const ANIMS = (data as unknown as { anims: Record<string, AnimDef> }).ani
 // extra characters of the map-2 levels (Super Vampire Ninja Zero, tools/import_svnz.py)
 Object.assign(MAPS, (svnz as unknown as { maps: Record<string, MapDef> }).maps);
 Object.assign(ANIMS, (svnz as unknown as { anims: Record<string, AnimDef> }).anims);
+// mod power-ups drawn in items_tile.png (bottom row): crystal, potion, battery, gears
+const ITEMS_SHEET = 'assets/images/menuElements/items_tile.png';
+const pu = (x: number, y: number, w: number, h: number): MapDef => ({ path: ITEMS_SHEET, type: 3, rect: [x, y, w, h], anchor: [w / 2, h] });
+Object.assign(MAPS, {
+  PU_CRYSTAL: pu(168, 210, 26, 40), PU_POTION: pu(226, 207, 30, 43),
+  PU_BATTERY: pu(289, 211, 26, 39), PU_GEARS: pu(346, 211, 34, 38),
+});
+
+/** Draw a frame washed with a colour (power-up tint, like Mega Man's weapon colours). */
+let tintCanvas: HTMLCanvasElement | null = null;
+export function drawTinted(ctx: CanvasRenderingContext2D, f: Frame, x: number, y: number, dir: number, color: string,
+  amount = 0.85, scale = 1): void {
+  if (!tintCanvas) tintCanvas = document.createElement('canvas');
+  const c = tintCanvas;
+  if (c.width < f.sw || c.height < f.sh) { c.width = Math.max(c.width, f.sw); c.height = Math.max(c.height, f.sh); }
+  const t = c.getContext('2d')!;
+  t.clearRect(0, 0, c.width, c.height);
+  t.globalCompositeOperation = 'source-over';
+  t.globalAlpha = 1;
+  t.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, 0, 0, f.sw, f.sh);
+  // 'color' blend: the sprite keeps its own light and shade and takes the hue of `color` (a palette swap look);
+  // then the sprite's own alpha is restored
+  t.globalCompositeOperation = 'color';
+  t.globalAlpha = amount;
+  t.fillStyle = color;
+  t.fillRect(0, 0, f.sw, f.sh);
+  t.globalAlpha = 1;
+  t.globalCompositeOperation = 'destination-in';
+  t.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, 0, 0, f.sw, f.sh);
+  t.globalCompositeOperation = 'source-over';
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(dir < 0 ? -scale : scale, scale);
+  ctx.drawImage(c, 0, 0, f.sw, f.sh, -f.ax, -f.ay, f.sw, f.sh);
+  ctx.restore();
+}
 
 export interface Frame { image: HTMLImageElement; sx: number; sy: number; sw: number; sh: number; ax: number; ay: number }
 

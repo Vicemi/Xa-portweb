@@ -24,8 +24,9 @@ const SPLASH_TIME = 3.5; // SplashScreen: sendMessage("fadeToBlack", delay 3.5 s
 const STATE_FADE = 0.8;
 const INTRO_WAIT = 0.6; // Intro wait before a key is accepted on the comic pages
 const END_WAIT = 2; // Intro wait (0x314 = 2.0) for the game-over and ending screens
-const ARROW_GLIDE = 0.25; // level-select arrow glide between nodes
-const ARROW_GLIDE_INIT = 0.25;
+const ARROW_GLIDE = 0.3;  // notifyChangedSelectionSelection: arrow glide, easeInOutSin, 0x3e99999a
+const ARROW_BOB = 0.8;    // LevelSelectScreen: arrow yoyo, 0x3f4ccccd
+const ARROW_GLIDE_INIT = 0.3;
 // Checkbox centres of the Windows-only options rows in options_win.png ("Pantalla completa", "Estirar pantalla").
 const OPT_FULLSCREEN = [292, 260] as const;
 const OPT_STRETCH = [292, 285] as const;
@@ -822,9 +823,11 @@ export class XaGame {
       if (i === this.levelIndex) {
         // ARROW (anchor 20,30) at node + (20,10), bobbing up to 6 px, gliding from the previous node
         const a = frameOf('ARROW', 0);
-        const bob = Math.round((0.5 + 0.5 * Math.sin(this.t * 6)) * 6);
+        // yoyo interpolation (mode 2) of 0.8 s per full cycle, easeInOutSin, from +(0,0) to +(0,-6)
+        const ph = (this.t % ARROW_BOB) / ARROW_BOB, kb = ph < 0.5 ? ph * 2 : 2 - ph * 2;
+        const bob = Math.round(((1 - Math.cos(Math.PI * kb)) / 2) * 6);
         const [fx, fy] = NODE_POS[this.arrowFrom] ?? NODE_POS[i];
-        const k = this.arrowT / ARROW_GLIDE, e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+        const k = this.arrowT / ARROW_GLIDE, e = (1 - Math.cos(Math.PI * k)) / 2; // easeInOutSin
         const ax = Math.round(fx + (px - fx) * e), ay = Math.round(fy + (py - fy) * e);
         if (a) w.drawImage(a.image, a.sx, a.sy, a.sw, a.sh, ax + 20 - 20, ay + 10 - 30 - bob, a.sw, a.sh);
       }

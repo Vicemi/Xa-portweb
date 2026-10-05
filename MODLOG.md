@@ -698,3 +698,15 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   en render → caía desde el doble de altura. Quitado.
 - Verificado con g.step: enemigos se mueven antes, congelados durante la muerte, balas borradas al reaparecer,
   1 vida por muerte, dir -1 durante / 1 después. Regresión 16 niveles (incluida una muerte por nivel): sin errores.
+
+## Estado 2026-10-05 (ronda 41 — barrido de efectos inventados)
+- Búsqueda de Math.sin/Math.random/globalAlpha en src para encontrar comportamiento sin respaldo:
+  - HUD "guardando": el port lo desvanecía en 0.5 s; Hud::update sólo lo oculta cuando la anim termina → sin fundido.
+  - Flecha del mapa: yoyó (modo 2) easeInOutSin de 0.8 s (0x3f4ccccd) de +(0,0) a +(0,-6); el port usaba
+    sin(t·6) (~1.05 s). Deslizamiento entre nodos: easeInOutSin 0.3 s (0x3e99999a,
+    notifyChangedSelectionSelection); el port usaba easeInOutQuad 0.25 s.
+  - Jumper/Jumper2: Jumper::Jumper arranca con vel (pxVel, pyVel) y accel (pxAccel, pyAccel) → cae al piso, en el
+    piso restartAnimation y salta (vx guardada, -200) al terminar la anim. El port esperaba un tiempo aleatorio en
+    el piso al nacer → quitado.
+  - Confirmados como originales: PARABLE 300 + randomBetween(0,80); 4_FALL ±25 aleatorio; sonidos alternados.
+- Regresión 16 niveles: sin errores ni NaN.

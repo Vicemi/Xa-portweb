@@ -65,8 +65,10 @@ export class Enemy {
   private blade: 'wait' | 'drop' | 'rest' | 'rise' = 'wait';
   private ext = 0; // guillotine blade extension (0..pyDelta)
   private prevFrame = 0;
-  private jumpPhase: 'ground' | 'air' = 'ground';
-  private jumpT = Math.random() * 1.5;
+  // Jumper::Jumper: born moving with (pxVel, pyVel) under (pxAccel, pyAccel) — it falls onto the floor first,
+  // restarts its anim there and only hops once that anim is over
+  private jumpPhase: 'ground' | 'air' = 'air';
+  private jumpT = 0;
   private hitFlash = 0;
   private bossShooting = false;
 

@@ -362,6 +362,35 @@ def templates(bases):
     return t
 
 
+_COVER = {}
+
+
+def coverage(b):
+    """How much of each tile of the tileset is opaque (0..1): grass tufts are light, water and bushes are not."""
+    if b.tileset in _COVER:
+        return _COVER[b.tileset]
+    from PIL import Image
+    ts = b.root.find('tileset')
+    first = int(ts.get('firstgid'))
+    img = Image.open(os.path.join(ROOT, 'public', b.tileset.replace('/tiles/', '/tiles/win/'))).convert('RGBA')
+    cols_n = img.width // TS
+    alpha = img.split()[3]
+    cache = {}
+
+    def cover(gid):
+        gid &= 0x1fffffff
+        if not gid:
+            return 0.0
+        if gid not in cache:
+            k = gid - first
+            box = ((k % cols_n) * TS, (k // cols_n) * TS, (k % cols_n + 1) * TS, (k // cols_n + 1) * TS)
+            hist = alpha.crop(box).histogram()
+            cache[gid] = sum(hist[128:]) / (TS * TS)
+        return cache[gid]
+    _COVER[b.tileset] = cover
+    return cover
+
+
 def build(i, spec):
     bases = [Base(n) for n in spec['bases']]
     b0 = bases[0]
@@ -477,9 +506,21 @@ def compose(i, spec, bases, out, arena_at, rnd, tpl):
         return all((xx, y) not in taken for xx in range(x - r, x + r + 1))
 
     real = set(floors)
+    cover = coverage(b0)
 
     def flat(x, y, n=1):
         return all((xx, y) in real for xx in range(x - n, x + n + 1))
+
+    def clean(x, y, n=1):
+        # enemies stand on bare floor: nothing drawn in front of them (water, lakes, bushes) and no spikes or deadly
+        # water within 3 columns
+        for xx in range(x - n, x + n + 1):
+            if not 0 <= xx < nw:
+                return False
+        for xx in range(max(0, x - 3), min(nw, x + 4)):
+            if any(b0.state.get(cols[xx][yy]) == 'pKilling' for yy in range(max(0, y - 3), min(h, y + 1))):
+                return False
+        return True
 
     no_go = set(range(0, 8))
     if arena_at is not None:
@@ -577,7 +618,7 @@ def compose(i, spec, bases, out, arena_at, rnd, tpl):
             if x in no_go or not 8 < x < nw - 6 or not by_col.get(x):
                 continue
             y = rnd.choice(by_col[x])
-            if flat(x, y, 1) and free_spot(x, y, 2):
+            if flat(x, y, 1) and free_spot(x, y, 2) and clean(x, y, 1):
                 spot = (x, y)
                 break
         if not spot:
@@ -585,10 +626,12 @@ def compose(i, spec, bases, out, arena_at, rnd, tpl):
         x, y = spot
         if rnd.random() < 0.25 and spec['flyers']:
             kind = rnd.choice(spec['flyers'])
-            if not g.clear(x, y - 6, y - 1):
+            # flyers hover over solid ground Xa walks on (not over pits or water), low enough to be shot and to
+            # bother him: Xa's flyers 2 tiles up, bats 3 (they dive)
+            if not g.clear(x, y - 5, y - 1) or not flat(x, y, 3):
                 continue
             o = sv(kind) if kind.startswith('Sv') or not tpl.get(kind) else deepcopy(rnd.choice(tpl[kind]))
-            objs.append(at(o, x, y - 4))
+            objs.append(at(o, x, y - (3 if kind == 'SvBat' else 2)))
             continue
         kind = rnd.choice(spec['walkers'])
         if kind == 'SvBigDemon':

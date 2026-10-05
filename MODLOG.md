@@ -886,3 +886,16 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   "aprieta" con el salto), y resetInput() se llama al cargar un nivel y al reaparecer tras morir → ninguna tecla
   queda "apretada" de antes (lo que dejaría a Xa agachado o tragaría el siguiente salto). Verificado: con Z trabada
   durante la muerte el salto responde al reaparecer.
+
+## Estado 2026-10-05 (ronda 54 — enemigos extra sin pinchos ni voladores inalcanzables)
+- Diagnóstico con una hoja de recortes de cada enemigo ubicado: los caminantes estaban bien apoyados, pero los
+  voladores quedaban 4 baldosas sobre el piso (sobre pozos/agua), fuera del alcance de los disparos de Xa.
+- Generador: caminantes (SVNZ y plantillas Xa) sin baldosas pKilling a menos de 3 columnas/3 filas; voladores sólo
+  sobre piso firme de 7 columnas alcanzables y bajos: plantillas Xa a 2 baldosas, murciélagos a 3 (se lanzan).
+  (Se probó exigir "nada dibujado delante" por cobertura de baldosa: descartaba casas/troncos de fondo → retirado.)
+- svnz.ts: ledgeAhead trata pinchos/agua mortal adelante como borde (se dan vuelta); un enemigo extra que termina
+  sobre una baldosa mortal (salto/caída) muere ahí en vez de quedarse parado.
+- Verificado: 0 caminantes cerca de pinchos (script), los SVNZ de los 12 niveles activos 100 frames sin morir solos,
+  sin errores, build OK.
+- Nota de pruebas: tras reiniciar el dev server, Vite re-optimiza dependencias y recarga la página varias veces
+  durante ~30 s; esperar a que responda 200 antes de probar.

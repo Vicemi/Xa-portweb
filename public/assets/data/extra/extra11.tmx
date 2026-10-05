@@ -968,7 +968,7 @@
     <property name="pxDelta" value="-96" />
    </properties>
   </object>
-  <object name="SvBat" type="SvBat" x="2336" y="1088" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="CobraTiradora" type="Jumper2" x="2656" y="1216" width="32" height="32">
+  <object name="SvBat" type="SvBat" x="2336" y="1120" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="CobraTiradora" type="Jumper2" x="2656" y="1216" width="32" height="32">
    <properties>
     <property name="pAnim" value="COBRA_SHOOT" />
     <property name="pAsset" value="COBRA_SHOOT" />
@@ -987,7 +987,7 @@
     <property name="pyVel" value="200.0" />
    </properties>
   </object>
-  <object name="SvBat" type="SvBat" x="3040" y="1088" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvNinja" type="SvNinja" x="3584" y="1216" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBat" type="SvBat" x="4128" y="1088" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvBat" type="SvBat" x="4512" y="1088" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="CobraTiradora" type="Jumper2" x="5216" y="1216" width="32" height="32">
+  <object name="SvBat" type="SvBat" x="3040" y="1120" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvNinja" type="SvNinja" x="3584" y="1216" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBat" type="SvBat" x="4128" y="1120" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvBat" type="SvBat" x="4512" y="1120" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="CobraTiradora" type="Jumper2" x="5216" y="1216" width="32" height="32">
    <properties>
     <property name="pAnim" value="COBRA_SHOOT" />
     <property name="pAsset" value="COBRA_SHOOT" />
@@ -1006,7 +1006,7 @@
     <property name="pyVel" value="200.0" />
    </properties>
   </object>
-  <object name="SvBigDemon" type="SvBigDemon" x="5600" y="1216" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBat" type="SvBat" x="6176" y="896" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvBat" type="SvBat" x="6656" y="1088" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvBat" type="SvBat" x="7040" y="800" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvBigDemon" type="SvBigDemon" x="7424" y="1216" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvNinja" type="SvNinja" x="8000" y="928" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="FloorCannon" type="FloorCannon" x="8576" y="1216" width="32" height="32">
+  <object name="SvBigDemon" type="SvBigDemon" x="5600" y="1216" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBat" type="SvBat" x="6176" y="928" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvBat" type="SvBat" x="6656" y="1120" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvBigDemon" type="SvBigDemon" x="7424" y="1216" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvNinja" type="SvNinja" x="8000" y="928" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="FloorCannon" type="FloorCannon" x="8576" y="1216" width="32" height="32">
    <properties>
     <property name="pAnim" value="FLOOR_CANNON" />
     <property name="pAsset" value="FLOOR_CANNON" />
@@ -1102,5 +1102,5 @@
     <property name="pyVel" value="200.0" />
    </properties>
   </object>
-  <object name="SvBat" type="SvBat" x="12448" y="1088" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object></objectgroup>
+  <object name="SvBat" type="SvBat" x="12448" y="1120" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object></objectgroup>
 </map>

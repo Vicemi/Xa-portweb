@@ -17,6 +17,7 @@ const POINTS: Record<string, number> = {
 // Sprites hard-coded by the class constructors (Windows Scenario::loadObjects / Enemy*::Enemy*).
 const FIXED_ANIM: Record<string, string> = { Boss: 'BOSS', SmartUFO: 'UFO_1' };
 // Shooter::setFrameSync per class (EnemySmartUFO 1, EnemyFloorCannon 3; Android/Boss handle theirs below).
+const BOSS_BODY = [112, 172] as const;
 const FRAME_SYNC: Record<string, number> = { SmartUFO: 1, FloorCannon: 3 };
 const FLYERS = new Set(['Bird', 'UFO', 'SmartUFO', 'Double', 'Bomb', 'Rocket']);
 const JUMPERS = new Set(['Jumper', 'Jumper2', 'JumperShooter']);
@@ -504,7 +505,11 @@ export class Enemy {
     }
     if (!this.shotPending && (!this.anim || this.anim.frameNum() >= 1)) {
       this.shotPending = true;
-      const ox = this.x - this.dir * 22, oy = this.y - this.h * 0.5 + 15;
+      // XABulletFactory "BOSS_BULLETS": x = bound.left + (dir+1)·w/2 + dir·offset.x, y = bound.top + offset.y + h/2,
+      // offset (-22, 15). With the boss body (BOSS_BODY 112x172 over the feet) that is the muzzle of the cannon
+      // in jefe_tile.png (+34, -71 from the feet); the 32x32 TMX rect put the shots at its feet.
+      const [bw, bh] = BOSS_BODY;
+      const ox = this.x - bw / 2 + (this.dir + 1) * bw / 2 + this.dir * -22, oy = this.y - bh + 15 + bh / 2;
       for (let i = 0; i < 5; i++) {
         const ang = Math.PI / 3 + i * (Math.PI / 12);
         this.world.spawnEnemyBullet(ox, oy, this.dir * Math.sin(ang) * 200, -Math.cos(ang) * 200);

@@ -41,6 +41,9 @@ for n in ('HERO', 'HERO_STAIRS', 'HERO_DEAD'):
     maps[n + '_R']['path'] = HERO_SHEET_R
 maps['HERO_DEAD']['type'] = maps['HERO_DEAD_R']['type'] = 3
 maps['BULLET']['type'] = 3
+# SHINE (ORANGE_SHINE / GREEN_SHINE impacts): its desc keeps setDefault's anchor mode 0 = centre of the 24x24
+# frame; the old extractor carried SHIELD_DOWN's explicit (40,50) over and drew every impact 50 px too high
+maps['SHINE']['anchor'] = [12.0, 12.0]
 for k in range(30):  # entrance: Xa falls from the top of the 512x384 screen
     maps['HERO_IM_%d' % k] = {'path': HERO_SHEET, 'type': 3, 'rect': [0, 70, 70, 70],
                               'anchor': [35, 384.0 - k * 10.466666]}

@@ -98,7 +98,9 @@ export class Scenario implements World {
   private spawned: Enemy[] = [];
   /** SavePoint::mpActualSavePoint: only the active checkpoint shines */
   private activeSave: Thing | null = null;
-  private explosions: (Effect & { rect: Rect; t: number })[] = [];
+  // boss deaths; `pop`: seconds of MEGA_POWER blasts for the extra-level bosses (the original pops during the first
+  // 3 frames of BOSS_DEAD), `puff`: they vanish in an ENEMY_DEATH cloud when their knock-out is over
+  private explosions: (Effect & { rect: Rect; t: number; pop?: number; puff?: number })[] = [];
   private bullets: Bullet[] = [];
   private things: Thing[] = [];
   private enemies: Enemy[] = [];
@@ -252,7 +254,9 @@ export class Scenario implements World {
     this.camera.shake(3.0);
     playSound('ENEMY_DEATH');
     const b = e.bounds();
-    this.explosions.push({ anim: new Anim('BOSS_DEAD'), x: e.x, y: e.y - e.h / 2, dir: e.dir, rect: b, t: 0 });
+    const d = e.deathAnim();
+    if (d.feet) this.explosions.push({ anim: new Anim(d.anim), x: e.x, y: e.y, dir: e.dir, rect: b, t: 0, pop: 1.5, puff: e.h / 2 });
+    else this.explosions.push({ anim: new Anim(d.anim), x: e.x, y: e.y - e.h / 2, dir: e.dir, rect: b, t: 0 });
     this.grantKey(e);
   }
   private grantKey(e: Enemy): void {
@@ -468,13 +472,18 @@ export class Scenario implements World {
     for (const x of this.explosions) {
       x.anim.update(dt);
       x.t -= dt;
-      if (x.anim.frameNum() < 3 && x.t <= 0) {
+      if (x.pop !== undefined) x.pop -= dt;
+      if ((x.pop !== undefined ? x.pop > 0 : x.anim.frameNum() < 3) && x.t <= 0) {
         x.t = Math.random() * 0.1;
         const r = x.rect;
         const px = r.x - 20 + Math.random() * (r.w + 35);
-        const py = r.y + x.anim.frameNum() * r.h * 0.2 + Math.random() * (r.h - x.anim.frameNum() * r.h * 0.2);
+        const k = x.pop !== undefined ? 0 : x.anim.frameNum();
+        const py = r.y + k * r.h * 0.2 + Math.random() * (r.h - k * r.h * 0.2);
         this.addEffect('MEGA_POWER', px, py, 1);
       }
+    }
+    for (const x of this.explosions) {
+      if (x.puff !== undefined && x.anim.isOver()) { playSound('ENEMY_DEATH'); this.addEffect('ENEMY_DEATH', x.x, x.y - x.puff, 1); }
     }
     this.explosions = this.explosions.filter((x) => !x.anim.isOver());
     for (const p of this.pointsFx) p.t += dt;

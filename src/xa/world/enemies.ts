@@ -116,6 +116,8 @@ export class Enemy {
   get isBoss(): boolean { return BOSS.has(this.type); }
   /** Helpers an extra-level boss brought in (removed with it). */
   extras: Enemy[] = [];
+  /** Death animation played by the world when this boss dies: the original boss's BOSS_DEAD (drawn from its centre). */
+  deathAnim(): { anim: string; feet: boolean } { return { anim: 'BOSS_DEAD', feet: false }; }
   /** Xa lost a life and comes back at the checkpoint (extra-level bosses reset; Xa enemies don't). */
   onHeroRespawn(): void { /* original enemies keep their state */ }
   /** World killed this boss (extra-level bosses show a message). */

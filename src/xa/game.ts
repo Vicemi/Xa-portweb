@@ -164,6 +164,7 @@ export class XaGame {
     this.screen = 'splash';
     this.t = 0;
     this.splashStep = 0;
+    playMusic('intro_piano'); // SplashScreen::SplashScreen reproduce intro_piano.ogg al arrancar
   }
 
   async loadLevel(entry: LevelEntry): Promise<void> {
@@ -275,7 +276,7 @@ export class XaGame {
         break;
       }
       case 'loading':
-        if (this.loadingIsBoot && (this.t >= 0.9 || this.clicked || isFirstPress('confirm'))) { this.screen = 'intro'; this.introPage = 0; this.t = 0; playMusic('xa_intro'); }
+        if (this.loadingIsBoot && (this.clicked || isFirstPress('confirm') || isFirstPress('jumpHold'))) { this.screen = 'intro'; this.introPage = 0; this.t = 0; playMusic('xa_intro'); }
         break;
       case 'intro':
         if (this.t > 0.4 && (this.clicked || isFirstPress('confirm') || isFirstPress('jumpHold') || isFirstPress('fire'))) {
@@ -545,9 +546,10 @@ export class XaGame {
     if (im) {
       w.drawImage(im, 0, 0, 512, 384, 0, 0, VIEW_W, VIEW_H);
       const f = Math.floor(this.t * 3) % 3;
-      w.drawImage(im, 1, 388 + f * 40, 259, 32, VIEW_W / 2 - 259, VIEW_H - 60, 518, 64);
+      w.drawImage(im, 1, 388 + f * 40, 259, 32, VIEW_W / 2 - 259, VIEW_H - 76, 518, 64);
     }
-    if (this.t > 0.4) this.drawPressAnyKey(w);
+    // "Pulsa una tecla para continuar" (tipografía bitmap del juego)
+    if (this.t > 0.4) this.text(w, 'Pulsa una tecla para continuar', VIEW_W / 2, VIEW_H - 22, 13, '#e8f0e0');
   }
 
   private renderIntro(w: CanvasRenderingContext2D): void {

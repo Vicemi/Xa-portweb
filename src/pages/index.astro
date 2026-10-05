@@ -39,17 +39,27 @@ import XaGameView from '../components/XaGame.tsx';
   }
   .xa-controls .xa-btn:active { background: rgba(255,255,255,0.34); }
 
-  /* D-pad (bottom-left) */
-  .xa-dpad .xa-btn { width: 3.4rem; height: 3.4rem; }
-  .xa-up    { left: 4.2rem; bottom: 8.2rem; }
-  .xa-left  { left: 0.8rem; bottom: 4.6rem; }
-  .xa-down  { left: 4.2rem; bottom: 1rem; }
-  .xa-right { left: 7.6rem; bottom: 4.6rem; }
+  /* D-pad (bottom-left): single draggable area, direction follows the finger */
+  .xa-dpad {
+    position: absolute; left: 0.8rem; bottom: 1rem;
+    width: 8rem; height: 8rem; pointer-events: auto;
+    border: 2px solid rgba(255,255,255,0.4); border-radius: 50%;
+    background: rgba(255,255,255,0.08); touch-action: none;
+  }
+  .xa-dpad-arrow {
+    position: absolute; color: rgba(255,255,255,0.75);
+    font-size: 1.4rem; text-shadow: 0 1px 2px rgba(0,0,0,0.7);
+    pointer-events: none; user-select: none; -webkit-user-select: none;
+  }
+  .xa-up    { left: 50%; top: 0.4rem; transform: translateX(-50%); }
+  .xa-left  { left: 0.5rem; top: 50%; transform: translateY(-50%); }
+  .xa-down  { left: 50%; bottom: 0.4rem; transform: translateX(-50%); }
+  .xa-right { right: 0.5rem; top: 50%; transform: translateY(-50%); }
 
-  /* Actions (bottom-right): jump (big) + fire */
+  /* Actions (bottom-right): jump (big) + fire, with a gap between them */
   .xa-actions .xa-btn { width: 3.6rem; height: 3.6rem; }
   .xa-jump { right: 1.2rem; bottom: 1.2rem; width: 4.6rem !important; height: 4.6rem !important; }
-  .xa-fire { right: 5.2rem; bottom: 2.2rem; font-size: 0.7rem !important; }
+  .xa-fire { right: 6.8rem; bottom: 2.4rem; font-size: 0.7rem !important; }
 
   /* Back (top-right) */
   .xa-back { right: 0.8rem; top: 0.8rem; width: 2.6rem; height: 2.6rem; font-size: 1.1rem !important; }

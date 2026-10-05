@@ -16,13 +16,13 @@ const SHOOTERS = new Set(['Thrower', 'FloorCannon', 'FixedShooter', 'JumperShoot
 const BOSS = new Set(['Boss']);
 // InteractiveObject::isInvisibleForBullet → these are ignored by hero bullets.
 const BULLET_PROOF = new Set(['Guillotine', 'Rocket']);
-// Hazards that kill the hero outright on contact (StubEnemy::intersects / EnemyDeathBarrier::intersects
-// call Hero::setState(Dead), not the usual 4-point contact damage).
-const INSTANT_KILL = new Set(['Stub', 'Spikes', 'Stalactite', 'Lava', 'AcidDrop', 'DeathBarrier', 'DummyDeathBarrier', 'Fire']);
+// Hazards that kill the hero outright on contact (EnemyDeathBarrier::intersects → Hero::setState(Dead)).
+// NOTE: "Stub" (los pinchos) NO está aquí: el usuario confirmó que resta vida, no mata.
+const INSTANT_KILL = new Set(['Spikes', 'Stalactite', 'Lava', 'AcidDrop', 'DeathBarrier', 'DummyDeathBarrier', 'Fire']);
 // Contact is lethal too, but these remain destructible by bullets (EnemyBomb explodes on death).
 const CONTACT_KILL = new Set([...INSTANT_KILL, 'Bomb']);
-// Never destroyed by bullets/stomps (all instant-kill hazards are non-destructible too).
-const INDESTRUCTIBLE = INSTANT_KILL;
+// Never destroyed by bullets/stomps. "Stub" deals contact damage (no instant death).
+const INDESTRUCTIBLE = new Set(['Stub', ...INSTANT_KILL]);
 
 export class Enemy {
   alive = true;
@@ -73,6 +73,11 @@ export class Enemy {
   get isInstantKill(): boolean { return CONTACT_KILL.has(this.type); }
   /** Explodes into a radial burst when killed (EnemyBomb::onCollision). */
   get isBomb(): boolean { return this.type === 'Bomb'; }
+  /** Ground-based enemies (walk/patrol/static) ride moving platforms; airborne ones don't. */
+  get isGroundBound(): boolean {
+    const m = this.movement();
+    return m === 'patrol' || m === 'static' || m === 'boss' || m === 'slide';
+  }
 
   /** Called when a hero bullet (team 0) hits this enemy. Returns true if it died. */
   onBullet(): boolean {
@@ -130,9 +135,13 @@ export class Enemy {
     const spd = Math.abs(+(this.p.pxVel ?? 70) || 70);
     this.x += this.dir * spd * dt;
     const ts = this.world.map.ts;
-    const midY = this.y - this.h * 0.5;
     const aheadX = this.dir > 0 ? this.x + this.w / 2 + 2 : this.x - this.w / 2 - 2;
-    const wall = this.p.pCollidesH === 'true' && this.world.map.isHard(aheadX, midY);
+    // Sample the whole vertical span (head→feet) so tall enemies don't walk through walls.
+    let wall = false;
+    if (this.p.pCollidesH === 'true') {
+      for (let y = this.y - this.h + 2; y < this.y && !wall; y += ts) wall = this.world.map.isHard(aheadX, y);
+      if (!wall) wall = this.world.map.isHard(aheadX, this.y - 2);
+    }
     const edge = this.p.pCollidesFloor === 'true' && !this.world.hasFloor(aheadX, this.y + 2);
     if (wall || edge) {
       this.dir *= -1;

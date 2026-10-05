@@ -228,6 +228,16 @@ export class Scenario implements World {
         this.heroOnPlatform = p;
       }
     }
+    // enemies standing on a moving platform ride it (ground-bound enemies only)
+    for (const e of this.enemies) {
+      if (!e.alive || !e.isGroundBound) continue;
+      for (const p of this.platforms) {
+        if (e.x > p.x - 6 && e.x < p.x + p.w + 6 && Math.abs(e.y - p.y) < 6) {
+          e.y += p.y - p.prevY;
+          break;
+        }
+      }
+    }
     // doors: block until opened with the right key
     for (const d of this.doors) {
       d.update(dt);

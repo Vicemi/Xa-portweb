@@ -7,6 +7,8 @@ export default function XaGameView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isTouch, setIsTouch] = useState(false);
   const [portrait, setPortrait] = useState(false);
+  const dpadRef = useRef<HTMLDivElement>(null);
+  const dpadDir = useRef<string | null>(null);
 
   useEffect(() => {
     const g = new XaGame(canvasRef.current!);
@@ -40,6 +42,33 @@ export default function XaGameView() {
     window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code }));
   };
 
+  // Draggable D-pad: direction follows the finger position relative to the pad centre, so sliding
+  // from one side to another switches direction without lifting the finger.
+  const dpadDirFrom = (clientX: number, clientY: number): string | null => {
+    const el = dpadRef.current;
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    const dx = clientX - (r.left + r.width / 2);
+    const dy = clientY - (r.top + r.height / 2);
+    const dead = Math.max(10, r.width * 0.12);
+    if (Math.abs(dx) < dead && Math.abs(dy) < dead) return null;
+    if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 'ArrowRight' : 'ArrowLeft';
+    return dy > 0 ? 'ArrowDown' : 'ArrowUp';
+  };
+  const setDpadDir = (dir: string | null) => {
+    if (dir === dpadDir.current) return;
+    if (dpadDir.current) press(dpadDir.current)(false);
+    if (dir) press(dir)(true);
+    dpadDir.current = dir;
+  };
+  const dpadHandlers = {
+    onPointerDown: (e: React.PointerEvent) => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); setDpadDir(dpadDirFrom(e.clientX, e.clientY)); },
+    onPointerMove: (e: React.PointerEvent) => { if (dpadDir.current !== null) setDpadDir(dpadDirFrom(e.clientX, e.clientY)); },
+    onPointerUp: () => setDpadDir(null),
+    onPointerCancel: () => setDpadDir(null),
+    onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
+  };
+
   const bind = (code: string) => ({
     onPointerDown: (e: React.PointerEvent) => { e.preventDefault(); e.stopPropagation(); press(code)(true); },
     onPointerUp: (e: React.PointerEvent) => { e.preventDefault(); e.stopPropagation(); press(code)(false); },
@@ -63,11 +92,11 @@ export default function XaGameView() {
 
       {isTouch && !portrait && (
         <div className="xa-controls">
-          <div className="xa-dpad">
-            <button className="xa-btn xa-up" {...bind('ArrowUp')} aria-label="Arriba">▲</button>
-            <button className="xa-btn xa-left" {...bind('ArrowLeft')} aria-label="Izquierda">◀</button>
-            <button className="xa-btn xa-down" {...bind('ArrowDown')} aria-label="Abajo">▼</button>
-            <button className="xa-btn xa-right" {...bind('ArrowRight')} aria-label="Derecha">▶</button>
+          <div className="xa-dpad" ref={dpadRef} {...dpadHandlers}>
+            <span className="xa-dpad-arrow xa-up">▲</span>
+            <span className="xa-dpad-arrow xa-left">◀</span>
+            <span className="xa-dpad-arrow xa-down">▼</span>
+            <span className="xa-dpad-arrow xa-right">▶</span>
           </div>
 
           <div className="xa-actions">

@@ -552,3 +552,12 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   port usa el rect del TMX (tamaños puestos a mano: UFO 128x32, Bomb 64x64, Guillotine 32x160). Sin `loadObjects`
   (no descompiló) no está 100% probado. Oráculo posible: `Config` byte 6 = dibujar rectángulos (tecla 0x30 con
   debugKeys), apagado en release → requeriría parchear memoria del xa.exe en ejecución (pedir permiso al usuario).
+
+## Estado 2026-10-05 (ronda 27 — créditos rediseñados en alta resolución)
+- El usuario rehízo `public/assets/lang/images/credits/creditos.jpg` a 1024x1024 (misma convención: contenido en la
+  franja superior 4:3 = 1024x768, abajo relleno).
+- `cover()` ya no recorta 384 filas fijas: usa la franja 4:3 proporcional al ancho (`XaGame.band`). Las imágenes de
+  pantalla con ancho > 512 se redibujan en `render()` directamente sobre el canvas de pantalla (`renderHdArt`), a la
+  resolución real, con la cinta PRESS_ANY_KEY escalada encima → nítidas en vez de pasar por el lienzo de 512x384.
+  Cualquier otra pantalla (ayuda, menú, cómic…) que se rediseñe en HD con la misma convención funciona igual.
+- La cinta "Presiona cualquier tecla" (presente en Credits del original) tapa la última línea del diseño nuevo.

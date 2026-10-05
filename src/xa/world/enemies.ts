@@ -116,6 +116,10 @@ export class Enemy {
   get isBoss(): boolean { return BOSS.has(this.type); }
   /** Helpers an extra-level boss brought in (removed with it). */
   extras: Enemy[] = [];
+  /** Xa lost a life and comes back at the checkpoint (extra-level bosses reset; Xa enemies don't). */
+  onHeroRespawn(): void { /* original enemies keep their state */ }
+  /** World killed this boss (extra-level bosses show a message). */
+  onDefeated(): void { /* nothing for the original boss */ }
   /** Health bar shown while an extra-level boss is fighting; the original enemies never show one. */
   bossBarInfo(): { name: string; lives: number; max: number } | null { return null; }
   /** Melee hit box active this frame (Super Vampire Ninja enemies' red rects); Xa enemies have none. */

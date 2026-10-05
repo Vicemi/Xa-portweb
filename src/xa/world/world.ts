@@ -31,6 +31,10 @@ export interface World {
   setMusic(music: string): void;
   /** Show a HUD message (sign balloon). */
   message(text: string, seconds: number): void;
+  /** Extra-level bosses: drop an item (e.g. ENERGY) standing at (x, y); returns a handle that tells if it's still there. */
+  spawnItem(asset: string, x: number, y: number, count?: number): { alive: boolean };
+  /** The level's own music (pMusic). */
+  readonly levelMusic: string | null;
 }
 
 export interface WorldEvents {
@@ -185,6 +189,17 @@ export class Scenario implements World {
     if (e) this.spawned.push(e);
     return e;
   }
+  spawnItem(asset: string, x: number, y: number, count = 3): { alive: boolean } {
+    const ts = this.map.ts;
+    const o = { type: 'Item', name: asset, x: Math.round(x - ts / 2), y: Math.round(y - ts), w: 32, h: 32,
+      props: { pAsset: asset, pCount: String(count), pIsKey: 'true', pRequiredItem: asset } } as unknown as TmxObject;
+    const f = feetOf(o.x, o.y, ts);
+    const t = new Thing(o, f.x, f.y, asset);
+    this.things.push(t);
+    this.addEffect('POWER', f.x, f.y - 16, 1);
+    return t;
+  }
+  get levelMusic(): string | null { return this.level.props.pMusic ?? null; }
   setMusic(music: string): void {
     this.music = music;
     playMusic(music);
@@ -233,6 +248,7 @@ export class Scenario implements World {
   private killBoss(e: Enemy): void {
     e.alive = false;
     for (const x of e.extras) if (x.alive) this.removeEnemy(x); // its helpers go with it (extra-level bosses)
+    e.onDefeated();
     this.camera.shake(3.0);
     playSound('ENEMY_DEATH');
     const b = e.bounds();
@@ -264,6 +280,7 @@ export class Scenario implements World {
       return;
     }
     s.lives -= 1;
+    for (const e of this.enemies) if (e.alive) e.onHeroRespawn(); // extra-level bosses start over at full life
     if (this.music) playMusic(this.music); // the track a checkpoint switched to keeps playing (AudioLibrary state)
     // Scenario::init(Vector2): every volatile object (bullets, effects, floating points) is removed and the HUD
     // message is cleared

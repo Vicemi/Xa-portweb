@@ -66,7 +66,10 @@ Además del juego original, el port suma un **segundo mapa con 12 niveles nuevos
   - **Ninja rojo**: salta hacia vos y remata con un golpe.
   - **Murciélago**: revolotea y se lanza en picada.
   - **Gran demonio**: lento y blindado; golpea el piso (la pantalla tiembla y salen ondas de choque) y salta para aplastarte.
-- **Un jefe cada 3 niveles**, los mismos del modo historia de SVNZ y en su orden. Esperan en una arena al final del nivel. Cuando entrás, cambia la música, aparece el cartel de SVNZ y abajo se muestra **su barra de vida**. Al vencerlos sueltan la llave de la puerta de salida.
+- **Un jefe cada 3 niveles**, los mismos del modo historia de SVNZ y en su orden. Esperan en una arena al final del nivel. Cuando entrás, cambia la música, aparece el cartel de SVNZ y abajo se muestra **su barra de vida**.
+  - Durante la pelea caen **ítems de energía** en la arena, lejos del jefe, para que puedas curarte.
+  - Si perdés una vida, el jefe **recupera toda su vida** y vuelve a esperarte en la arena.
+  - Al vencerlo aparece un cartel que te avisa que lo derrotaste y que te falta la parte final, y suelta la llave de la puerta de salida.
   1. **Ninja Dorado** (nivel 3): rápido y con armadura; tajos y saltos. Llega con 2 ninjas de apoyo.
   2. **Gran Demonio** (nivel 6): golpes al piso y saltos aplastantes. Llega con 3 de apoyo.
   3. **Lucy Poseída** (nivel 9), la hermana de Mina: embestida, combos de puños y patadas, patada en picada y giro especial.

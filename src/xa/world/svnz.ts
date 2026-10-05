@@ -13,7 +13,7 @@ type HitBox = [number, number, number, number] | null;
 
 // Extra-level bosses = the SVNZ story-mode bosses (waves.xml storyFirstBoss..storyFinalBoss), with the helpers that
 // SVNZ sends with them (listExtras / activeExtras) and the SVNZ announcement (initialTextKey) when the fight starts.
-interface BossSpec { name: string; banner: string; extras: string[]; max: number }
+interface BossSpec { name: string; banner: string; defeat: string; extras: string[]; max: number }
 interface Spec { key: string; lives: number; points: number; speed: number; boss?: BossSpec }
 const SPEC: Record<string, Spec> = {
   SvNinja: { key: 'NINJA', lives: 3, points: 40, speed: 70 },        // DemonNinja: walks up and slashes
@@ -22,24 +22,27 @@ const SPEC: Record<string, Spec> = {
   SvBigDemon: { key: 'BIG_DEMON', lives: 14, points: 100, speed: 35 },// BigDemon: armoured, ground slam + stomp
   SvGoldNinja: {
     key: 'GOLD_NINJA', lives: 80, points: 300, speed: 115,
-    boss: { name: 'Ninja Dorado', banner: '¡Se acerca un enemigo peligroso!', extras: ['SvNinja', 'SvRedNinja'], max: 2 },
+    boss: { name: 'Ninja Dorado', banner: '¡Se acerca un enemigo peligroso!', defeat: '¡Derrotaste al Ninja Dorado!', extras: ['SvNinja', 'SvRedNinja'], max: 2 },
   },
   SvBigDemonBoss: {
     key: 'BIG_DEMON', lives: 180, points: 400, speed: 45,
-    boss: { name: 'Gran Demonio', banner: '¡El que sigue no va a ser\ntan fácil!', extras: ['SvNinja', 'SvRedNinja', 'SvNinja'], max: 3 },
+    boss: { name: 'Gran Demonio', defeat: '¡Derrotaste al Gran Demonio!', banner: '¡El que sigue no va a ser\ntan fácil!', extras: ['SvNinja', 'SvRedNinja', 'SvNinja'], max: 3 },
   },
   SvLucy: {
     key: 'LUCY', lives: 110, points: 450, speed: 150,
-    boss: { name: 'Lucy Poseída', banner: '¡Lucy, la hermana de Mina,\nfue poseída!', extras: [], max: 0 },
+    boss: { name: 'Lucy Poseída', defeat: '¡Liberaste a Lucy!', banner: '¡Lucy, la hermana de Mina,\nfue poseída!', extras: [], max: 0 },
   },
   SvDracula: {
     key: 'DRACULA', lives: 160, points: 500, speed: 120,
-    boss: { name: 'Drácula', banner: '¡Llega Drácula!', extras: ['SvBat'], max: 1 },
+    boss: { name: 'Drácula', banner: '¡Llega Drácula!', defeat: '¡Derrotaste a Drácula!', extras: ['SvBat'], max: 1 },
   },
 };
 export const SV_TYPES = new Set(Object.keys(SPEC));
 
 const GRAVITY = 1200;
+// Mod rules of the extra-level boss fights: an energy item drops into the arena now and then while Xa is hurt
+const HEAL_FIRST = 8;
+const HEAL_EVERY = 12;
 
 export function createSvEnemy(o: TmxObject, world: World, x: number, y: number): Enemy | null {
   return SV_TYPES.has(o.type) ? new SvEnemy(world, o, x, y) : null;
@@ -62,6 +65,8 @@ class SvEnemy extends Enemy {
   private arena: [number, number];
   private extraT = 1.5;
   private extraK = 0;
+  private healT = HEAL_FIRST;
+  private heal: { alive: boolean } | null = null;
 
   constructor(world: World, o: TmxObject, x: number, y: number) {
     super(world, o, x, y);
@@ -126,6 +131,46 @@ class SvEnemy extends Enemy {
     this.world.message(b.banner, 3);
     playSound('SV_SPECIAL');
     this.setSt('walk', 'WALK');
+  }
+
+  /** Energy drops during the fight, at the arena spot farthest from the boss, one at a time, only when Xa is hurt. */
+  private healing(dt: number): void {
+    if (this.heal?.alive) return;
+    this.healT -= dt;
+    if (this.healT > 0) return;
+    this.healT = HEAL_EVERY;
+    if (this.world.state.energy >= 10) return;
+    const [x0, x1] = this.arena;
+    const x = this.x - x0 > x1 - this.x ? x0 + 96 : x1 - 96;
+    this.heal = this.world.spawnItem('ENERGY', x, this.hy, 3);
+  }
+
+  /** Xa lost a life: the boss gets all its life back and waits in its arena again (bar and helpers gone). */
+  override onHeroRespawn(): void {
+    if (!this.spec.boss || !this.awake) return;
+    for (const e of this.extras) e.alive = false;
+    this.extras = [];
+    this.lives = this.spec.lives;
+    this.x = this.hx;
+    this.y = this.hy;
+    this.vx = this.vy = 0;
+    this.awake = false;
+    this.hitFlash = 0;
+    this.healT = HEAL_FIRST;
+    this.extraT = 1.5;
+    this.dir = (+(this.p.pLookDir ?? 0) || 0) < 0 ? -1 : 1;
+    this.setSt('idle', 'STAND');
+    const m = this.world.levelMusic;
+    if (m) this.world.setMusic(m);
+  }
+
+  /** Beaten: tell Xa the gate key dropped and the exit stretch is still ahead. */
+  override onDefeated(): void {
+    const b = this.spec.boss;
+    if (!b) return;
+    this.world.message(`${b.defeat}\nTomá la llave: te falta la parte final.`, 5);
+    const m = this.world.levelMusic;
+    if (m) this.world.setMusic(m);
   }
 
   /** SVNZ BossMode: keeps `max` helpers on stage, entering from the arena edge away from Xa. */
@@ -238,6 +283,7 @@ class SvEnemy extends Enemy {
         return;
       }
       this.helpers(dt);
+      this.healing(dt);
       if (this.stepBack(dt)) return;
     }
     switch (this.type) {

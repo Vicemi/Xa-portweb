@@ -822,3 +822,14 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - Verificado: 12 niveles sin errores, los 4 jefes despiertan al entrar a la arena (en pruebas teletransportando a
   Xa la cámara tarda ~4 s en llegar y hasta entonces el jefe está fuera de la ventana activa: no pasa jugando),
   originales sin cambios ni barra, build OK.
+
+## Estado 2026-10-05 (ronda 48 — peleas de jefe: curación, reinicio y cartel de victoria)
+- Sólo jefes SVNZ (niveles extra). Durante la pelea: World.spawnItem('ENERGY', x, y, 3) cada 12 s (primero a los
+  8 s) si Xa no tiene la energía llena y no queda otro; cae en el extremo de la arena más lejos del jefe (+efecto
+  POWER). Al perder una vida: World.onHeroDeathFinished llama Enemy.onHeroRespawn() → el jefe recupera todas sus
+  vidas, vuelve a su lugar en 'idle', se van sus ayudantes y la barra, y suena otra vez la música del nivel
+  (World.levelMusic). Al morir: World.killBoss llama Enemy.onDefeated() → cartel "¡Derrotaste al …! / Tomá la
+  llave: te falta la parte final." (5 s) y vuelve la música del nivel. Las implementaciones base son vacías: los
+  enemigos y el jefe originales no cambian (verificado: muerte en nivel 16 sin cambios).
+- Verificado: el ítem cae y se recoge (+3), el reinicio deja vidas al máximo/idle/sin barra/sin ayudantes, el
+  cartel aparece y entra en el globo, suelta KEY, build OK.

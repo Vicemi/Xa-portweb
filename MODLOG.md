@@ -654,3 +654,6 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - EnemyBird (Bird/UFO/Double), Enemy, Jumper, FloorCannon, PiranhaRobot: pisotón desde arriba mata con puntos;
   si no, daño 4 y el enemigo se quita. Bomb / Ultraton / Boss / Stub / Guillotine: contacto = muerte.
 - Verificado: pisar pájaro +10, pato robot +5; SmartUFO -4 energía y 0 puntos; Thrower sin efecto.
+- Balas del héroe: sólo Guillotine / Rocket son isInvisibleForBullet; el resto (pinchos incluidos, aunque no reciben
+  daño) frena la bala. SimpleBullet::onNeutralized deja GREEN_SHINE (equipo 0) / ORANGE_SHINE donde chocó.
+  Verificado: bala vs pincho → se frena + destello, sin daño; vs pato robot → -1 vida + destello.

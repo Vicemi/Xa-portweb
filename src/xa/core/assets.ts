@@ -24,7 +24,9 @@ export async function useBundledAssets(): Promise<boolean> {
     const r = await fetch('/assets/manifest.json');
     if (!r.ok) return false;
     const list: string[] = await r.json();
-    return await setupServer('/assets', list);
+    // Manifest paths are relative to the game root ("assets/..."); public/ is served at "/",
+    // so the URL base is empty (paths already start with "assets/").
+    return await setupServer('', list);
   } catch {
     return false;
   }

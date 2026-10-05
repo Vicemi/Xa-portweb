@@ -492,10 +492,11 @@ export class XaGame {
         break;
       }
       case 'help': case 'credits':
-        if (isFirstPress('back') || isFirstPress('confirm')) { this.screen = 'menu'; this.menuIndex = -1; }
+        // Credits::update / Help: any key or a click returns to the menu ("Presiona cualquier tecla")
+        if (this.t > 0.3 && (isFirstPress('any') || this.clicked)) { this.screen = 'menu'; this.menuIndex = -1; playSound('CLICK'); }
         break;
       case 'gameover': case 'win':
-        if (this.t > 0.6 && (this.clicked || isFirstPress('confirm') || isFirstPress('jumpHold'))) {
+        if (this.t > 0.6 && (this.clicked || isFirstPress('any'))) {
           this.screen = 'levels';
           this.t = 0;
         }

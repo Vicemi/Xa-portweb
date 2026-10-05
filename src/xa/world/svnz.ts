@@ -217,6 +217,9 @@ class SvEnemy extends Enemy {
     playSound('SV_STRONG_HIT');
     this.world.spawnEnemyBullet(this.x + 26, this.y - 8, 210, 0);
     this.world.spawnEnemyBullet(this.x - 26, this.y - 8, -210, 0);
+    // the impact itself: Xa standing close on the same floor takes the hit (shield or not)
+    const h = this.world.hero;
+    if (h.isAlive() && Math.abs(h.pos.x - this.x) < 95 && Math.abs(h.pos.y - this.y) < 24) h.onCollisionEnemy(4);
   }
 
   // ---------- update ----------
@@ -357,7 +360,8 @@ class SvEnemy extends Enemy {
         if (this.heroNear(320, 90)) {
           this.face();
           const adx = Math.abs(this.heroDx());
-          if (this.cool <= 0 && adx < 120) { this.setSt('slam', 'ATTACK'); return; }
+          // the slam's red rect only reaches 58 px forward (BigDemon 1000.3/1000.4): close in first
+          if (this.cool <= 0 && adx < 62) { this.setSt('slam', 'ATTACK'); return; }
           if (this.cool <= 0 && adx > 160 && adx < 280) {
             // leaping body press (BigDemon 1500/1505)
             this.setSt('stomp', 'AIR_ATTACK_LOOP');
@@ -367,7 +371,7 @@ class SvEnemy extends Enemy {
             playSound('SV_JUMP');
             return;
           }
-          if (adx > 40) this.walk(dt, this.spec.speed * 1.6);
+          if (adx > 34) this.walk(dt, this.spec.speed * 1.6);
         } else {
           this.walk(dt, this.spec.speed);
         }

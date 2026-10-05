@@ -805,3 +805,20 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - 12 niveles (101..112): tramos de 3 con jefe al final de E3/E6/E9/E12. Verificado con g.step: los 4 jefes
   despiertan, usan su repertorio, traen sus ayudantes, mueren, sueltan KEY y la barra desaparece; los 12 niveles
   cargan con ENDING y corren sin errores; regresión de los 16 originales sin errores ni barra; build OK.
+
+## Estado 2026-10-05 (ronda 47 — golpe del gran demonio + niveles extra rediseñados y verificados)
+- Bug: el golpe al piso del gran demonio no dañaba. Arrancaba con Xa a < 120 px pero el rect rojo de BigDemon
+  1000.3/1000.4 sólo llega a 58 px (8 ticks). Ahora se acerca a < 62 px antes de golpear y el impacto (shockwave)
+  daña 4 a Xa si está a < 95 px en el mismo piso, además de las 2 ondas. Verificado: impacto, contacto y ondas restan.
+- gen_extra_levels.py v3: tramos de 6-16 columnas + saltos a gemelas (15-29 tramos por nivel). Verificación de
+  alcanzabilidad (BFS sobre baldosas: caminar, bajar/caer con deriva de 3, salto con doble salto 4 arriba / 7 al
+  costado / más al bajar, escaleras, trayectorias de PlatformInterp como pisos virtuales); calibrada con los
+  originales 1,2,3,7,8,9,10,11 (todos llegan al ENDING; con salto simple fallaban → los originales cuentan con el
+  doble salto). Un layout sin salida alcanzable se descarta (semilla siguiente). Todo se ubica de cero sólo en
+  pisos alcanzables: SavePoint cada ~100 col, monedas en filas/arcos (~48), 4-6 vacas (preferencia fuera de la ruta
+  principal), doble salto justo después del inicio (con el que se verificó), 2 energías y 1 vida, enemigos SVNZ +
+  plantillas de enemigos Xa (copiados con sus propiedades), voladores sobre suelo abierto. Sólo las plataformas
+  móviles conservan su lugar (el terreno las necesita) con pDuration x0.75-1.25.
+- Verificado: 12 niveles sin errores, los 4 jefes despiertan al entrar a la arena (en pruebas teletransportando a
+  Xa la cámara tarda ~4 s en llegar y hasta entonces el jefe está fuera de la ventana activa: no pasa jugando),
+  originales sin cambios ni barra, build OK.

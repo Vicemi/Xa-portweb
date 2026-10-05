@@ -777,3 +777,31 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - Verificado: 8 niveles cargan y corren sin errores ni enemigos caídos, Drácula usa todo su repertorio y suelta la
   llave, el gran demonio hace golpes/saltos con ondas de choque, completar E1 abre E2 sin tocar el progreso original,
   regresión de los 16 originales OK, build OK.
+
+## Estado 2026-10-05 (ronda 46 — mapa 2: 12 niveles reorganizados + jefes de SVNZ con barra de vida)
+- Pedido: niveles extra que NO sean copias, jefes cada 3-4 niveles (los de SVNZ, al final), física/controles de Xa,
+  barra de vida; los originales intactos.
+- Jefes = waves.xml de SVNZ (modo historia): storyFirstBoss goldDemonNinjaBoss (+2 extras), storySecondBoss
+  bigDemonBoss (+3), storyThirdBoss minaBoss ("Your Dear Sister Has Been Posessed!", Mina con paleta Evil Lucy =
+  Mina2.png), storyFinalBoss draculaBoss (+1). import_svnz.py ahora importa GOLD_NINJA (DemonNinja3.png) y LUCY
+  (Mina2.png, nombres propios de movimientos: DASH 500, PUNCH 1000, KICKS 1020, SPIN_KICK 1060, AIR_KICK 1500, DIVE
+  1520, SPECIAL 2010) y hud/bars.png + fullBars.png.
+- svnz.ts: SvGoldNinja (80 vidas), SvBigDemonBoss (180), SvLucy (110), SvDracula (160). Esperan quietos ('idle')
+  hasta que Xa entra a [pArenaX0, pArenaX1] (o les dispara): música svnz_boss (world.setMusic, se mantiene al
+  reaparecer), cartel SVNZ traducido, barra. Ayudantes SVNZ (world.spawnEnemy, en el borde de la arena opuesto a
+  Xa, máx. `activeExtras`), se van con el jefe (killBoss). Retroceden tras cada combo (abre distancia para
+  disparar). El jefe tiene que estar a ≤ 17 baldosas del inicio de la arena: fuera de la ventana activa (cámara ±400)
+  no se actualiza y nunca despertaría.
+- Barra: Hud.renderBossBar — marco bars.png (168x12, hueco 128x7 en 20,3) + fullBars verde (fila 1) y amarillo
+  (fila 27) para la vida recién perdida, x1.5 abajo al centro, nombre arriba. world.bossBar sólo existe con jefes
+  SVNZ despiertos → los 16 originales nunca la muestran (verificado).
+- gen_extra_levels.py reescrito: recorrido por columnas gemelas (idénticas en toda la altura ⇒ costura invisible)
+  sobre 1-2 niveles base del mismo tileset (1+2 se mezclan): tramos de 16-38 columnas y salto a una gemela lejana
+  menos visitada → secciones reordenadas/repetidas/salteadas. Arena: una columna de piso llano (hard con 5 libres
+  arriba, sin pinchos/escaleras/plataformas) repetida 36 veces; SavePoint antes, jefe a 17 baldosas, Door GATE/KEY
+  después; luego el tramo de salida del original (sin saltar más allá del ENDING). Plataformas: pDuration x0.7-1.3.
+  Más enemigos SVNZ sobre pisos nuevos (máx. 3 grandes demonios agregados). Niveles 5, 6, 12-16 no tienen gemelas
+  (verticales) → no se usan como base.
+- 12 niveles (101..112): tramos de 3 con jefe al final de E3/E6/E9/E12. Verificado con g.step: los 4 jefes
+  despiertan, usan su repertorio, traen sus ayudantes, mueren, sueltan KEY y la barra desaparece; los 12 niveles
+  cargan con ENDING y corren sin errores; regresión de los 16 originales sin errores ni barra; build OK.

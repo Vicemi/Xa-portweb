@@ -114,6 +114,10 @@ export class Enemy {
   }
 
   get isBoss(): boolean { return BOSS.has(this.type); }
+  /** Helpers an extra-level boss brought in (removed with it). */
+  extras: Enemy[] = [];
+  /** Health bar shown while an extra-level boss is fighting; the original enemies never show one. */
+  bossBarInfo(): { name: string; lives: number; max: number } | null { return null; }
   /** Melee hit box active this frame (Super Vampire Ninja enemies' red rects); Xa enemies have none. */
   attackRect(): { x: number; y: number; w: number; h: number } | null { return null; }
   /** Xa rule: touching a (non-boss) enemy hurts the hero and removes the enemy. Heavy extra enemies stay. */

@@ -54,17 +54,22 @@ Si encontrás algún problema, abrí un *issue* contando **en qué nivel**, **qu
 
 ### 🧛 Niveles extra: el mapa 2 (mod)
 
-Además del juego original, el port suma un **segundo mapa con 8 niveles nuevos** que mezclan Xa con los enemigos de **[Super Vampire Ninja Zero](http://www.supervampireninja.com)**, el prototipo de pelea que Batoví Games Studio hizo en 2009.
+Además del juego original, el port suma un **segundo mapa con 12 niveles nuevos** que mezclan Xa con los enemigos y jefes de **[Super Vampire Ninja Zero](http://www.supervampireninja.com)**, el prototipo de pelea que Batoví Games Studio hizo en 2009. Se juega siempre con **Xa, sus controles y su física**, también contra los jefes. Los 16 niveles originales no cambian en nada.
 
 - **Cómo entrar:** en el mapa de niveles, tocá la **flecha del borde derecho** (o apretá **→** sobre el último nivel abierto). En el mapa 2, la **flecha izquierda** (o **←** sobre el primer nivel) vuelve al mapa original.
 - **Desbloqueo:** el primer nivel extra está abierto desde el principio y cada uno abre el siguiente. Más adelante se van a desbloquear al terminar los 16 originales (`EXTRA_REQUIRES_ORIGINALS` en [`game.ts`](src/xa/game.ts)).
-- **Enemigos nuevos**, con sus sprites, animaciones y zonas de golpe originales, adaptados a las reglas de Xa:
+- **Niveles nuevos de verdad:** cada nivel se arma recorriendo el terreno de uno o dos niveles originales con el mismo tileset, en otro orden. Las secciones se reordenan, se repiten o se saltean, y las uniones no se notan porque siempre se empalma entre columnas idénticas. Las plataformas móviles cambian de velocidad, y los enemigos se reubican y se suman sobre los pisos nuevos.
+- **Enemigos nuevos**, con sus sprites, animaciones y zonas de golpe originales:
   - **Ninja demonio**: patrulla, te persigue y ataca con un tajo.
   - **Ninja rojo**: salta hacia vos y remata con un golpe.
   - **Murciélago**: revolotea y se lanza en picada.
-  - **Gran demonio**: lento y blindado; golpea el piso (la pantalla tiembla y salen ondas de choque) y salta para aplastarte. No se puede pisar.
-  - **Drácula** (jefe del nivel 8): combo de golpes, conjuro de balas en abanico, teletransporte con la capa y patada en picada. Al vencerlo suelta la llave de la salida.
-- **Escenarios:** el terreno de cada nivel sale de los niveles originales, recombinado con empalmes invisibles. Los fondos de SVNZ (arena, dojo, mazmorra y grilla) están recortados y adaptados al parallax de Xa, y suena la música de SVNZ.
+  - **Gran demonio**: lento y blindado; golpea el piso (la pantalla tiembla y salen ondas de choque) y salta para aplastarte.
+- **Un jefe cada 3 niveles**, los mismos del modo historia de SVNZ y en su orden. Esperan en una arena al final del nivel. Cuando entrás, cambia la música, aparece el cartel de SVNZ y abajo se muestra **su barra de vida**. Al vencerlos sueltan la llave de la puerta de salida.
+  1. **Ninja Dorado** (nivel 3): rápido y con armadura; tajos y saltos. Llega con 2 ninjas de apoyo.
+  2. **Gran Demonio** (nivel 6): golpes al piso y saltos aplastantes. Llega con 3 de apoyo.
+  3. **Lucy Poseída** (nivel 9), la hermana de Mina: embestida, combos de puños y patadas, patada en picada y giro especial.
+  4. **Drácula** (nivel 12): combo, conjuro de balas en abanico, teletransporte con la capa y patada en picada. Llega con un murciélago.
+- **Escenarios:** los fondos de SVNZ (arena, dojo, mazmorra y grilla) están recortados y adaptados al parallax de Xa, y suena la música de SVNZ.
 - Para regenerarlos desde tu instalación de SVNZ: `python tools/import_svnz.py "F:/Games/SuperVampireNinjaZero"` y después `python tools/gen_extra_levels.py`.
 
 ### 🗺️ Planes a futuro
@@ -74,7 +79,7 @@ Además del juego original, el port suma un **segundo mapa con 8 niveles nuevos*
 - [x] Niveles y enemigos nuevos: mapa 2 con los personajes de Super Vampire Ninja Zero
 - [ ] Soporte para mods
 - [ ] Editor / creación de mapas nuevos
-- [ ] Más personajes (por ejemplo Mina y su hermana poseída, de SVNZ)
+- [ ] Más personajes de SVNZ (por ejemplo, Mina como personaje jugable)
 - [ ] Expansión general del contenido del juego
 
 ---
@@ -185,7 +190,7 @@ Todos se ejecutan desde la raíz del proyecto:
 | URL | Qué hace |
 | :--- | :--- |
 | `/?level=5` | Entra directo al nivel 5 (1 a 16) |
-| `/?extra=3` | Entra directo al nivel extra 3 del mapa 2 (1 a 8) |
+| `/?extra=3` | Entra directo al nivel extra 3 del mapa 2 (1 a 12) |
 | `/?map=assets/data/mi_mapa.tmx` | Carga cualquier mapa TMX |
 | `/?touch=1` / `/?touch=0` | Fuerza / desactiva los controles táctiles |
 

@@ -59,6 +59,9 @@
   "assets/audio/music/win/xa_menu.ogg",
   "assets/audio/music/win/xa_win.ogg",
   "assets/data/extra/extra1.tmx",
+  "assets/data/extra/extra10.tmx",
+  "assets/data/extra/extra11.tmx",
+  "assets/data/extra/extra12.tmx",
   "assets/data/extra/extra2.tmx",
   "assets/data/extra/extra3.tmx",
   "assets/data/extra/extra4.tmx",
@@ -66,6 +69,7 @@
   "assets/data/extra/extra6.tmx",
   "assets/data/extra/extra7.tmx",
   "assets/data/extra/extra8.tmx",
+  "assets/data/extra/extra9.tmx",
   "assets/data/level1.tmx",
   "assets/data/level10.tmx",
   "assets/data/level11.tmx",
@@ -171,8 +175,14 @@
   "assets/svnz/characters/big_demon_R.png",
   "assets/svnz/characters/dracula.png",
   "assets/svnz/characters/dracula_R.png",
+  "assets/svnz/characters/gold_ninja.png",
+  "assets/svnz/characters/gold_ninja_R.png",
+  "assets/svnz/characters/lucy.png",
+  "assets/svnz/characters/lucy_R.png",
   "assets/svnz/characters/ninja.png",
   "assets/svnz/characters/ninja_R.png",
   "assets/svnz/characters/red_ninja.png",
-  "assets/svnz/characters/red_ninja_R.png"
+  "assets/svnz/characters/red_ninja_R.png",
+  "assets/svnz/hud/bars.png",
+  "assets/svnz/hud/fullBars.png"
 ]

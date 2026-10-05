@@ -657,3 +657,10 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - Balas del héroe: sólo Guillotine / Rocket son isInvisibleForBullet; el resto (pinchos incluidos, aunque no reciben
   daño) frena la bala. SimpleBullet::onNeutralized deja GREEN_SHINE (equipo 0) / ORANGE_SHINE donde chocó.
   Verificado: bala vs pincho → se frena + destello, sin daño; vs pato robot → -1 vida + destello.
+
+## Estado 2026-10-05 (ronda 36 — README final + deploy)
+- La web está publicada en Cloudflare Pages (xa-portweb.vicemi.dev, `server: cloudflare`, 200) con deploy continuo
+  desde `main`. README: quitado "(próximamente)", sección Deploy, estado/funciones al día con los repasos 28-35.
+- Propiedades TMX revisadas: pHard/pPlatform/pLadder/pLadderEnd/pKilling/pInvisible son de TILES (ya manejadas en
+  tilemap); pBulletAsset siempre BULLET_ENEMY/SIMPLE_ENEMY y XABulletFactory dibuja todo con BULLET_ENEMY → correcto.
+  Meteoritos no aparecen en ningún nivel original → sacados de pendientes.

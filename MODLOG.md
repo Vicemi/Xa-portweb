@@ -513,3 +513,14 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   intro de nivel, y todas las rutas del manifest existen en `dist/`.
 - **Input**: una tecla pulsada y soltada entre dos updates se perdía (toques rápidos / frames lentos). `pollInput`
   ahora agrega las teclas `tapped` desde el último poll como pulsación de un update.
+
+## Estado 2026-10-04 (ronda 24 — muertes con balas, nave-cañón, botón volver móvil)
+- **Jumper::onCollision** (cobras COBRA / COBRA_SHOOT): muertas a BALAZOS explotan en `8_BULLETS` (8 balas cada
+  45° desde arriba, 200 px/s, desde el centro); pisadas no. `killEnemy(e, byBullet)`.
+- **EnemyPiranhaRobot::update** (UFO_CANNON): espera random(pMinTime,pMaxTime) en casa → sube pyDelta (-250) con
+  easeOutCubic en pDuration (1.5 s) → anim, en frame > 1 dispara `4_FALL` → baja con la misma curva → espera.
+  Antes subía/bajaba lineal y disparaba con un temporizador aparte.
+- **Comic**: Space/clic/fuego pasan una página; Enter (o Esc) salta toda la historia.
+- **Botón volver móvil** (XaGame.tsx `.xa-back-btn`): siempre visible en pantallas táctiles; `XaGame.backLabel()` /
+  `backAction()` según pantalla: play ❚❚ pausa, paused ▶ continúa (↩ cierra confirmación), menu ⛶ pantalla
+  completa, splash/loading/intro ⏭, levelIntro ▶, resto ↩ al menú. TouchControls ya no tiene su propio botón.

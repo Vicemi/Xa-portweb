@@ -162,13 +162,6 @@ export default function TouchControls({ active }: { active: boolean }) {
     }
   };
 
-  const tapPause = (e: React.PointerEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }));
-    setTimeout(() => window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Escape' })), 60);
-  };
-
   if (!active) return null;
   const knob = view ? (() => {
     const dx = view.x - view.ox, dy = view.y - view.oy, d = Math.hypot(dx, dy) || 1;
@@ -199,7 +192,6 @@ export default function TouchControls({ active }: { active: boolean }) {
       <div ref={fireRef} className={'xa-act xa-act-fire' + (pressed.fire ? ' is-down' : '')} aria-label="Disparar">FUEGO</div>
       <div ref={jumpRef} className={'xa-act xa-act-jump' + (pressed.jump ? ' is-down' : '')} aria-label="Saltar">SALTO</div>
 
-      <div className="xa-pause-btn" onPointerDown={tapPause} aria-label="Pausa">❚❚</div>
     </div>
   );
 }

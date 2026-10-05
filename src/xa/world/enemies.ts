@@ -16,7 +16,7 @@ const STATIC = new Set(['Cannon', 'Stub', 'Spikes', 'Stalactite', 'Lava', 'AcidD
 // Android / Thrower / Jumper2 / Boss have their own triggers (see update()).
 const AUTO_SHOOTERS: Record<string, string> = {
   Cannon: 'PARABLE', Down3: '3_FALL', SmartUFO: 'TO_HERO', Double: 'DOUBLE_SIDE',
-  PiranhaRobot: '4_FALL', FloorCannon: '4_FALL_RAND', FixedShooter: 'SIMPLE_ENEMY',
+  FloorCannon: '4_FALL_RAND', FixedShooter: 'SIMPLE_ENEMY',
   UFO: 'SIMPLE_ENEMY', // EnemyUFO: Shooter SIMPLE_ENEMY, offset (30,-4), toward the side it flies
 };
 const BOSS = new Set(['Boss']);
@@ -52,6 +52,8 @@ export class Enemy {
   private shotPending = false;   // Shooter: waiting for the sync anim to reach the firing frame
   private androidStopped = false; // EnemyAndroid: halted while playing ANDROID_SHOOT
   private walkVel = 0;
+  private piranha: 'wait' | 'rise' | 'shoot' | 'sink' = 'wait';
+  private phaseT = 0;
   private prevFrame = 0;
   private jumpPhase: 'ground' | 'air' = 'ground';
   private jumpT = Math.random() * 1.5;
@@ -364,14 +366,47 @@ export class Enemy {
     else this.y = this.homeY + delta * Math.max(0, 1 - (ph - wait - fall) / retract);
   }
 
-  // vertical thrust (PiranhaRobot).
+  /** EnemyPiranhaRobot::update (UFO_CANNON): waits pMinTime..pMaxTime at home, rises pyDelta px with easeOutCubic
+   *  over pDuration, plays its anim and on frame 2 fires "4_FALL" (4 bullets fanned upward that rain down), then
+   *  sinks back the same way and waits again. */
   private popup(dt: number): void {
-    const dur = Math.max(0.1, +(this.p.pDuration ?? 1) || 1);
-    const wait = Math.max(0.1, +(this.p.pMinTime ?? 1) || 1);
-    const delta = +(this.p.pyDelta ?? -120) || -120;
-    const cyc = dur + wait, ph = this.t % cyc;
-    this.y = this.homeY + delta * (ph < dur ? Math.min(1, ph / dur) : Math.max(0, 1 - (ph - dur) / dur));
+    const dur = Math.max(0.1, +(this.p.pDuration ?? 1.5) || 1.5);
+    const delta = +(this.p.pyDelta ?? -250) || -250;
+    const ease = (k: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, k)), 3); // easeOutCubic
+    switch (this.piranha) {
+      case 'wait':
+        this.y = this.homeY;
+        this.fireT -= dt;
+        if (this.fireT <= 0) { this.piranha = 'rise'; this.phaseT = 0; }
+        break;
+      case 'rise':
+        this.phaseT += dt;
+        this.y = this.homeY + delta * ease(this.phaseT / dur);
+        if (this.phaseT >= dur) {
+          this.piranha = 'shoot';
+          this.shotPending = false;
+          this.anim?.goToAndPlay(0);
+        }
+        break;
+      case 'shoot':
+        this.y = this.homeY + delta;
+        if (!this.shotPending && (!this.anim || this.anim.frameNum() > 1)) {
+          this.shotPending = true;
+          this.createBullets('4_FALL');
+          this.piranha = 'sink';
+          this.phaseT = 0;
+        }
+        break;
+      case 'sink':
+        this.phaseT += dt;
+        this.y = this.homeY + delta * (1 - ease(this.phaseT / dur));
+        if (this.phaseT >= dur) { this.piranha = 'wait'; this.fireT = this.randomWait(); }
+        break;
+    }
   }
+
+  /** Jumper::onCollision: a cobra shot down bursts into "8_BULLETS" (a stomp kills it cleanly). */
+  get burstsOnShotDeath(): boolean { return JUMPERS.has(this.type); }
 
   // FloorCannon: eases back and forth along X.
   private slide(dt: number): void {

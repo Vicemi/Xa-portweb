@@ -74,6 +74,7 @@ Si encontrás algún problema, abrí un *issue* contando **en qué nivel**, **qu
 | Pausa | **Esc** o **P** |
 | Pantalla completa | **F** (o desde *Opciones*) |
 | Menús | Flechas + **Enter**, o el mouse |
+| Historia (cómic) | **Espacio** pasa una página, **Enter** la salta entera |
 
 ### Celular / táctil
 
@@ -82,7 +83,8 @@ Girá el teléfono en **horizontal**. Los controles aparecen solo mientras jugá
 - **Mitad izquierda = joystick flotante.** Apoyá el dedo en cualquier parte de la mitad izquierda y arrastrá hacia donde quieras moverte. El centro del joystick acompaña al dedo, así que para cambiar de dirección basta un movimiento corto hacia el otro lado, sin levantar el dedo. Arrastrar en diagonal hacia arriba o abajo sirve para escaleras.
 - **Mitad derecha = acciones.** Botones grandes de **SALTO** y **FUEGO**, separados entre sí. Tocar cualquier otra zona de la mitad derecha también salta.
 - **Multitouch real:** podés moverte, saltar y disparar al mismo tiempo, y deslizar el dedo de un botón al otro sin soltarlo.
-- **❚❚** arriba a la derecha pausa el juego. El celular vibra levemente al saltar (si lo soporta).
+- **Botón de volver (arriba a la derecha)**, siempre visible: hace lo que haría la tecla *Esc* en cada pantalla y su ícono cambia según dónde estés: ❚❚ pausa el juego, ▶ continúa o empieza el nivel, ↩ vuelve al menú, ⏭ salta los logos o la historia y, en el menú principal, ⛶ activa la pantalla completa.
+- El celular vibra levemente al saltar (si lo soporta).
 
 > En una notebook con pantalla táctil podés forzar los controles táctiles con `?touch=1` en la URL (o desactivarlos con `?touch=0`).
 

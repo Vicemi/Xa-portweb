@@ -27,7 +27,7 @@ export class Hud {
   private savingTime = 0;
 
   showMessage(raw: string, seconds = 4): void {
-    this.message = raw.replace(/\\!/g, '¡').replace(/\\n/g, '\n');
+    this.message = decodeGameText(raw);
     this.messageTime = seconds;
   }
   clearMessage(): void { this.message = ''; }

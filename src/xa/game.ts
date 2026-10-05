@@ -22,6 +22,7 @@ const SPLASH_TIME = 3.5; // SplashScreen: sendMessage("fadeToBlack", delay 3.5 s
 // bat::App state changes go through StateTransition(0.8, 0.8): the old state fades to black in 0.8 s, the new one
 // fades in from black in 0.8 s (SplashScreen uses that value as the logo's alpha).
 const STATE_FADE = 0.8;
+const END_WAIT = 2; // Intro wait (0x314 = 2.0) for the game-over and ending screens
 const ARROW_GLIDE = 0.25; // level-select arrow glide between nodes
 const ARROW_GLIDE_INIT = 0.25;
 // Checkbox centres of the Windows-only options rows in options_win.png ("Pantalla completa", "Estirar pantalla").
@@ -166,7 +167,7 @@ export class XaGame {
       case 'loading': this.clicked = true; break;       // same as tapping the screen (once loaded)
       case 'intro': this.skipIntro(); break;
       case 'levelIntro': if (this.levelReady && this.scenario) this.screen = 'play'; break;
-      case 'gameover': case 'win': this.screen = 'levels'; this.t = 0; break;
+      case 'gameover': case 'win': if (this.t > END_WAIT) { this.screen = 'menu'; this.menuIndex = -1; this.t = 0; playMusic('xa_menu'); } break;
       case 'levels': case 'options': case 'help': case 'credits':
         this.screen = 'menu'; this.menuIndex = -1; this.draggingSlider = null; playSound('CLICK');
         break;
@@ -521,8 +522,10 @@ export class XaGame {
         if (this.t > 0.3 && (isFirstPress('any') || this.clicked)) { this.screen = 'menu'; this.menuIndex = -1; playSound('CLICK'); }
         break;
       case 'gameover': case 'win':
-        if (this.t > 0.6 && (this.clicked || isFirstPress('any'))) {
-          this.screen = 'levels';
+        // InGame::loadGameOver / loadEnding run an Intro(0x12 / 0x11) that accepts a key after 2 s and then calls
+        // loadMenu: both go back to the MAIN MENU
+        if (this.t > END_WAIT && (this.clicked || isFirstPress('any'))) {
+          this.screen = 'menu'; this.menuIndex = -1; playMusic('xa_menu');
           this.t = 0;
         }
         break;
@@ -719,8 +722,8 @@ export class XaGame {
       case 'credits': this.renderFull(w, 'assets/lang/images/credits/creditos.jpg'); break;
       case 'options': this.renderOptions(w); break;
       case 'levelIntro': this.renderLevelIntro(w); break;
-      case 'gameover': this.renderFull(w, 'assets/lang/images/intros/game_over.jpg'); break;
-      case 'win': this.renderFull(w, 'assets/lang/images/intros/screen_win.jpg'); break;
+      case 'gameover': this.renderFull(w, 'assets/lang/images/intros/game_over.jpg', END_WAIT); break;
+      case 'win': this.renderFull(w, 'assets/lang/images/intros/screen_win.jpg', END_WAIT); break;
       default: break;
     }
   }
@@ -852,9 +855,9 @@ export class XaGame {
     return this.cowCache[num];
   }
 
-  private renderFull(w: CanvasRenderingContext2D, path: string): void {
+  private renderFull(w: CanvasRenderingContext2D, path: string, keyAfter = 0.3): void {
     this.cover(w, path);
-    if (this.t > 0.3) this.drawPressAnyKey(w);
+    if (this.t > keyAfter) this.drawPressAnyKey(w);
   }
 
   /** PRESS_ANY_KEY anim (fondo_niveles.png rows 1/0, 18 ticks each), anchored bottom-right at (512, 384). */

@@ -18,6 +18,7 @@ export function decodeGameText(raw: string): string {
   return raw.replace(/\\(.)/g, (m, c: string) => ESCAPES[c] ?? m);
 }
 const LINE_H = 18;
+const SAVING_TIME = 3;
 const MSG_X = VIEW_W / 2 + 24;
 const MSG_Y = 80;
 
@@ -25,13 +26,14 @@ export class Hud {
   message = '';
   messageTime = 0;
   private savingTime = 0;
+  private doubleT = -1;
 
   showMessage(raw: string, seconds = 4): void {
     this.message = decodeGameText(raw);
     this.messageTime = seconds;
   }
   clearMessage(): void { this.message = ''; }
-  showSaving(): void { this.savingTime = 1.5; }
+  showSaving(): void { this.savingTime = SAVING_TIME; }
 
   update(dt: number): void {
     if (this.messageTime > 0) {
@@ -39,6 +41,7 @@ export class Hud {
       if (this.messageTime <= 0) this.message = '';
     }
     if (this.savingTime > 0) this.savingTime -= dt;
+    if (this.doubleT >= 0) this.doubleT += dt;
   }
 
   render(ctx: CanvasRenderingContext2D, s: HeroState): void {
@@ -46,7 +49,14 @@ export class Hud {
     this.blit(ctx, 'AVATAR', 7, 13);                          // Xa head + "x"
     drawLine(ctx, pad(s.lives, 2), 66, 10, 'black', 'left', 1);
     this.blit(ctx, 'ENERGY_BAR', 8, 48, Math.max(0, Math.min(9, s.energy)));
-    this.blit(ctx, s.cereals > 0 ? 'DOUBLE_JUMP' : 'DOUBLE_JUMP_NONE', 100, 8);
+    // Hud::setDouble: the power-up plays DOUBLE_JUMP_HUD (8 frames x 3 ticks) and rests on its last frame
+    if (s.cereals > 0) {
+      if (this.doubleT < 0) this.doubleT = 0;
+      this.blit(ctx, 'DOUBLE_JUMP_HUD', 100, 8, Math.min(7, Math.floor(this.doubleT / 0.1)));
+    } else {
+      this.doubleT = -1;
+      this.blit(ctx, 'DOUBLE_JUMP_NONE', 100, 8);
+    }
     this.blit(ctx, 'BACK_POINTS', 226, 7);
     drawLine(ctx, 'Puntos', 271, 10, 'black', 'center', 1);
     drawLine(ctx, pad(s.score, 6), 271, 25, 'black', 'center', 1);
@@ -73,7 +83,8 @@ export class Hud {
     if (this.savingTime > 0) {
       ctx.save();
       ctx.globalAlpha = Math.min(1, this.savingTime * 2);
-      this.blit(ctx, 'SAVING', VIEW_W / 2 - 50, 350, Math.floor((1.5 - this.savingTime) * 3) % 3);
+      // SAVING anim: frames 0,1,2 x 6 ticks @30 fps, five times (3 s), centred at (256, 365)
+      this.blit(ctx, 'SAVING', VIEW_W / 2 - 50, 352, Math.floor((SAVING_TIME - this.savingTime) / 0.2) % 3);
       ctx.restore();
     }
   }

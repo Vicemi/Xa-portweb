@@ -1,5 +1,6 @@
 // Scenario equivalent: one loaded level with its tilemap, background, objects, bullets and effects.
 import { Anim, drawFrame, frameOf, MAPS } from '../core/sprites';
+import { drawLine } from '../core/font';
 import { img } from '../core/assets';
 import { playMusic, playSound } from '../core/audio';
 import { GameCamera, VIEW_H, VIEW_W } from './camera';
@@ -33,6 +34,10 @@ export interface WorldEvents {
 }
 
 interface Effect { anim: Anim; x: number; y: number; dir: number }
+/** VolatilePoints: the awarded score in the pixel font, rising 40 px with easeOutQuint over 1.2 s. */
+interface PointsFx { value: number; x: number; y: number; t: number }
+const POINTS_FX_TIME = 1.2;
+const COW_POINTS = 1000; // Cow points (loadObjects: mov [obj+0x394], 0x3e8)
 interface Bullet { x: number; y: number; vx: number; vy: number; team: number; alive: boolean; g?: number; ax?: number }
 
 /** StageManager::getFeetsPosition: centre-bottom of the tile containing (x, y). */
@@ -73,6 +78,11 @@ export class Scenario implements World {
   fade = 0;
   fadeDir = 0;
   private effects: Effect[] = [];
+  private pointsFx: PointsFx[] = [];
+  /** current level track (pMusic of the map, or of the last checkpoint that carried one) */
+  private music: string | null = null;
+  /** SavePoint::mpActualSavePoint: only the active checkpoint shines */
+  private activeSave: Thing | null = null;
   private explosions: (Effect & { rect: Rect; t: number })[] = [];
   private bullets: Bullet[] = [];
   private things: Thing[] = [];
@@ -91,7 +101,8 @@ export class Scenario implements World {
     this.bgPath = 'assets/images/background/' + (level.props.pBackground ?? 'background_1.jpg');
     this.tilesetPath = level.tilesetImage.replace('/tiles/', '/tiles/win/');
     this.loadObjects();
-    if (level.props.pMusic) playMusic(level.props.pMusic);
+    this.music = level.props.pMusic ?? null;
+    if (this.music) playMusic(this.music);
   }
 
   /** Every image path this level needs (for preloading). */
@@ -167,12 +178,18 @@ export class Scenario implements World {
       playSound('ENEMY_DEATH');
       this.addEffect('BOMBA_DEATH', e.x, e.y - e.h / 2, 1);
       this.burst8(e);
-      this.state.addPoints(100);
+      this.award(e.points, e.x, e.y - e.h / 2);
       return;
     }
     this.removeEnemy(e);
     if (byBullet && e.burstsOnShotDeath) this.burst8(e); // Jumper::onCollision
-    this.state.addPoints(100);
+    this.award(e.points, e.x, e.y - e.h / 2);
+  }
+  /** Hero::addItems("POINTS", n) + EnemyHelper::addPointsEffect at the centre of the object's bound. */
+  private award(points: number, x: number, y: number): void {
+    if (points <= 0) return;
+    this.state.addPoints(points);
+    this.pointsFx.push({ value: points, x, y, t: 0 });
   }
   /** XABulletFactory "8_BULLETS": 8 bullets from the centre, every 45° starting straight up, 200 px/s. */
   private burst8(e: Enemy): void {
@@ -216,7 +233,7 @@ export class Scenario implements World {
       return;
     }
     s.lives -= 1;
-    if (this.level.props.pMusic) playMusic(this.level.props.pMusic);
+    if (this.music) playMusic(this.music); // the track a checkpoint switched to keeps playing (AudioLibrary state)
     this.hero.vel = { x: 0, y: 0 };
     this.hero.spawn(this.restore.x, this.restore.y);
     this.camera.goToGoal(this.restore.x, this.restore.y, this.hero.height);
@@ -288,6 +305,8 @@ export class Scenario implements World {
       t.t += dt;
       t.anim?.update(dt);
       if (t.rescueTime >= 0) {
+        // Cow::internalUpdate: after HAPPY_COW ends, blink (visibility toggles every 0.05 s) for 1 s, then go
+        if (t.anim && !t.anim.isOver()) continue;
         t.rescueTime -= dt;
         if (t.rescueTime < 0) t.alive = false;
         continue;
@@ -381,6 +400,8 @@ export class Scenario implements World {
       }
     }
     this.explosions = this.explosions.filter((x) => !x.anim.isOver());
+    for (const p of this.pointsFx) p.t += dt;
+    this.pointsFx = this.pointsFx.filter((p) => p.t < POINTS_FX_TIME);
     for (const e of this.effects) e.anim.update(dt);
     this.effects = this.effects.filter((e) => !e.anim.isOver());
   }
@@ -394,19 +415,25 @@ export class Scenario implements World {
         playSound('INFO');
         return;
       case 'SavePoint':
-        if (this.restore.x !== t.x || this.restore.y !== t.y) {
-          this.restore = { x: t.x, y: t.y };
+        // SavePoint::intersects: becomes the restoration point; when it is a NEW checkpoint: SAVING sound, the
+        // HUD "saving" anim and reactionOnAction (switch to its pMusic, e.g. xa_boss before the final boss)
+        this.restore = { x: t.x, y: t.y };
+        if (this.activeSave !== t) {
           playSound('SAVING');
           this.events.saving();
+          if (p.pMusic) { this.music = p.pMusic; playMusic(this.music); }
+          if (this.activeSave?.anim) this.activeSave.anim.goToAndPlay(0);
+          this.activeSave = t;
         }
         return;
       case 'Cow':
         if (t.rescueTime < 0) {
+          // Cow::intersects: points + VolatilePoints, COW_RESCUED_1, HAPPY_COW anim, HeroState::addCows
           t.mapName = 'HAPPY_COW';
-          t.anim = null;
-          t.rescueTime = 1.2;
+          t.anim = new Anim('HAPPY_COW');
+          t.rescueTime = 1.0; // blink time once the anim is over
           s.cows++;
-          s.addPoints(100);
+          this.award(COW_POINTS, t.x, t.y - 24);
           playSound('COW_RESCUED_1');
         }
         return;
@@ -489,7 +516,9 @@ export class Scenario implements World {
       if (t.o.type === 'Cow') {
         // original cow: SAD_COW (caged) -> HAPPY_COW hop/fade once rescued
         if (t.rescueTime >= 0) {
-          const f = frameOf('HAPPY_COW', Math.floor((1.2 - t.rescueTime) * 12) % 14);
+          const blinking = !!t.anim?.isOver();
+          if (blinking && Math.floor((1 - t.rescueTime) / 0.05) % 2 === 1) continue;
+          const f = t.anim?.frame();
           if (f) drawFrame(ctx, f, sx, sy);
         } else {
           const f = frameOf('SAD_COW', 0);
@@ -497,7 +526,9 @@ export class Scenario implements World {
         }
         continue;
       }
-      const f = t.anim?.frame() ?? (t.mapName ? frameOf(t.mapName, 0) : null);
+      // checkpoints rest on their SAVE image and only the active one plays its SHINE anim
+      const idleSave = t.o.type === 'SavePoint' && t !== this.activeSave;
+      const f = (idleSave ? null : t.anim?.frame()) ?? (t.mapName ? frameOf(t.mapName, 0) : null);
       if (f) drawFrame(ctx, f, sx, sy);
     }
 
@@ -527,6 +558,12 @@ export class Scenario implements World {
       if (f) drawFrame(ctx, f, Math.floor(e.x - cx), Math.floor(e.y - cy), e.dir);
     }
 
+    for (const p of this.pointsFx) {
+      const k = Math.min(1, p.t / POINTS_FX_TIME);
+      const rise = 40 * (1 - Math.pow(1 - k, 5)); // easeOutQuint
+      drawLine(ctx, String(p.value), Math.round(p.x - cx), Math.round(p.y - cy - rise - 9), 'pixel', 'center', 1);
+    }
+
     if (this.fade > 0) {
       ctx.fillStyle = `rgba(0,0,0,${this.fade})`;
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);
@@ -536,6 +573,6 @@ export class Scenario implements World {
   get heroState(): HS { return this.hero.state; }
 
   resumeMusic(): void {
-    if (this.level.props.pMusic && this.hero.isAlive()) playMusic(this.level.props.pMusic);
+    if (this.music && this.hero.isAlive()) playMusic(this.music);
   }
 }

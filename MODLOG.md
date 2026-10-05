@@ -563,3 +563,30 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - La cinta "Presiona cualquier tecla" (presente en Credits del original) tapa la última línea del diseño nuevo.
 - Créditos / ayuda (Credits::update): se cierran con CUALQUIER tecla o clic (Keyboard "any" + Mouse 0), no solo
   Esc/Enter. Game over / final: también cualquier tecla.
+
+## Estado 2026-10-05 (ronda 28 — repaso integral, parte 1)
+- **Puntos por tipo** (Windows `Scenario::loadObjects`, `mov [obj+0x394], imm` tras cada comparación de tipo;
+  `tools/xre_points.py`): Enemy 5, Bird 10, Jumper 15, Double 20, Ultraton 25, Thrower 30 (vía esi), Cannon 35,
+  Down3 40, Jumper2 45, UFO 50, FloorCannon 55, PiranhaRobot 60, Bomb 65, SmartUFO 75, Android/Boss 80, Cow 1000;
+  ítems: moneda 10 / otro 100. Antes: 100 fijo para todo.
+- **VolatilePoints** (EnemyHelper::addPointsEffect): el valor en fuente pixelada (font 3) sube 40 px con
+  easeOutQuint en 1.2 s desde el centro del bound. Sale al matar enemigos (bala o pisotón) y al rescatar vacas.
+- **Cow**: Cow::intersects → puntos + VolatilePoints + COW_RESCUED_1 + HAPPY_COW; al terminar la anim parpadea
+  (visibilidad cada 0.05 s) 1 s y se quita.
+- **Anims mal extraídas corregidas** (también en tools/build_data.py): HAPPY_COW = 7 frames 0..6 + hop
+  [7,8,9,10x2,8,11,12,9,13x2] ×3 (34 frames, 1.33 s; antes 4516 frames/183 s y los 7 primeros eran PRESS_ANY_KEY);
+  SAVING = [0,1,2]×6 ticks ×5 (3 s; antes 1503 frames); DOUBLE_JUMP_HUD = sus frames 0..7 ×3 ticks.
+- **HUD**: "guardando" 3 s; el ícono de doble salto reproduce DOUBLE_JUMP_HUD (0.8 s) al obtenerlo y queda en el
+  último frame (Hud::setDouble).
+- **SavePoint**: sólo el activo (mpActualSavePoint) anima SHINE; los demás muestran SAVE. Al activar uno NUEVO:
+  sonido SAVING, HUD y reactionOnAction → si tiene `pMusic` cambia la música (xa_boss en el nivel 16) y esa pista
+  sigue al reaparecer.
+- **EnemyBird** (Bird/UFO/SmartUFO/Double/Bomb): yoyó easeInOutSin donde pDuration es el ciclo COMPLETO (antes el
+  doble de lento), bob vertical sin(N·π·fase)·pyDelta con N = pCount (Double fuerza 4), mira hacia donde se mueve,
+  fase inicial 0.
+- **EnemyGuillotine** (subclase de EnemyDeathBarrier → contacto = muerte): cuchilla que sale de la ranura (sprite
+  fijo en o.y mostrando las últimas imgH-pyDelta+ext filas); ciclo pWait → cae easeInSin pDuration → "GUILLOTINE"
+  → 1 s → sube. Antes se movía el sprite entero (sobresalía 123 px) y dañaba/desaparecía al tocarla.
+- FloorCannon: su deslizamiento del port ya era idéntico al yoyó easeInOutSin del original.
+- Tipos de loadObjects (Windows) sin uso en los 16 niveles: WATER (pAnimSplash), meteoritos (pMeteorites,
+  pAssetMeteorites), ElectricField, Acid, VRocket/HRocket, Piranha. No afectan la fidelidad del juego publicado.

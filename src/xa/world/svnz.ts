@@ -5,7 +5,7 @@
 import { Anim, ANIMS } from '../core/sprites';
 import { playSound } from '../core/audio';
 import { Enemy } from './enemies';
-import type { TmxObject } from './tmx';
+import { TileState, type TmxObject } from './tmx';
 import type { World } from './world';
 
 type Rect = { x: number; y: number; w: number; h: number };
@@ -227,6 +227,9 @@ class SvEnemy extends Enemy {
   }
   private ledgeAhead(d: number): boolean {
     const ax = d > 0 ? this.x + this.w / 2 + 4 : this.x - this.w / 2 - 4;
+    // spikes / deadly water ahead count as a ledge: the extra enemies turn back instead of walking into them
+    const m = this.world.map;
+    if (m.stateAt(ax, this.y + 2) === TileState.Dead || m.stateAt(ax, this.y - 4) === TileState.Dead) return true;
     return !this.world.hasFloor(ax, this.y + 2);
   }
   /** Walk `dir` at `spd`; turns at walls and ledges (unless both sides are blocked). */
@@ -281,6 +284,12 @@ class SvEnemy extends Enemy {
   // ---------- update ----------
   override update(dt: number): void {
     if (!this.alive) return;
+    // an extra enemy that ends up on spikes or deadly water (a leap, a fall) dies there instead of standing in it
+    if (!this.spec.boss && this.type !== 'SvBat' && this.world.map.isDead(this.bounds())) {
+      this.alive = false;
+      this.world.addEffect('ENEMY_DEATH', this.x, this.y - this.h / 2, 1);
+      return;
+    }
     if (this.hitFlash > 0) this.hitFlash -= dt;
     this.anim?.update(dt);
     this.stT += dt;

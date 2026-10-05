@@ -1404,7 +1404,7 @@
     <property name="pRequiredItem" value="LIVES" />
    </properties>
   </object>
-  <object name="SvRedNinja" type="SvRedNinja" x="832" y="896" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvNinja" type="SvNinja" x="1184" y="800" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="BOMB" type="Bomb" x="1600" y="736" width="64" height="64">
+  <object name="SvRedNinja" type="SvRedNinja" x="832" y="896" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvNinja" type="SvNinja" x="1184" y="800" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="BOMB" type="Bomb" x="1600" y="800" width="64" height="64">
    <properties>
     <property name="pAsset" value="BOMBA" />
     <property name="pCount" value="1" />
@@ -1416,7 +1416,7 @@
     <property name="pyDelta" value="10" />
    </properties>
   </object>
-  <object name="SvBat" type="SvBat" x="2048" y="768" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="2336" y="896" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="FloorCannon" type="FloorCannon" x="2912" y="896" width="32" height="32">
+  <object name="SvBat" type="SvBat" x="2048" y="800" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="2336" y="896" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="FloorCannon" type="FloorCannon" x="2912" y="896" width="32" height="32">
    <properties>
     <property name="pAnim" value="FLOOR_CANNON" />
     <property name="pAsset" value="FLOOR_CANNON" />
@@ -1442,7 +1442,7 @@
     <property name="pxDelta" value="-96" />
    </properties>
   </object>
-  <object name="SvRedNinja" type="SvRedNinja" x="4384" y="672" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBat" type="SvBat" x="4640" y="544" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvBigDemon" type="SvBigDemon" x="5216" y="800" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBat" type="SvBat" x="5760" y="768" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvNinja" type="SvNinja" x="7104" y="896" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvNinja" type="SvNinja" x="7392" y="512" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="7840" y="896" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="FloorCannon" type="FloorCannon" x="8384" y="896" width="32" height="32">
+  <object name="SvRedNinja" type="SvRedNinja" x="4384" y="672" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBigDemon" type="SvBigDemon" x="5216" y="800" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBat" type="SvBat" x="5760" y="800" width="32" height="32"><properties><property name="pTeam" value="1" /><property name="pxDelta" value="70" /></properties></object><object name="SvNinja" type="SvNinja" x="7104" y="896" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvNinja" type="SvNinja" x="7392" y="512" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="7840" y="896" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="FloorCannon" type="FloorCannon" x="8384" y="896" width="32" height="32">
    <properties>
     <property name="pAnim" value="FLOOR_CANNON" />
     <property name="pAsset" value="FLOOR_CANNON" />
@@ -1468,63 +1468,7 @@
     <property name="pxDelta" value="-96" />
    </properties>
   </object>
-  <object name="BOMB" type="Bomb" x="10272" y="512" width="64" height="64">
-   <properties>
-    <property name="pAsset" value="BOMBA" />
-    <property name="pCount" value="1" />
-    <property name="pDuration" value="4" />
-    <property name="pIsKey" value="false" />
-    <property name="pLives" value="3" />
-    <property name="pTeam" value="3" />
-    <property name="pxDelta" value="10" />
-    <property name="pyDelta" value="10" />
-   </properties>
-  </object>
-  <object name="BOMB" type="Bomb" x="10656" y="736" width="64" height="64">
-   <properties>
-    <property name="pAsset" value="BOMBA" />
-    <property name="pCount" value="1" />
-    <property name="pDuration" value="4" />
-    <property name="pIsKey" value="false" />
-    <property name="pLives" value="3" />
-    <property name="pTeam" value="3" />
-    <property name="pxDelta" value="10" />
-    <property name="pyDelta" value="10" />
-   </properties>
-  </object>
-  <object name="SvRedNinja" type="SvRedNinja" x="11072" y="736" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SmartUFO" type="SmartUFO" x="11616" y="768" width="32" height="32">
-   <properties>
-    <property name="pAsset" value="DOUBLE_SIDE" />
-    <property name="pCollidesH" value="true" />
-    <property name="pCollidesV" value="false" />
-    <property name="pCount" value="4" />
-    <property name="pDuration" value="5.0" />
-    <property name="pIsKey" value="false" />
-    <property name="pLives" value="5" />
-    <property name="pMaxTime" value="3.0" />
-    <property name="pMinTime" value="1.5" />
-    <property name="pTeam" value="1" />
-    <property name="pxDelta" value="100" />
-    <property name="pyDelta" value="60.0" />
-   </properties>
-  </object>
-  <object name="SvRedNinja" type="SvRedNinja" x="11808" y="800" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvNinja" type="SvNinja" x="12288" y="800" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SmartUFO" type="SmartUFO" x="12896" y="768" width="32" height="32">
-   <properties>
-    <property name="pAsset" value="DOUBLE_SIDE" />
-    <property name="pCollidesH" value="true" />
-    <property name="pCollidesV" value="false" />
-    <property name="pCount" value="4" />
-    <property name="pDuration" value="5.0" />
-    <property name="pIsKey" value="false" />
-    <property name="pLives" value="5" />
-    <property name="pMaxTime" value="3.0" />
-    <property name="pMinTime" value="1.5" />
-    <property name="pTeam" value="1" />
-    <property name="pxDelta" value="100" />
-    <property name="pyDelta" value="60.0" />
-   </properties>
-  </object>
-  <object name="FloorCannon" type="FloorCannon" x="13408" y="896" width="32" height="32">
+  <object name="FloorCannon" type="FloorCannon" x="10592" y="896" width="32" height="32">
    <properties>
     <property name="pAnim" value="FLOOR_CANNON" />
     <property name="pAsset" value="FLOOR_CANNON" />
@@ -1537,7 +1481,20 @@
     <property name="pxDelta" value="-96" />
    </properties>
   </object>
-  <object name="BOMB" type="Bomb" x="13728" y="736" width="64" height="64">
+  <object name="SvRedNinja" type="SvRedNinja" x="11168" y="896" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="11520" y="896" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvNinja" type="SvNinja" x="11936" y="896" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="12416" y="896" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvNinja" type="SvNinja" x="12672" y="896" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvBigDemon" type="SvBigDemon" x="13056" y="896" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="SvRedNinja" type="SvRedNinja" x="13600" y="896" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object><object name="FloorCannon" type="FloorCannon" x="13952" y="896" width="32" height="32">
+   <properties>
+    <property name="pAnim" value="FLOOR_CANNON" />
+    <property name="pAsset" value="FLOOR_CANNON" />
+    <property name="pBulletAsset" value="BULLET_ENEMY" />
+    <property name="pDuration" value="5.0" />
+    <property name="pLives" value="10" />
+    <property name="pMaxTime" value="3" />
+    <property name="pMinTime" value="2.0" />
+    <property name="pTeam" value="1" />
+    <property name="pxDelta" value="-96" />
+   </properties>
+  </object>
+  <object name="BOMB" type="Bomb" x="14368" y="800" width="64" height="64">
    <properties>
     <property name="pAsset" value="BOMBA" />
     <property name="pCount" value="1" />
@@ -1549,18 +1506,5 @@
     <property name="pyDelta" value="10" />
    </properties>
   </object>
-  <object name="FloorCannon" type="FloorCannon" x="14336" y="896" width="32" height="32">
-   <properties>
-    <property name="pAnim" value="FLOOR_CANNON" />
-    <property name="pAsset" value="FLOOR_CANNON" />
-    <property name="pBulletAsset" value="BULLET_ENEMY" />
-    <property name="pDuration" value="5.0" />
-    <property name="pLives" value="10" />
-    <property name="pMaxTime" value="3" />
-    <property name="pMinTime" value="2.0" />
-    <property name="pTeam" value="2" />
-    <property name="pxDelta" value="-96" />
-   </properties>
-  </object>
-  <object name="SvRedNinja" type="SvRedNinja" x="14432" y="896" width="32" height="32"><properties><property name="pTeam" value="1" /></properties></object></objectgroup>
+  </objectgroup>
 </map>

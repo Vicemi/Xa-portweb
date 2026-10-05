@@ -58,6 +58,20 @@ if ent:
             fr['map'], fr['i'] = 'HERO_IM_%d' % k, 0
             k += 1
 
+# HAPPY_COW: the first 7 frames are HAPPY_COW 0..6 (cow leaving the cage); the extractor carried PRESS_ANY_KEY over
+# (AssetsAnimationsGeneral: 7 single frames, then the hop 7,8,9,10x2,8,11,12,9,13x2 repeated exactly 3 times).
+hc = anims.get('HAPPY_COW')
+if hc:
+    hop = [(7, 1), (8, 1), (9, 1), (10, 2), (8, 1), (11, 1), (12, 1), (9, 1), (13, 2)]
+    hc['frames'] = [{'map': 'HAPPY_COW', 'i': k, 'd': 1} for k in range(7)] +         [{'map': 'HAPPY_COW', 'i': i, 'd': n} for _ in range(3) for i, n in hop]
+    hc['loop'] = 0
+
+# SAVING: frames 0,1,2 (6 ticks) repeated 5 times; DOUBLE_JUMP_HUD: its own frames 0..7 (3 ticks each).
+if 'SAVING' in anims:
+    anims['SAVING']['frames'] = [{'map': 'SAVING', 'i': i, 'd': 6} for _ in range(5) for i in range(3)]
+if 'DOUBLE_JUMP_HUD' in anims:
+    anims['DOUBLE_JUMP_HUD']['frames'] = [{'map': 'DOUBLE_JUMP_HUD', 'i': i, 'd': 3} for i in range(8)]
+
 dst = os.path.join(ROOT, 'src', 'xa', 'data')
 os.makedirs(dst, exist_ok=True)
 json.dump({'maps': maps, 'anims': anims}, open(os.path.join(dst, 'sprites.json'), 'w'), indent=0)

@@ -6,7 +6,12 @@ import { playSound } from '../core/audio';
 import type { TmxObject } from './tmx';
 import type { World } from './world';
 
-const ENEMY_POINTS = 100;
+// Points each type awards when killed (InteractiveObject::setPoints in the Windows Scenario::loadObjects:
+// `mov [obj+0x394], imm` right after each type-name compare; see tools/xre_points.py).
+const POINTS: Record<string, number> = {
+  Enemy: 5, Bird: 10, Jumper: 15, Double: 20, Ultraton: 25, Thrower: 30, Cannon: 35, Down3: 40, Jumper2: 45,
+  UFO: 50, FloorCannon: 55, PiranhaRobot: 60, Bomb: 65, SmartUFO: 75, Android: 80, Boss: 80,
+};
 
 // type -> movement pattern
 const FLYERS = new Set(['Bird', 'UFO', 'SmartUFO', 'Double', 'Bomb', 'Rocket']);
@@ -25,7 +30,8 @@ const BULLET_PROOF = new Set(['Guillotine', 'Rocket']);
 // Hazards that kill the hero outright on contact (Hero::setState(9)). "Stub" = the spiky balls (UFO_SPIKY):
 // StubEnemy::intersects kills on any overlap with its TMX rect, as the level-1 sign warns ("¡Si pisas estos
 // objetos punteagudos morirás al instante!").
-const INSTANT_KILL = new Set(['Stub', 'Spikes', 'Stalactite', 'Lava', 'AcidDrop', 'DeathBarrier', 'DummyDeathBarrier', 'Fire']);
+// EnemyGuillotine is an EnemyDeathBarrier (isHostile = 1): its blade kills on touch too.
+const INSTANT_KILL = new Set(['Stub', 'Guillotine', 'Spikes', 'Stalactite', 'Lava', 'AcidDrop', 'DeathBarrier', 'DummyDeathBarrier', 'Fire']);
 // Contact is lethal too, but these remain destructible by bullets (EnemyBomb explodes on death).
 // EnemyUltraton::intersects (inherited by EnemyBoss): touching them = Hero::setState(9); bullets only.
 const CONTACT_KILL = new Set([...INSTANT_KILL, 'Bomb', 'Ultraton', 'Boss']);
@@ -48,13 +54,15 @@ export class Enemy {
   private readonly p: Record<string, string>;
   private readonly homeX: number;
   private readonly homeY: number;
-  private t = Math.random() * 6;
+  private t = 0; // EnemyBird::initInterpolaltion starts every cycle at phase 0
   private fireT = 1 + Math.random() * 2;
   private shotPending = false;   // Shooter: waiting for the sync anim to reach the firing frame
   private androidStopped = false; // EnemyAndroid: halted while playing ANDROID_SHOOT
   private walkVel = 0;
   private piranha: 'wait' | 'rise' | 'shoot' | 'sink' = 'wait';
   private phaseT = 0;
+  private blade: 'wait' | 'drop' | 'rest' | 'rise' = 'wait';
+  private ext = 0; // guillotine blade extension (0..pyDelta)
   private prevFrame = 0;
   private jumpPhase: 'ground' | 'air' = 'ground';
   private jumpT = Math.random() * 1.5;
@@ -88,10 +96,15 @@ export class Enemy {
       const f = this.img ? frameOf(this.img, 0) : null;
       if (f) return { x: this.x - f.ax + 3, y: this.y - f.ay + 3, w: f.sw - 6, h: f.sh - 4 };
     }
+    if (this.type === 'Guillotine') {
+      const b = this.bladeRect();
+      if (b) return { x: b.x + 6, y: b.y, w: b.f.sw - 12, h: b.h };
+    }
     return { x: this.x - this.w / 2, y: this.y - this.h, w: this.w, h: this.h };
   }
 
   get isBoss(): boolean { return BOSS.has(this.type); }
+  get points(): number { return POINTS[this.type] ?? 0; }
   get isBulletProof(): boolean { return BULLET_PROOF.has(this.type); }
   get isIndestructible(): boolean { return INDESTRUCTIBLE.has(this.type); }
   get isInstantKill(): boolean { return CONTACT_KILL.has(this.type); }
@@ -311,17 +324,20 @@ export class Enemy {
     this.x += this.dir * spd * dt;
   }
 
-  // flying: EnemyBird eases back and forth (easeInOutSin) over pDuration with a sine vertical bob.
+  /** EnemyBird::internalUpdate (Bird, UFO, SmartUFO, Double, Bomb): a looping "yoyo" interpolation — x goes
+   *  home → home+pxDelta → home with easeInOutSin over ONE pDuration cycle — plus a vertical sin(N·π·phase)·pyDelta
+   *  bob (N = pCount, Double forces 4). Faces the way it moves (still = right). */
   private fly(dt: number): void {
-    const dur = Math.max(0.6, +(this.p.pDuration ?? 4) || 4);
-    const ph = (this.t % (dur * 2)) / dur;      // 0..2 over a full out-and-back cycle
-    const e = ph <= 1 ? ph : 2 - ph;            // 0..1..0
-    const ease = (1 - Math.cos(Math.PI * e)) / 2; // easeInOutSin
-    const pxDelta = +(this.p.pxDelta ?? 40);
-    const pyDelta = +(this.p.pyDelta ?? 20);
-    this.x = this.homeX + ease * pxDelta;
-    this.y = this.homeY + Math.sin(ph * Math.PI) * pyDelta;
-    this.dir = ph <= 1 ? (pxDelta >= 0 ? 1 : -1) : (pxDelta >= 0 ? -1 : 1);
+    const T = Math.max(0.1, +(this.p.pDuration ?? 4) || 4);
+    const phase = (this.t % T) / T;                                  // 0..1 over the whole cycle
+    const k = phase < 0.5 ? phase * 2 : 2 - phase * 2;              // yoyo: 0..1..0
+    const ease = (1 - Math.cos(Math.PI * k)) / 2;                    // easeInOutSin
+    const n = this.type === 'Double' ? 4 : (+(this.p.pCount ?? 1) || 1);
+    const prevX = this.x;
+    this.x = this.homeX + ease * (+(this.p.pxDelta ?? 0) || 0);
+    this.y = this.homeY + Math.sin(n * phase * Math.PI) * (+(this.p.pyDelta ?? 0) || 0);
+    this.dir = prevX - this.x <= 0 ? 1 : -1;
+    void dt;
   }
 
   // Jumper: physics hop — lands (plays its anim), then leaps up at a fixed -200 with pxVel, gravity pyAccel,
@@ -361,16 +377,45 @@ export class Enemy {
     }
   }
 
-  // trap that waits at the top (pWait), falls (pDuration over pyDelta) and retracts cyclically.
+  /** EnemyGuillotine: a blade that slides out of its slot at the top of the TMX rect. It waits pWait, drops
+   *  pyDelta px with easeInSin over pDuration (doFadeIn) and clangs ("GUILLOTINE", setNormal), rests 1 s
+   *  (setWait), then slides back up along the same curve (doFadeOut). updateSprite only reveals the lower
+   *  (imgH - pyDelta + extension) rows of the image, anchored at the slot. */
   private guillotine(dt: number): void {
-    const fall = Math.max(0.1, +(this.p.pDuration ?? 0.5) || 0.5);
+    const dur = Math.max(0.1, +(this.p.pDuration ?? 0.5) || 0.5);
     const wait = +(this.p.pWait ?? 1.7) || 0;
-    const retract = 0.4;
     const delta = +(this.p.pyDelta ?? 100) || 100;
-    const cyc = wait + fall + retract, ph = this.t % cyc;
-    if (ph < wait) this.y = this.homeY;
-    else if (ph < wait + fall) this.y = this.homeY + ((ph - wait) / fall) * delta;
-    else this.y = this.homeY + delta * Math.max(0, 1 - (ph - wait - fall) / retract);
+    const easeInSin = (k: number) => 1 - Math.cos((Math.min(1, Math.max(0, k)) * Math.PI) / 2);
+    this.phaseT += dt;
+    switch (this.blade) {
+      case 'wait':
+        this.ext = 0;
+        if (this.phaseT >= wait) { this.blade = 'drop'; this.phaseT = 0; }
+        break;
+      case 'drop':
+        this.ext = delta * easeInSin(this.phaseT / dur);
+        if (this.phaseT >= dur) {
+          this.ext = delta;
+          this.blade = 'rest'; this.phaseT = 0;
+          if (this.nearHero()) playSound('GUILLOTINE');
+        }
+        break;
+      case 'rest':
+        if (this.phaseT >= 1) { this.blade = 'rise'; this.phaseT = 0; }
+        break;
+      case 'rise':
+        this.ext = delta * easeInSin(1 - this.phaseT / dur);
+        if (this.phaseT >= dur) { this.ext = 0; this.blade = 'wait'; this.phaseT = 0; }
+        break;
+    }
+  }
+  /** Visible blade (frame rows shown + where) for the guillotine's current extension. */
+  private bladeRect(): { f: Frame; srcY: number; h: number; x: number; y: number } | null {
+    const f = this.img ? frameOf(this.img, 0) : null;
+    if (!f) return null;
+    const delta = +(this.p.pyDelta ?? 100) || 100;
+    const h = Math.max(1, Math.min(f.sh, f.sh - delta + this.ext));
+    return { f, srcY: f.sy + (f.sh - h), h, x: this.o.x + (this.o.w || 32) / 2 - f.ax, y: this.o.y };
   }
 
   /** EnemyPiranhaRobot::update (UFO_CANNON): waits pMinTime..pMaxTime at home, rises pyDelta px with easeOutCubic
@@ -464,6 +509,11 @@ export class Enemy {
 
   // ---------- render ----------
   render(ctx: CanvasRenderingContext2D, camX: number, camY: number): void {
+    if (this.type === 'Guillotine') {
+      const b = this.bladeRect();
+      if (b) ctx.drawImage(b.f.image, b.f.sx, b.srcY, b.f.sw, b.h, Math.round(b.x - camX), Math.round(b.y - camY), b.f.sw, b.h);
+      return;
+    }
     const x = Math.round(this.x - camX);
     const y = Math.round(this.y - camY);
     const f = this.currentFrame();

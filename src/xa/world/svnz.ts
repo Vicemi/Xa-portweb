@@ -11,13 +11,31 @@ import type { World } from './world';
 type Rect = { x: number; y: number; w: number; h: number };
 type HitBox = [number, number, number, number] | null;
 
-interface Spec { key: string; lives: number; points: number; speed: number }
+// Extra-level bosses = the SVNZ story-mode bosses (waves.xml storyFirstBoss..storyFinalBoss), with the helpers that
+// SVNZ sends with them (listExtras / activeExtras) and the SVNZ announcement (initialTextKey) when the fight starts.
+interface BossSpec { name: string; banner: string; extras: string[]; max: number }
+interface Spec { key: string; lives: number; points: number; speed: number; boss?: BossSpec }
 const SPEC: Record<string, Spec> = {
   SvNinja: { key: 'NINJA', lives: 3, points: 40, speed: 70 },        // DemonNinja: walks up and slashes
   SvRedNinja: { key: 'RED_NINJA', lives: 2, points: 45, speed: 110 }, // GenericNinja: leaps at Xa, then strikes
   SvBat: { key: 'BAT', lives: 1, points: 30, speed: 0 },              // Bat: flutters, dives on Xa
   SvBigDemon: { key: 'BIG_DEMON', lives: 14, points: 100, speed: 35 },// BigDemon: armoured, ground slam + stomp
-  SvDracula: { key: 'DRACULA', lives: 60, points: 500, speed: 120 },  // Dracula: combo, spell, teleport, dive
+  SvGoldNinja: {
+    key: 'GOLD_NINJA', lives: 80, points: 300, speed: 115,
+    boss: { name: 'Ninja Dorado', banner: '¡Se acerca un enemigo peligroso!', extras: ['SvNinja', 'SvRedNinja'], max: 2 },
+  },
+  SvBigDemonBoss: {
+    key: 'BIG_DEMON', lives: 180, points: 400, speed: 45,
+    boss: { name: 'Gran Demonio', banner: '¡El que sigue no va a ser\ntan fácil!', extras: ['SvNinja', 'SvRedNinja', 'SvNinja'], max: 3 },
+  },
+  SvLucy: {
+    key: 'LUCY', lives: 110, points: 450, speed: 150,
+    boss: { name: 'Lucy Poseída', banner: '¡Lucy, la hermana de Mina,\nfue poseída!', extras: [], max: 0 },
+  },
+  SvDracula: {
+    key: 'DRACULA', lives: 160, points: 500, speed: 120,
+    boss: { name: 'Drácula', banner: '¡Llega Drácula!', extras: ['SvBat'], max: 1 },
+  },
 };
 export const SV_TYPES = new Set(Object.keys(SPEC));
 
@@ -28,7 +46,7 @@ export function createSvEnemy(o: TmxObject, world: World, x: number, y: number):
 }
 
 type St = 'walk' | 'attack' | 'jump' | 'fly' | 'dive' | 'return' | 'slam' | 'tired' | 'stomp' | 'cast' | 'vanish'
-  | 'appear' | 'kick';
+  | 'appear' | 'kick' | 'dash' | 'idle' | 'retreat';
 
 class SvEnemy extends Enemy {
   private spec: Spec;
@@ -40,6 +58,10 @@ class SvEnemy extends Enemy {
   private hy: number;
   private grounded = false;
   private flyT = Math.random() * 6;
+  private awake = false;         // bosses wait in their arena until Xa walks in
+  private arena: [number, number];
+  private extraT = 1.5;
+  private extraK = 0;
 
   constructor(world: World, o: TmxObject, x: number, y: number) {
     super(world, o, x, y);
@@ -53,7 +75,9 @@ class SvEnemy extends Enemy {
     this.dir = (+(o.props.pLookDir ?? 0) || 0) < 0 ? -1 : 1;
     if (o.type === 'SvBat') this.st = 'fly';
     if (!this.anim) this.anim = new Anim();
-    this.play(o.type === 'SvBat' ? 'STAND' : 'WALK');
+    this.arena = [+(o.props.pArenaX0 ?? 0) || x - 400, +(o.props.pArenaX1 ?? 0) || x + 400];
+    if (this.spec.boss) { this.st = 'idle'; this.play('STAND'); }
+    else this.play(o.type === 'SvBat' ? 'STAND' : 'WALK');
   }
 
   private an(name: string): string { return `SV_${this.spec.key}_${name}`; }
@@ -71,20 +95,53 @@ class SvEnemy extends Enemy {
   }
 
   override get points(): number { return this.spec.points; }
-  override get isBoss(): boolean { return this.type === 'SvDracula'; }
-  override get unstompable(): boolean { return this.type === 'SvBigDemon' || this.type === 'SvDracula'; }
-  override get contactRemoves(): boolean { return this.type !== 'SvBigDemon' && this.type !== 'SvDracula'; }
+  override get isBoss(): boolean { return !!this.spec.boss; }
+  override get unstompable(): boolean { return this.spec.key === 'BIG_DEMON' || this.type === 'SvDracula'; }
+  override get contactRemoves(): boolean { return !this.spec.boss && this.type !== 'SvBigDemon'; }
+  override bossBarInfo(): { name: string; lives: number; max: number } | null {
+    const b = this.spec.boss;
+    return b && this.awake && this.alive ? { name: b.name, lives: Math.max(0, this.lives), max: this.spec.lives } : null;
+  }
   override get isGroundBound(): boolean { return this.type !== 'SvBat'; }
   override get ignoresContact(): boolean { return this.st === 'vanish' || this.st === 'appear'; }
   override get isBulletProof(): boolean { return this.st === 'vanish'; }
   override get dropsKey(): string | null {
-    return this.type === 'SvDracula' || this.p.pIsKey === 'true' ? this.p.pRequiredItem ?? 'KEY' : null;
+    return this.spec.boss || this.p.pIsKey === 'true' ? this.p.pRequiredItem ?? 'KEY' : null;
   }
 
   override onBullet(): boolean {
+    if (this.spec.boss && !this.awake) this.wake(); // shooting it from outside the arena starts the fight too
     const dead = super.onBullet();
-    if (!dead && this.type !== 'SvBigDemon' && this.type !== 'SvDracula' && this.st === 'walk') this.play('HIT_IN');
+    // the small ones flinch; the big demon and the bosses have SVNZ armour (armorMode) and keep going
+    if (!dead && !this.spec.boss && this.type !== 'SvBigDemon' && this.st === 'walk') this.play('HIT_IN');
     return dead;
+  }
+
+  /** The boss stage starts: boss music, the SVNZ announcement and the health bar. */
+  private wake(): void {
+    const b = this.spec.boss!;
+    this.awake = true;
+    this.cool = 1.2;
+    this.world.setMusic('svnz_boss.ogg');
+    this.world.message(b.banner, 3);
+    playSound('SV_SPECIAL');
+    this.setSt('walk', 'WALK');
+  }
+
+  /** SVNZ BossMode: keeps `max` helpers on stage, entering from the arena edge away from Xa. */
+  private helpers(dt: number): void {
+    const b = this.spec.boss!;
+    this.extras = this.extras.filter((e) => e.alive);
+    if (!b.max || this.extras.length >= b.max) return;
+    this.extraT -= dt;
+    if (this.extraT > 0) return;
+    this.extraT = 3.5;
+    const type = b.extras[this.extraK++ % b.extras.length];
+    const [x0, x1] = this.arena;
+    const x = this.hero.pos.x > (x0 + x1) / 2 ? x0 + 48 : x1 - 48;
+    const y = type === 'SvBat' ? this.hy - 130 : this.hy;
+    const e = this.world.spawnEnemy(type, x, y, type === 'SvBat' ? { pxDelta: '60' } : {});
+    if (e) this.extras.push(e);
   }
 
   /** Red rect of the current SVNZ frame, mirrored with the facing (x grows forward, y up from the feet). */
@@ -139,6 +196,21 @@ class SvEnemy extends Enemy {
     if (this.y > this.world.map.heightPx + 64) this.alive = false;
   }
   private animOver(): boolean { return !this.anim || this.anim.isOver(); }
+  /** After a melee combo the bosses hop back (like the SVNZ fighters' back-dash), which opens the distance Xa
+   *  needs to shoot them. */
+  private retreat(): void {
+    this.setSt('retreat', 'WALK');
+  }
+  private stepBack(dt: number): boolean {
+    if (this.st !== 'retreat') return false;
+    const back = -this.dir;
+    if (!this.wallAhead(back) && !this.ledgeAhead(back) && this.x + back * 40 > this.arena[0] && this.x + back * 40 < this.arena[1]) {
+      this.x += back * this.spec.speed * 1.6 * dt;
+    }
+    if (this.stT > 0.45) this.setSt('walk', 'WALK');
+    return true;
+  }
+
   private shockwave(): void {
     // BigDemon slam / stomp: the floor shakes and two shock bullets run along the ground both ways
     this.world.camera.shake(0.5);
@@ -154,11 +226,24 @@ class SvEnemy extends Enemy {
     this.anim?.update(dt);
     this.stT += dt;
     this.cool -= dt;
+    if (this.spec.boss) {
+      if (!this.awake) {
+        // waiting in its arena, facing the way Xa comes from
+        if (!this.grounded) this.physics(dt);
+        const hx = this.hero.pos.x;
+        if (this.hero.isAlive() && hx >= this.arena[0] && hx <= this.arena[1]) this.wake();
+        return;
+      }
+      this.helpers(dt);
+      if (this.stepBack(dt)) return;
+    }
     switch (this.type) {
       case 'SvNinja': this.ninja(dt); break;
       case 'SvRedNinja': this.redNinja(dt); break;
+      case 'SvGoldNinja': this.goldNinja(dt); break;
       case 'SvBat': this.bat(dt); break;
-      case 'SvBigDemon': this.bigDemon(dt); break;
+      case 'SvBigDemon': case 'SvBigDemonBoss': this.bigDemon(dt); break;
+      case 'SvLucy': this.lucy(dt); break;
       case 'SvDracula': this.dracula(dt); break;
     }
   }
@@ -261,7 +346,7 @@ class SvEnemy extends Enemy {
         if (this.animOver()) { this.setSt('tired', 'TIRED'); }
         return;
       case 'tired':
-        if (this.stT > 1.0) { this.setSt('walk', 'WALK'); this.cool = 2.2; }
+        if (this.stT > (this.spec.boss ? 0.7 : 1.0)) { this.setSt('walk', 'WALK'); this.cool = this.spec.boss ? 1.3 : 2.2; }
         return;
       case 'stomp':
         this.physics(dt);
@@ -290,13 +375,124 @@ class SvEnemy extends Enemy {
     }
   }
 
+  /** Gold Demon Ninja (SVNZ first boss): a faster demon ninja that also leaps at Xa. */
+  private goldNinja(dt: number): void {
+    switch (this.st) {
+      case 'attack':
+        if (this.anim && this.anim.frameNum() === 2 && !this.fired) { this.fired = true; playSound('SV_STRONG_CUT'); }
+        if (this.animOver()) { this.retreat(); this.cool = this.lives < SPEC.SvGoldNinja.lives / 2 ? 0.35 : 0.6; }
+        return;
+      case 'jump':
+        this.physics(dt);
+        if (this.grounded) {
+          playSound('SV_FALL');
+          this.face();
+          if (this.heroNear(60, 40)) this.setSt('attack', 'ATTACK'); else this.setSt('walk', 'WALK');
+          this.cool = 0.5;
+        }
+        return;
+      default: {
+        if (!this.grounded) { this.physics(dt); if (!this.grounded) return; }
+        this.face();
+        const adx = Math.abs(this.heroDx());
+        if (this.cool <= 0) {
+          if (adx < 52) { this.setSt('attack', 'ATTACK'); return; }
+          if (adx < 260 && Math.random() < 0.5) {
+            this.setSt('jump', 'JUMP');
+            this.grounded = false;
+            this.vy = -460;
+            this.vx = this.dir * Math.min(260, adx * 1.15);
+            playSound('SV_JUMP');
+            return;
+          }
+          this.cool = 0.4;
+        }
+        if (adx > 34) this.walk(dt, this.spec.speed);
+        if (this.anim?.name !== this.an('WALK') && this.anim?.isOver()) this.play('WALK');
+      }
+    }
+  }
+
+  /** Lucy, Mina's possessed sister (SVNZ third boss): dash strike, punch and kick combos, diving kick and the
+   *  spinning special, with Mina's own frames and hit boxes. */
+  private lucy(dt: number): void {
+    const enraged = this.lives < SPEC.SvLucy.lives / 2;
+    switch (this.st) {
+      case 'dash':
+        // dash attack (Mina 500): rushes forward with the strike frames active
+        if (this.wallAhead(this.dir) || this.ledgeAhead(this.dir)) this.stT = 9;
+        else this.x += this.dir * 330 * dt;
+        if (this.stT > 0.45) { this.setSt('walk', 'WALK'); this.cool = enraged ? 0.35 : 0.6; }
+        return;
+      case 'attack':
+        if (this.attackRect() && !this.fired) { this.fired = true; playSound('SV_HIT'); }
+        if (this.anim && !this.attackRect()) this.fired = false;
+        if (this.anim?.name === this.an('SPECIAL') && !this.wallAhead(this.dir)) this.x += this.dir * 70 * dt;
+        if (this.animOver()) { this.retreat(); this.cool = enraged ? 0.35 : 0.65; }
+        return;
+      case 'jump':
+        this.physics(dt);
+        if (this.vy > -80 && !this.fired) {
+          this.fired = true;
+          this.face();
+          const dx = this.hero.pos.x - this.x, dy = this.hero.pos.y - this.y, d = Math.hypot(dx, dy) || 1;
+          this.vx = (dx / d) * 360;
+          this.vy = Math.max(220, (dy / d) * 360);
+          this.setSt('kick', 'DIVE');
+          playSound('SV_ACTION');
+        }
+        if (this.grounded) this.setSt('walk', 'WALK');
+        return;
+      case 'kick':
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        if (this.vx && this.wallAhead(Math.sign(this.vx))) this.vx = 0;
+        if (this.world.hasFloor(this.x, this.y + 1)) {
+          const ts = this.world.map.ts;
+          if (this.world.map.isHard(this.x, this.y + 1)) this.y = Math.floor((this.y + 1) / ts) * ts - 1;
+          this.vx = this.vy = 0;
+          this.grounded = true;
+          playSound('SV_FALL');
+          this.setSt('walk', 'LAND');
+          this.cool = 0.5;
+        }
+        return;
+      default: {
+        if (!this.grounded) { this.physics(dt); if (!this.grounded) return; }
+        this.face();
+        const adx = Math.abs(this.heroDx());
+        if (this.cool <= 0) {
+          const r = Math.random();
+          if (adx < 50) {
+            this.setSt('attack', r < 0.4 ? 'PUNCH' : r < 0.75 ? 'KICKS' : 'SPECIAL');
+            return;
+          }
+          if (adx < 240) {
+            if (r < 0.45) { this.setSt('dash', 'DASH'); playSound('SV_ACTION'); return; }
+            if (r < 0.8) {
+              this.setSt('jump', 'JUMP');
+              this.grounded = false;
+              this.vy = -540;
+              this.vx = this.dir * 80;
+              playSound('SV_JUMP');
+              return;
+            }
+          }
+          this.cool = 0.3;
+        }
+        if (adx > 40) this.walk(dt, this.spec.speed * (enraged ? 1.3 : 1));
+        if (this.anim?.name !== this.an('WALK') && this.anim?.isOver()) this.play('WALK');
+      }
+    }
+  }
+
   private dracula(dt: number): void {
     const enraged = this.lives < (SPEC.SvDracula.lives / 2);
     switch (this.st) {
       case 'attack':
         if (this.attackRect() && !this.fired) { this.fired = true; playSound('SV_STRONG_CUT'); }
         if (this.anim && !this.attackRect()) this.fired = false;
-        if (this.animOver()) { this.setSt('walk', 'WALK'); this.cool = enraged ? 0.5 : 0.9; }
+        if (this.animOver()) { this.retreat(); this.cool = enraged ? 0.5 : 0.9; }
         return;
       case 'cast':
         // the spell leaves on the frame where his hand glows (Dracula 2000.1): a fan aimed at Xa

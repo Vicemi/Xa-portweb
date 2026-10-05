@@ -44,19 +44,27 @@ export type Screen = 'pick' | 'splash' | 'loading' | 'intro' | 'menu' | 'levels'
 interface LevelEntry { label: string; path: string; num: number; base?: number; extra?: number }
 
 // ---- Map 2: extra levels (mod) with the enemies of Super Vampire Ninja Zero (tools/gen_extra_levels.py) ----
-// Progress is stored under numbers 101..108; `base` is the original level whose terrain, tiles and moving
+// Progress is stored under numbers 101..112; `base` is the original level whose terrain, tiles and moving
 // platforms the extra level reuses.
 const EXTRA_FIRST = 101;
 // When true the extra levels only open after the 16 original ones are completed. For now they are open.
 const EXTRA_REQUIRES_ORIGINALS = false;
 const EXTRA = [
+  // tramo 1
   { title: 'La Costa', base: 2, desc: 'Unos ninjas demonio desembarcaron\nen la costa. ¡Detenelos!' },
   { title: 'El Puerto', base: 11, desc: 'Entre contenedores y barcos\nacechan murciélagos y ninjas.' },
-  { title: 'La Granja Solar', base: 8, desc: 'Los ninjas rojos saltan desde\nlos techos. ¡Atento!' },
-  { title: 'La Cantera', base: 6, desc: 'En lo profundo de la cantera\nvive un gran demonio.' },
-  { title: 'La Granja de Vacas', base: 4, desc: 'Los cuatreros y los demonios\nse unieron. ¡Salvá las vacas!' },
-  { title: 'La Bodega Embrujada', base: 7, desc: 'De noche los vampiros salen\nde la vieja bodega.' },
-  { title: 'La Ciudad de Noche', base: 9, desc: 'Las calles están tomadas.\nDrácula está cerca.' },
+  { title: 'El Pueblo Solar', base: 8, desc: 'Un ninja dorado custodia la salida.\n¡Vencelo para conseguir la llave!' },
+  // tramo 2
+  { title: 'La Capital Tomada', base: 10, desc: 'Los demonios tomaron la capital.\n¡Recuperala!' },
+  { title: 'Los Bañados', base: 3, desc: 'Las vacas quedaron atrapadas\nen los bañados. ¡Rescatalas!' },
+  { title: 'El Bosque Embrujado', base: 7, desc: 'Al final del bosque espera\nel gran demonio.' },
+  // tramo 3
+  { title: 'La Ciudad de Noche', base: 9, desc: 'Las calles están tomadas\npor los vampiros.' },
+  { title: 'Los Viñedos', base: 1, desc: 'Los ninjas se esconden\nentre los viñedos.' },
+  { title: 'La Isla de Lucy', base: 3, desc: 'Lucy, la hermana de Mina,\nfue poseída por Drácula.' },
+  // tramo 4
+  { title: 'Los Muelles Viejos', base: 11, desc: 'En los muelles viejos hay\ndemonios por todos lados.' },
+  { title: 'Los Suburbios', base: 9, desc: 'Drácula está muy cerca.\n¡Preparate!' },
   { title: 'El Castillo de Drácula', base: 7, desc: 'El señor de los vampiros te espera.\n¡Vencelo y salvá al planeta!' },
 ] as const;
 const PAGE_ARROWS = [[494, 200], [18, 200]] as const; // map 1 -> map 2 (right edge), map 2 -> map 1 (left edge)
@@ -740,6 +748,8 @@ export class XaGame {
       this.scenario.render(w);
       w.imageSmoothingEnabled = true;
       this.hud.render(w, this.state);
+      const bar = this.scenario.bossBar;
+      if (bar) this.hud.renderBossBar(w, bar, STEP);
       if (this.screen === 'paused') this.renderPause(w);
     } else {
       this.renderScreens(w);

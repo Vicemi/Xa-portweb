@@ -22,13 +22,21 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PUB = os.path.join(ROOT, 'public', 'assets')
 CHAR_DIR = os.path.join(PUB, 'svnz', 'characters')
 
-# key used in the port -> folder / file stem in the SVNZ install
+# key used in the port -> folder / file stem in the SVNZ install (/ palette sheet: the bosses wear their SVNZ
+# story-mode colours, characters.xml `color`: GoldDemonNinja = DemonNinja3, "Evil Lucy" = Mina2)
 CHARS = {
-    'NINJA': ('demonNinja', 'DemonNinja'),
-    'RED_NINJA': ('genericNinja', 'GenericNinja'),
-    'BAT': ('bat', 'Bat'),
-    'BIG_DEMON': ('bigDemon', 'BigDemon'),
-    'DRACULA': ('dracula', 'Dracula'),
+    'NINJA': ('demonNinja', 'DemonNinja', None),
+    'RED_NINJA': ('genericNinja', 'GenericNinja', None),
+    'BAT': ('bat', 'Bat', None),
+    'BIG_DEMON': ('bigDemon', 'BigDemon', None),
+    'DRACULA': ('dracula', 'Dracula', None),
+    'GOLD_NINJA': ('demonNinja', 'DemonNinja', 'DemonNinja3'),
+    'LUCY': ('mina', 'Mina', 'Mina2'),
+}
+# per-character names for the move ids that differ from ANIM_NAMES (Mina's moves)
+CHAR_ANIMS = {
+    'LUCY': {500: 'DASH', 1000: 'PUNCH', 1020: 'KICKS', 1060: 'SPIN_KICK', 1500: 'AIR_KICK', 1520: 'DIVE',
+             2010: 'SPECIAL'},
 }
 # FighterFactory anim ids that the port uses, by name
 ANIM_NAMES = {
@@ -47,9 +55,9 @@ def red(im):
     return Image.merge('RGBA', (r, g, b, a))
 
 
-def import_char(key, folder, stem, maps, anims):
+def import_char(key, folder, stem, palette, maps, anims):
     base = os.path.join(SRC, 'assets', 'images', 'characters', folder)
-    sheet = Image.open(os.path.join(base, stem + '.png')).convert('RGBA')
+    sheet = Image.open(os.path.join(base, (palette or stem) + '.png')).convert('RGBA')
     name = key.lower()
     os.makedirs(CHAR_DIR, exist_ok=True)
     sheet.save(os.path.join(CHAR_DIR, name + '.png'))
@@ -97,7 +105,7 @@ def import_char(key, folder, stem, maps, anims):
                                          'anchor': [ax - f['ox'], ay - f['oy']]}
                 out.append({'map': mk, 'i': 0, 'd': f['d'], 'hit': f['hit'], 'body': f['body']})
             if out:
-                an = 'SV_%s_%s' % (key, ANIM_NAMES.get(aid, str(aid)))
+                an = 'SV_%s_%s' % (key, CHAR_ANIMS.get(key, {}).get(aid) or ANIM_NAMES.get(aid, str(aid)))
                 for suffix in ('', '_R'):
                     anims[an + suffix] = {'name': an + suffix, 'loop': 1 if loop > 0 else 0, 'base': 60,
                                           'frames': [dict(fr, map=fr['map'] + suffix) for fr in out]}
@@ -121,8 +129,12 @@ def import_bg(src, dst):
 
 def main():
     maps, anims = {}, {}
-    for key, (folder, stem) in CHARS.items():
-        import_char(key, folder, stem, maps, anims)
+    for key, (folder, stem, palette) in CHARS.items():
+        import_char(key, folder, stem, palette, maps, anims)
+    hud = os.path.join(PUB, 'svnz', 'hud')
+    os.makedirs(hud, exist_ok=True)
+    for f in ('bars.png', 'fullBars.png'):
+        shutil.copy(os.path.join(SRC, 'assets', 'images', 'hud', f), os.path.join(hud, f))
     json.dump({'maps': maps, 'anims': anims}, open(os.path.join(ROOT, 'src', 'xa', 'data', 'svnz.json'), 'w'),
               separators=(',', ':'))
 

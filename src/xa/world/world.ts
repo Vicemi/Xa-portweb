@@ -25,6 +25,12 @@ export interface World {
   onHeroDeathFinished(): void;
   /** Is there a floor (hard tile OR moving platform) at the given world point? */
   hasFloor(x: number, y: number): boolean;
+  /** Extra-level bosses: bring in a helper enemy of `type` with its feet at (x, y). */
+  spawnEnemy(type: string, x: number, y: number, props?: Record<string, string>): Enemy | null;
+  /** Extra-level bosses: switch the level music (kept on respawn, like a checkpoint's pMusic). */
+  setMusic(music: string): void;
+  /** Show a HUD message (sign balloon). */
+  message(text: string, seconds: number): void;
 }
 
 export interface WorldEvents {
@@ -85,6 +91,7 @@ export class Scenario implements World {
   private pointsFx: PointsFx[] = [];
   /** current level track (pMusic of the map, or of the last checkpoint that carried one) */
   private music: string | null = null;
+  private spawned: Enemy[] = [];
   /** SavePoint::mpActualSavePoint: only the active checkpoint shines */
   private activeSave: Thing | null = null;
   private explosions: (Effect & { rect: Rect; t: number })[] = [];
@@ -115,6 +122,7 @@ export class Scenario implements World {
       'assets/images/background/' + (level.props.pBackground ?? 'background_1.jpg'),
       level.tilesetImage.replace('/tiles/', '/tiles/win/'),
       ...Object.values(MAPS).map((m) => m.path),
+      'assets/svnz/hud/bars.png', 'assets/svnz/hud/fullBars.png',
     ];
   }
 
@@ -171,6 +179,23 @@ export class Scenario implements World {
     this.bullets.push({ x, y, vx, vy, team: 1, alive: true, g, ax });
   }
   /** Remove an enemy with a death burst (no points). */
+  spawnEnemy(type: string, x: number, y: number, props: Record<string, string> = {}): Enemy | null {
+    const o = { type, name: type, x: x - 16, y: y - 32, w: 32, h: 32, props: { pTeam: '1', ...props } } as unknown as TmxObject;
+    const e = createSvEnemy(o, this, x, y) ?? createEnemy(o, this, x, y);
+    if (e) this.spawned.push(e);
+    return e;
+  }
+  setMusic(music: string): void {
+    this.music = music;
+    playMusic(music);
+  }
+  message(text: string, seconds: number): void { this.events.message(text, seconds); }
+  /** Health bar of the awake extra-level boss, if any (the original levels never have one). */
+  get bossBar(): { name: string; lives: number; max: number } | null {
+    for (const e of this.enemies) { const b = e.alive ? e.bossBarInfo() : null; if (b) return b; }
+    return null;
+  }
+
   private removeEnemy(e: Enemy): void {
     e.alive = false;
     playSound('ENEMY_DEATH');
@@ -207,6 +232,7 @@ export class Scenario implements World {
    *  over the boss rect while its first 3 frames play (VolatileExplosion), and the BOSS_KEY for the last gate. */
   private killBoss(e: Enemy): void {
     e.alive = false;
+    for (const x of e.extras) if (x.alive) this.removeEnemy(x); // its helpers go with it (extra-level bosses)
     this.camera.shake(3.0);
     playSound('ENEMY_DEATH');
     const b = e.bounds();
@@ -368,6 +394,7 @@ export class Scenario implements World {
       }
     }
     this.enemies = this.enemies.filter((e) => e.alive);
+    if (this.spawned.length) { this.enemies.push(...this.spawned); this.spawned = []; }
 
     const cam = this.camera;
     for (const b of this.bullets) {

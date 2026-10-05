@@ -1,13 +1,17 @@
-"""Build the extra levels of map 2 (public/assets/data/extra/extraN.tmx) out of the original Xa levels and the
-Super Vampire Ninja Zero enemies (tools/import_svnz.py).
+"""Build the extra levels of map 2 (public/assets/data/extra/extraN.tmx) with the tiles of the original Xa levels
+and the Super Vampire Ninja Zero enemies (tools/import_svnz.py).
 
-Each extra level takes the terrain of an original level so tiles, ladders, platforms and secrets keep Xa's look:
-  - horizontal levels are remixed: a start stretch and an end stretch of the original are spliced on a column
-    where both tile columns are identical, so the seam is invisible and the ground keeps its height;
-  - tall (vertical) levels keep their whole terrain;
-  - the boss level builds an arena by repeating a flat column of the original between its start and its exit.
-Then the objects of the kept stretches are moved along, tutorial signs are replaced by new ones, and part of the
-Xa enemies are swapped for SVNZ ones (seeded, so the output is stable).
+The levels are NOT copies of the originals: each one is a new layout walked over the terrain of one or two
+original levels with the same tileset. Two tile columns that are identical over the whole height are
+interchangeable, so the walk advances a random stretch, then jumps to an identical twin column somewhere else
+(of that level or of the other one) and carries on from there. Sections come out in a different order,
+repeated or skipped, and the seams are invisible. Every 3rd level ends in a boss arena (a flat floor column
+repeated) with the boss, a checkpoint before it and the gate whose key it drops; then the walk reaches the
+original exit stretch.
+
+Objects travel with their columns (coins, cows, items, checkpoints, moving platforms, which also get a new
+speed). Tutorial signs are dropped for one new sign, part of the Xa enemies become SVNZ ones and more SVNZ
+enemies are placed on the new floors. All random choices are seeded, so the output is stable.
 
 usage: python gen_extra_levels.py
 """
@@ -16,6 +20,7 @@ import os
 import random
 import struct
 import xml.etree.ElementTree as ET
+from collections import defaultdict
 from copy import deepcopy
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -23,97 +28,198 @@ DATA = os.path.join(ROOT, 'public', 'assets', 'data')
 OUT = os.path.join(DATA, 'extra')
 TS = 32
 
-# (base level, background, music, cut ranges as fractions [keep start until A, resume at B] or None,
-#  swap probabilities, extra signs)
+# bases: original levels whose terrain is walked (same tileset and height); length: target width in columns
 LEVELS = [
-    dict(base=2, bg='background_1.jpg', music='svnz_bgm.ogg', cut=(0.42, 0.62),
-         swap={'Enemy': ('SvNinja', 0.7), 'Bird': ('SvBat', 0.6), 'Jumper': ('SvRedNinja', 0.6),
-               'Double': ('SvBat', 0.3)},
+    # ---- tramo 1 ----
+    dict(bases=[2, 1], length=300, bg='background_1.jpg',
+         swap={'Enemy': ('SvNinja', 0.7), 'Bird': ('SvBat', 0.6), 'Jumper': ('SvRedNinja', 0.6), 'Double': ('SvBat', 0.3)},
+         add=['SvNinja', 'SvNinja', 'SvRedNinja'],
          sign='\\!Cuidado Xa! Unos ninjas demonio\\nllegaron a la costa.'),
-    dict(base=11, bg='svnz_arena.jpg', music='svnz_bgm.ogg', cut=(0.35, 0.6),
+    dict(bases=[11], length=380, bg='svnz_arena.jpg',
          swap={'Enemy': ('SvNinja', 0.8), 'Bomb': ('SvBat', 0.3), 'SmartUFO': ('SvBat', 0.3),
                'FloorCannon': (['SvNinja', 'SvNinja', 'SvRedNinja', 'SvBigDemon'], 0.45)},
+         add=['SvNinja', 'SvRedNinja'],
          sign='Los ninjas rojos saltan sobre vos.\\n\\!Disparales antes de que caigan!'),
-    dict(base=8, bg='svnz_grid.jpg', music='svnz_bgm.ogg', cut=(0.4, 0.6),
+    dict(bases=[8], length=280, bg='svnz_grid.jpg', boss='SvGoldNinja',
          swap={'Enemy': ('SvNinja', 0.5), 'Jumper': ('SvRedNinja', 0.6), 'Bird': ('SvBat', 0.7),
                'UFO': ('SvBat', 0.3), 'Android': ('SvBigDemon', 0.3)},
-         sign='Los murci\\ielagos se lanzan en picada.\\n\\!No te quedes debajo!'),
-    dict(base=6, bg='svnz_dungeon.jpg', music='svnz_bgm.ogg', cut=None,
-         swap={'Enemy': ('SvNinja', 0.6), 'Bird': ('SvBat', 0.8), 'Jumper': ('SvRedNinja', 0.6),
-               'Android': ('SvBigDemon', 0.35), 'Ultraton': ('SvBigDemon', 0.3)},
-         sign='Un gran demonio vive en la cantera.\\nSu golpe hace temblar el suelo.'),
-    dict(base=4, bg='background_4.jpg', music='svnz_bgm.ogg', cut=None,
-         swap={'Enemy': (['SvNinja', 'SvNinja', 'SvBigDemon'], 0.6), 'Bird': ('SvBat', 0.6),
-               'Jumper': ('SvRedNinja', 0.6), 'Double': ('SvBat', 0.25), 'Thrower': ('SvRedNinja', 0.3)},
+         add=['SvNinja', 'SvRedNinja', 'SvNinja'],
+         sign='Un ninja dorado custodia la salida.\\n\\!Vencelo para conseguir la llave!'),
+    # ---- tramo 2 ----
+    dict(bases=[10], length=360, bg='svnz_dungeon.jpg',
+         swap={'Enemy': ('SvNinja', 0.8), 'Jumper2': ('SvRedNinja', 0.7), 'Bird': ('SvBat', 0.7),
+               'Android': ('SvBigDemon', 0.4), 'FloorCannon': (['SvNinja', 'SvRedNinja'], 0.3)},
+         add=['SvNinja', 'SvBigDemon', 'SvRedNinja'],
+         sign='Un gran demonio anda suelto.\\nSu golpe hace temblar el suelo.'),
+    dict(bases=[3], length=360, bg='background_3.jpg',
+         swap={'Enemy': ('SvNinja', 0.7), 'Bird': ('SvBat', 0.7), 'Jumper': ('SvRedNinja', 0.7), 'Double': ('SvBat', 0.3)},
+         add=['SvNinja', 'SvRedNinja', 'SvBat'],
          sign='Las vacas de la granja te esperan.\\n\\!Rescatalas a todas!'),
-    dict(base=7, bg='svnz_dojo.jpg', music='svnz_bgm.ogg', cut=(0.45, 0.6),
+    dict(bases=[7], length=240, bg='svnz_dojo.jpg', boss='SvBigDemonBoss',
          swap={'Enemy': ('SvNinja', 0.8), 'Bird': ('SvBat', 0.8), 'Jumper2': (['SvRedNinja', 'SvNinja'], 0.6),
                'Double': ('SvBat', 0.3), 'Ultraton': ('SvBigDemon', 0.5)},
-         sign='La noche es de los vampiros.\\n\\!Seguí adelante!'),
-    dict(base=9, bg='svnz_arena.jpg', music='svnz_boss.ogg', cut=(0.4, 0.62),
+         add=['SvNinja', 'SvRedNinja', 'SvBigDemon'],
+         sign='El gran demonio te espera\\nal final del bosque.'),
+    # ---- tramo 3 ----
+    dict(bases=[9], length=360, bg='svnz_arena.jpg',
          swap={'Enemy': ('SvNinja', 0.8), 'Jumper2': ('SvRedNinja', 0.8),
                'FloorCannon': (['SvNinja', 'SvRedNinja', 'SvRedNinja', 'SvBigDemon'], 0.5)},
-         sign='Dr\\acula se esconde m\\as adelante.\\n\\!Prep\\arate!'),
-    dict(base=7, bg='svnz_dojo.jpg', music='svnz_boss.ogg', cut=None, boss=True,
+         add=['SvNinja', 'SvRedNinja'],
+         sign='Las calles est\\an tomadas\\npor los vampiros.'),
+    dict(bases=[1, 2], length=320, bg='background_2.jpg',
+         swap={'Enemy': (['SvNinja', 'SvRedNinja'], 0.8), 'Bird': ('SvBat', 0.8), 'Jumper': ('SvRedNinja', 0.7),
+               'Double': ('SvBat', 0.3)},
+         add=['SvRedNinja', 'SvNinja', 'SvBigDemon'],
+         sign='Los vi\\medos est\\an llenos de ninjas.\\n\\!No te detengas!'),
+    dict(bases=[3], length=320, bg='svnz_grid.jpg', boss='SvLucy',
+         swap={'Enemy': ('SvNinja', 0.7), 'Bird': ('SvBat', 0.7), 'Jumper': ('SvRedNinja', 0.7), 'Double': ('SvBat', 0.3)},
+         add=['SvRedNinja', 'SvNinja'],
+         sign='Lucy, la hermana de Mina,\\nfue pose\\ida por Dr\\acula.'),
+    # ---- tramo 4 ----
+    dict(bases=[11], length=400, bg='background_11.jpg',
+         swap={'Enemy': ('SvNinja', 0.8), 'Bomb': ('SvBat', 0.4), 'SmartUFO': ('SvBat', 0.4),
+               'FloorCannon': (['SvNinja', 'SvRedNinja', 'SvBigDemon'], 0.5)},
+         add=['SvBigDemon', 'SvNinja', 'SvRedNinja'],
+         sign='En los muelles viejos\\nhay demonios por todos lados.'),
+    dict(bases=[9], length=380, bg='background_9.jpg',
+         swap={'Enemy': ('SvNinja', 0.8), 'Jumper2': ('SvRedNinja', 0.8),
+               'FloorCannon': (['SvNinja', 'SvRedNinja', 'SvBigDemon'], 0.55)},
+         add=['SvNinja', 'SvRedNinja', 'SvBigDemon'],
+         sign='Dr\\acula est\\a muy cerca.\\n\\!Prep\\arate!'),
+    dict(bases=[7], length=260, bg='svnz_dungeon.jpg', boss='SvDracula',
          swap={'Enemy': ('SvNinja', 0.8), 'Bird': ('SvBat', 0.9), 'Jumper2': (['SvRedNinja', 'SvNinja'], 0.8),
                'Double': ('SvBat', 0.5), 'Ultraton': ('SvBigDemon', 0.8)},
-         sign='\\!Dr\\acula! Vencelo para conseguir\\nla llave de la salida.'),
+         add=['SvRedNinja', 'SvNinja', 'SvBat'],
+         sign='\\!El castillo de Dr\\acula!\\nVencelo para salvar al planeta.'),
 ]
 
-KEEP_TYPES = {'Hero', 'Item', 'Cow', 'SavePoint', 'PlatformInterp', 'PlatformLinear', 'Door'}
+ARENA = 36
 
 
-def read_level(n):
-    tree = ET.parse(os.path.join(DATA, 'level%d.tmx' % n))
-    root = tree.getroot()
-    layer = root.find('layer')
-    data = layer.find('data')
-    raw = base64.b64decode(data.text.strip())
-    w, h = int(layer.get('width')), int(layer.get('height'))
-    gids = list(struct.unpack('<%dI' % (w * h), raw))
-    grid = [gids[y * w:(y + 1) * w] for y in range(h)]
-    return tree, root, grid, w, h
+class Base:
+    def __init__(self, n):
+        self.n = n
+        self.tree = ET.parse(os.path.join(DATA, 'level%d.tmx' % n))
+        self.root = self.tree.getroot()
+        layer = self.root.find('layer')
+        self.w, self.h = int(layer.get('width')), int(layer.get('height'))
+        g = struct.unpack('<%dI' % (self.w * self.h), base64.b64decode(layer.find('data').text.strip()))
+        self.cols = [tuple(g[y * self.w + x] for y in range(self.h)) for x in range(self.w)]
+        self.objs = [o for og in self.root.iter('objectgroup') for o in og.findall('object')]
+        ts = self.root.find('tileset')
+        self.tileset = ts.find('image').get('source')
+        first = int(ts.get('firstgid'))
+        self.state = {}
+        for t in ts.findall('tile'):
+            for p in t.iter('property'):
+                if p.get('value') == 'true':
+                    self.state[int(t.get('id')) + first] = p.get('name')
 
 
-def column(grid, x):
-    return tuple(row[x] for row in grid)
+def walk(bases, length, rnd, boss):
+    """New column order: a list of (base index, column), and where the boss arena starts."""
+    twins = defaultdict(list)
+    for bi, b in enumerate(bases):
+        for x, c in enumerate(b.cols):
+            if any(c):
+                twins[c].append((bi, x))
+    b0 = bases[0]
+    # the walk must not jump past the exit item of the first level
+    end_col = min([int(float(o.get('x')) // TS) for o in b0.objs
+                   if any(p.get('value') == 'ENDING' for p in o.iter('property'))] or [b0.w])
+    out = []
+    visits = defaultdict(int)
+    arena_at = None
+    state = {'bi': 0, 'x': 0}
 
+    def put(bi, x0, x1):
+        for xx in range(x0, x1):
+            out.append((bi, xx))
+            visits[(bi, xx // 20)] += 1
 
-def find_seam(grid, w, a_frac, b_frac):
-    """Columns (a, b) near the wanted fractions with identical tile columns: keep [0, a] + [b+1, w)."""
-    a0, b0 = int(w * a_frac), int(w * b_frac)
-    best = None
-    for da in range(0, 60):
-        for a in (a0 - da, a0 + da):
-            if not 8 < a < w - 8:
+    def jumps(bi, x, finishing):
+        c = bases[bi].cols[x]
+        cand = [(b2, y) for (b2, y) in twins[c] if (b2 != bi or abs(y - x) >= 15) and y < bases[b2].w - 2]
+        if finishing:
+            return [(b2, y) for (b2, y) in cand if b2 == 0 and b0.w * 0.66 <= y < end_col - 3]
+        # keep the exit stretch for the end, and stay out of the second level's own exit (no way back from there)
+        return [(b2, y) for (b2, y) in cand if y < (min(b0.w * 0.8, end_col - 12) if b2 == 0 else bases[b2].w * 0.7)]
+
+    def arena_col(bb, k):
+        # repeating one column always gives a flat floor; it only has to be plain ground: a hard tile with at
+        # least 5 free tiles above it, and no spikes, ladders or one-way platforms in the column
+        c = bb.cols[k]
+        if any(bb.state.get(g) in ('pKilling', 'pLadder', 'pLadderEnd', 'pPlatform') for g in c):
+            return False
+        for y in range(5, bb.h):
+            if bb.state.get(c[y]) == 'pHard':
+                return all(bb.state.get(c[yy]) != 'pHard' for yy in range(y - 5, y))
+        return False
+
+    finishing = False
+    for _ in range(800):
+        bi, x = state['bi'], state['x']
+        b = bases[bi]
+        if bi == 0 and finishing and b0.w * 0.66 <= x < end_col:
+            put(bi, x, b0.w)                        # the original exit stretch
+            return out, arena_at
+        # walk a stretch, then look ahead for a column with a twin to jump from
+        run = rnd.randint(16, 38)
+        stop = min(b.w - 1, x + run) if bi == 0 else min(int(b.w * 0.75), x + run)
+        put(bi, x, stop)
+        x = stop
+        if len(out) >= length and not finishing:
+            if boss and arena_at is None:
+                # arena: on the next flat floor column (identical to its neighbour)
+                for k in range(x, b.w - 1):
+                    if arena_col(b, k):
+                        put(bi, x, k + 1)
+                        arena_at = len(out)
+                        out.extend([(bi, k)] * ARENA)
+                        x = k + 1
+                        break
+                else:
+                    state['x'] = x
+                    continue
+            finishing = True
+        for k in range(x, min(b.w - 1, x + 30)):
+            cand = jumps(bi, k, finishing)
+            if cand:
+                put(bi, x, k + 1)
+                cand.sort(key=lambda q: (visits[(q[0], q[1] // 20)], rnd.random()))
+                nb, y = cand[0] if rnd.random() < 0.7 else rnd.choice(cand[:4])
+                state['bi'], state['x'] = nb, y + 1
+                break
+        else:
+            nx = min(b.w - 1, x + 30)
+            if bi == 0 and nx >= b0.w - 1:
+                # the walk ran into the exit: the arena (if still missing) goes on the last flat column before it
+                if boss and arena_at is None:
+                    for k in range(b0.w - 3, x - 1, -1):
+                        if arena_col(b0, k):
+                            put(0, x, k + 1)
+                            arena_at = len(out)
+                            out.extend([(0, k)] * ARENA)
+                            x = k + 1
+                            break
+                put(0, x, b0.w)
+                return out, arena_at
+            if bi != 0 and nx >= b.w - 1:
+                # end of the second level: go back to the first one through any twin column at all
+                for k in range(x, b.w):
+                    back = [(b2, y) for (b2, y) in twins[b.cols[k]]
+                            if (b2 == 0 and y < b0.w - 2) or (b2 == bi and y < k - 15)]
+                    if back:
+                        put(bi, x, k + 1)
+                        nb, y = rnd.choice(back)
+                        state['bi'], state['x'] = nb, y + 1
+                        break
+                else:
+                    raise SystemExit('stuck at the end of level %d' % b.n)
                 continue
-            ca = column(grid, a)
-            if all(v == 0 for v in ca):
-                continue
-            for db in range(0, 60):
-                for b in (b0 - db, b0 + db):
-                    if a + 20 < b < w - 20 and column(grid, b) == ca:
-                        cost = da + db
-                        if best is None or cost < best[0]:
-                            best = (cost, a, b)
-            if best and best[0] <= da:
-                return best[1], best[2]
-    if not best:
-        raise SystemExit('no seam')
-    return best[1], best[2]
-
-
-def flat_column(grid, w, h, x0, x1):
-    """Rightmost column in [x0, x1) whose neighbours are identical (a flat stretch of floor)."""
-    for x in range(x1 - 2, x0, -1):
-        c = column(grid, x)
-        if c == column(grid, x - 1) == column(grid, x + 1) and any(c):
-            return x
-    return x0
-
-
-def objects(root):
-    return [o for og in root.iter('objectgroup') for o in og.findall('object')]
+            put(bi, x, nx)
+            state['bi'], state['x'] = bi, nx
+    raise SystemExit('walk did not reach the exit')
 
 
 def prop(o, name, value=None):
@@ -130,149 +236,167 @@ def prop(o, name, value=None):
     return value
 
 
-def make_sv(o, kind, lives=None):
+def make_sv(o, kind):
     o.set('type', kind)
     o.set('name', kind)
     props = o.find('properties')
     if props is not None:
         o.remove(props)
     prop(o, 'pTeam', '1')
-    if lives:
-        prop(o, 'pLives', str(lives))
     if kind == 'SvBat':
         prop(o, 'pxDelta', '70')
 
 
 def build(i, spec):
-    rnd = random.Random(1000 + i)
-    tree, root, grid, w, h = read_level(spec['base'])
-    objs = objects(root)
-    og = next(root.iter('objectgroup'))
-    for o in objs:
-        og.remove(o)
+    rnd = random.Random(2000 + i)
+    bases = [Base(n) for n in spec['bases']]
+    b0 = bases[0]
+    assert all(b.h == b0.h and b.tileset == b0.tileset for b in bases)
+    out, arena_at = walk(bases, spec['length'], rnd, spec.get('boss'))
+    nw, h = len(out), b0.h
 
-    # ---- terrain ----
-    if spec.get('boss'):
-        # start stretch + a 40-column flat arena + the exit stretch
-        a = flat_column(grid, w, h, 30, int(w * 0.3))
-        end0 = flat_column(grid, w, h, int(w * 0.8), w - 6)
-        arena = 40
-        cols = list(range(0, a + 1)) + [a] * arena + list(range(end0, w))
-        shift = [(0, a + 1, 0), (end0, w, (a + 1 + arena) - end0)]
-        arena_x = (a + 1) * TS, (a + 1 + arena) * TS
-    elif spec['cut']:
-        a, b = find_seam(grid, w, *spec['cut'])
-        cols = list(range(0, a + 1)) + list(range(b + 1, w))
-        shift = [(0, a + 1, 0), (b + 1, w, a - b)]
-        arena_x = None
-    else:
-        cols = list(range(w))
-        shift = [(0, w, 0)]
-        arena_x = None
-    nw = len(cols)
-    new = [[row[c] for c in cols] for row in grid]
+    # ---- tiles ----
+    tree = deepcopy(b0.tree)
+    root = tree.getroot()
     root.set('width', str(nw))
     layer = root.find('layer')
     layer.set('width', str(nw))
-    flat = [g for row in new for g in row]
+    flat = [bases[bi].cols[x][y] for y in range(h) for (bi, x) in out]
     layer.find('data').text = '\n   ' + base64.b64encode(struct.pack('<%dI' % len(flat), *flat)).decode() + '\n  '
+    og = next(root.iter('objectgroup'))
+    for o in list(og):
+        og.remove(o)
     if og.get('width'):
         og.set('width', str(nw))
-
-    # ---- map properties ----
-    mp = root.find('properties')
-    for p in mp.findall('property'):
+    for p in root.find('properties').findall('property'):
         if p.get('name') == 'pBackground':
             p.set('value', spec['bg'])
         elif p.get('name') == 'pMusic':
-            p.set('value', spec['music'])
+            p.set('value', 'svnz_bgm.ogg')
 
-    # ---- objects ----
-    def moved(o):
-        x = float(o.get('x'))
-        for c0, c1, dx in shift:
-            if c0 * TS <= x < c1 * TS:
-                if o.get('width') and x + float(o.get('width')) > c1 * TS + 1 and o.get('type') != 'Hero':
-                    return None
-                return x + dx * TS
-        return None
+    # ---- runs of consecutive source columns carry their objects ----
+    runs = []
+    k = 0
+    while k < nw:
+        bi, x = out[k]
+        j = k + 1
+        while j < nw and out[j] == (bi, out[j - 1][1] + 1):
+            j += 1
+        runs.append((bi, x, x + (j - k), k))
+        k = j
+    if arena_at is not None:
+        runs = [r for r in runs if not (arena_at <= r[3] < arena_at + ARENA)]
 
-    signs = []
-    kept = []
-    for o in objs:
-        x = moved(o)
-        if x is None:
-            continue
-        o = deepcopy(o)
-        o.set('x', str(int(x)) if x == int(x) else str(x))
-        t = o.get('type')
-        if t == 'Information':
-            signs.append(o)
-            continue
-        if t in spec['swap'] and rnd.random() < spec['swap'][t][1]:
-            kind = spec['swap'][t][0]
-            make_sv(o, rnd.choice(kind) if isinstance(kind, list) else kind)
-        kept.append(o)
+    kept, signs = [], []
+    last_run = len(runs) - 1
+    for ri, (bi, s, e, off) in enumerate(runs):
+        for o in bases[bi].objs:
+            ox = float(o.get('x'))
+            ow = float(o.get('width') or 0)
+            t = o.get('type')
+            if not (s * TS <= ox < e * TS) or (ow and ox + ow > e * TS + 1 and t != 'Hero'):
+                continue
+            ending = any(p.get('value') == 'ENDING' for p in o.iter('property'))
+            if t == 'Hero' and not (ri == 0 and s == 0 and bi == 0):
+                continue
+            if ending and ri != last_run:
+                continue
+            o = deepcopy(o)
+            nx = ox + (off - s) * TS
+            o.set('x', str(int(nx)) if nx == int(nx) else str(nx))
+            if t == 'Information':
+                signs.append(o)
+                continue
+            if t in ('PlatformInterp', 'PlatformLinear'):
+                d = float(prop(o, 'pDuration') or 0)
+                if d:
+                    prop(o, 'pDuration', '%.1f' % (d * rnd.uniform(0.7, 1.3)))
+            if t in spec['swap'] and rnd.random() < spec['swap'][t][1]:
+                kind = spec['swap'][t][0]
+                make_sv(o, rnd.choice(kind) if isinstance(kind, list) else kind)
+            kept.append(o)
 
-    # one new sign at the start (where the first original sign stood) and a few more ninjas where tutorial
-    # signs used to be (they always stand on the floor)
     signs.sort(key=lambda o: float(o.get('x')))
     if signs:
         s0 = signs[0]
+        props = s0.find('properties')
+        if props is not None:
+            for p in list(props):
+                if p.get('name') == 'pText':
+                    props.remove(p)
         prop(s0, 'pText', spec['sign'])
         kept.append(s0)
-        for s in signs[1:]:
-            if rnd.random() < 0.5:
-                make_sv(s, rnd.choice(['SvNinja', 'SvNinja', 'SvRedNinja']))
-                s.set('width', '32')
-                s.set('height', '32')
-                s.set('y', str(float(s.get('y')) + float(s.get('height', 32)) - 32))
-                kept.append(s)
 
-    if arena_x:
-        # Dracula in the middle of the arena, and the gate he holds the key of right after it
-        ground = None
-        for y in range(h):
-            if new[y][(arena_x[0] // TS) + 5]:
-                ground = y * TS
-                break
-        d = ET.Element('object', name='Dracula', type='SvDracula', x=str(arena_x[0] + 26 * TS), y=str(ground - 32),
-                       width='32', height='32')
-        prop(d, 'pTeam', '1')
-        prop(d, 'pRequiredItem', 'KEY')
-        prop(d, 'pLookDir', '-1')
-        kept.append(d)
-        door = ET.Element('object', name='Puerta', type='Door', x=str(arena_x[1] + 2 * TS), y=str(ground - 128),
+    # ---- more SVNZ enemies on the new floors ----
+    def hard(g):
+        return b0.state.get(g) == 'pHard'
+
+    def killing(c):
+        return any(b0.state.get(g) == 'pKilling' for g in c)
+
+    hero_x = next((float(o.get('x')) for o in kept if o.get('type') == 'Hero'), 0)
+    taken = [float(o.get('x')) for o in kept if o.get('type', '').startswith('Sv') or o.get('type') in
+             ('Enemy', 'Jumper', 'Jumper2', 'Android', 'Ultraton')]
+    big = sum(1 for o in kept if o.get('type') == 'SvBigDemon')
+    x = 24
+    while x < nw - 20:
+        x += rnd.randint(30, 50)
+        if x >= nw - 20 or (arena_at is not None and arena_at - 6 <= x < arena_at + ARENA + 4):
+            continue
+        col = bases[out[x][0]].cols[out[x][1]]
+        if killing(col) or abs(x * TS - hero_x) < 12 * TS or any(abs(x * TS - t) < 6 * TS for t in taken):
+            continue
+        # a floor = a hard tile with two free tiles above it; mostly the lowest one, sometimes the highest
+        ys = [y for y in range(2, h) if hard(col[y]) and not hard(col[y - 1]) and not hard(col[y - 2])]
+        if not ys:
+            continue
+        y = ys[-1] if rnd.random() < 0.6 else ys[0]
+        kind = rnd.choice(spec['add'])
+        if kind == 'SvBigDemon':
+            if big >= 3:
+                kind = 'SvNinja'
+            big += 1
+        o = ET.Element('object', name=kind, type=kind, x=str(x * TS),
+                       y=str(y * TS - 32 - (110 if kind == 'SvBat' else 0)), width='32', height='32')
+        make_sv(o, kind)
+        kept.append(o)
+        taken.append(x * TS)
+
+    # ---- boss arena ----
+    if arena_at is not None:
+        ax0, ax1 = arena_at * TS, (arena_at + ARENA) * TS
+        col = bases[out[arena_at][0]].cols[out[arena_at][1]]
+        ys = [y for y in range(2, h) if hard(col[y]) and not hard(col[y - 1])]
+        ground = ys[-1] * TS
+        boss = spec['boss']
+        d = ET.Element('object', name=boss, type=boss, x=str(ax0 + 17 * TS), y=str(ground - 32), width='32', height='32')
+        for kk, v in (('pTeam', '1'), ('pRequiredItem', 'KEY'), ('pLookDir', '-1'), ('pArenaX0', str(ax0)),
+                      ('pArenaX1', str(ax1))):
+            prop(d, kk, v)
+        door = ET.Element('object', name='Puerta', type='Door', x=str(ax1 + 2 * TS), y=str(ground - 128),
                           width='32', height='128')
-        for k, v in (('pAsset', 'GATE'), ('pIsKey', 'true'), ('pRequiredCount', '1'), ('pRequiredItem', 'KEY')):
-            prop(door, k, v)
-        kept.append(door)
-        sv = ET.Element('object', name='Save', type='SavePoint', x=str(arena_x[0] - 3 * TS), y=str(ground - 32),
+        for kk, v in (('pAsset', 'GATE'), ('pIsKey', 'true'), ('pRequiredCount', '1'), ('pRequiredItem', 'KEY')):
+            prop(door, kk, v)
+        sv = ET.Element('object', name='Save', type='SavePoint', x=str(ax0 - 3 * TS), y=str(ground - 32),
                         width='32', height='32')
-        prop(sv, 'pMusic', 'svnz_boss.ogg')
-        kept.append(sv)
-        # no regular enemies inside the arena
-        kept = [o for o in kept if not (arena_x[0] <= float(o.get('x')) < arena_x[1] and o.get('type') not in
-                                        ('SvDracula', 'Item', 'Cow', 'SavePoint'))]
+        kept = [o for o in kept if not (ax0 - 4 * TS <= float(o.get('x')) < ax1 + 4 * TS
+                                        and o.get('type') not in ('Item', 'Cow'))]
+        kept += [d, door, sv]
 
-    for k, o in enumerate(kept):
-        o.set('id', str(k + 1)) if o.get('id') else None
-        og.append(o)
-
-    os.makedirs(OUT, exist_ok=True)
-    path = os.path.join(OUT, 'extra%d.tmx' % (i + 1))
-    tree.write(path, encoding='UTF-8', xml_declaration=True)
-    counts = {}
     for o in kept:
-        counts[o.get('type')] = counts.get(o.get('type'), 0) + 1
-    print('extra%d' % (i + 1), 'base', spec['base'], 'size', nw, 'x', h,
-          {k: v for k, v in sorted(counts.items()) if k.startswith('Sv') or k in ('Cow', 'Hero', 'Door')})
+        og.append(o)
+    os.makedirs(OUT, exist_ok=True)
+    tree.write(os.path.join(OUT, 'extra%d.tmx' % (i + 1)), encoding='UTF-8', xml_declaration=True)
+    counts = defaultdict(int)
+    for o in kept:
+        counts[o.get('type')] += 1
+    print('extra%d' % (i + 1), 'bases', spec['bases'], 'size', nw, 'x', h, 'runs', len(runs), 'arena', arena_at,
+          {k: v for k, v in sorted(counts.items()) if k.startswith('Sv') or k in ('Cow', 'Door', 'Hero')})
 
 
 def preview(i):
     """Intro card strip (512x115) of extra level i: the screen at the hero's start, background + tiles."""
     from PIL import Image
-    tree, root, grid, w, h = None, None, None, 0, 0
     root = ET.parse(os.path.join(OUT, 'extra%d.tmx' % (i + 1))).getroot()
     layer = root.find('layer')
     w, h = int(layer.get('width')), int(layer.get('height'))
@@ -307,6 +431,10 @@ def preview(i):
 
 def main():
     from PIL import Image
+    if os.path.isdir(OUT):
+        for f in os.listdir(OUT):
+            if f.endswith('.tmx'):
+                os.remove(os.path.join(OUT, f))
     for i, spec in enumerate(LEVELS):
         build(i, spec)
     strip = Image.new('RGB', (512, 115 * len(LEVELS)))

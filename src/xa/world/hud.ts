@@ -2,6 +2,7 @@
 // the user's own items_tile.png / hud_message_back.png, and numbers from the bitmap font (GameFont 0 =
 // fuente_negra, black, 30px grid).
 import { frameOf } from '../core/sprites';
+import { img } from '../core/assets';
 import { drawLine, drawText } from '../core/font';
 import { VIEW_W } from './camera';
 import type { HeroState } from './state';
@@ -102,6 +103,24 @@ export class Hud {
       this.blit(ctx, 'SAVING', VIEW_W / 2 - 50, 352, Math.floor((SAVING_TIME - this.savingTime) / 0.2) % 3);
     }
   }
+
+  /** Mod (extra levels only): health bar of the boss being fought, with the SVNZ life bar art — the frame of
+   *  hud/bars.png (168x12, inner 128x7 at 20,3) filled with the green line of hud/fullBars.png — scaled 1.5x at the
+   *  bottom centre, the boss name above it. A yellow chunk shows the life just lost, shrinking like Xa's bar. */
+  renderBossBar(ctx: CanvasRenderingContext2D, b: { name: string; lives: number; max: number }, dt: number): void {
+    const frame = img('assets/svnz/hud/bars.png'), fill = img('assets/svnz/hud/fullBars.png');
+    if (!frame || !fill) return;
+    const k = 1.5, x = Math.round(VIEW_W / 2 - 84 * k), y = 356;
+    const ratio = Math.max(0, Math.min(1, b.lives / b.max));
+    if (this.bossShown < ratio || this.bossShown > 1) this.bossShown = ratio;
+    else this.bossShown = Math.max(ratio, this.bossShown - dt * 0.6);
+    ctx.drawImage(frame, 0, 0, 168, 12, x, y, 168 * k, 12 * k);
+    const lag = Math.round(128 * this.bossShown), now = Math.round(128 * ratio);
+    if (lag > now) ctx.drawImage(fill, 0, 27, lag, 7, x + 20 * k, y + 3 * k, lag * k, 7 * k);
+    if (now > 0) ctx.drawImage(fill, 0, 1, now, 7, x + 20 * k, y + 3 * k, now * k, 7 * k);
+    drawLine(ctx, b.name, VIEW_W / 2, y - 22, 'white', 'center', 1);
+  }
+  private bossShown = 2;
 
   /** Draw a HUD image-map component at a top-left position (extracted anchors are unreliable → blit raw). */
   private blit(ctx: CanvasRenderingContext2D, name: string, x: number, y: number, frameIndex = 0): void {

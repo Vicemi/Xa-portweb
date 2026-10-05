@@ -12,7 +12,12 @@ const ENEMY_POINTS = 100;
 const FLYERS = new Set(['Bird', 'UFO', 'SmartUFO', 'Double', 'Bomb', 'Rocket']);
 const JUMPERS = new Set(['Jumper', 'Jumper2', 'JumperShooter']);
 const STATIC = new Set(['Cannon', 'Stub', 'Spikes', 'Stalactite', 'Lava', 'AcidDrop', 'DeathBarrier', 'DummyDeathBarrier', 'Fire', 'Thrower', 'FixedShooter', 'Down3']);
-const SHOOTERS = new Set(['Thrower', 'FloorCannon', 'FixedShooter', 'JumperShooter', 'Cannon', 'Down3', 'Jumper2', 'SmartUFO', 'Double', 'PiranhaRobot']);
+// Shooter subclasses with autoShoot (fire on their own pMinTime..pMaxTime timer, synced to their anim).
+// Android / Thrower / Jumper2 / Boss have their own triggers (see update()).
+const AUTO_SHOOTERS: Record<string, string> = {
+  Cannon: 'PARABLE', Down3: '3_FALL', SmartUFO: 'TO_HERO', Double: 'DOUBLE_SIDE',
+  PiranhaRobot: '4_FALL', FloorCannon: '4_FALL_RAND', FixedShooter: 'SIMPLE_ENEMY',
+};
 const BOSS = new Set(['Boss']);
 // InteractiveObject::isInvisibleForBullet → these are ignored by hero bullets.
 const BULLET_PROOF = new Set(['Guillotine', 'Rocket']);
@@ -42,6 +47,10 @@ export class Enemy {
   private readonly homeY: number;
   private t = Math.random() * 6;
   private fireT = 1 + Math.random() * 2;
+  private shotPending = false;   // Shooter: waiting for the sync anim to reach the firing frame
+  private androidStopped = false; // EnemyAndroid: halted while playing ANDROID_SHOOT
+  private walkVel = 0;
+  private prevFrame = 0;
   private jumpPhase: 'ground' | 'air' = 'ground';
   private jumpT = Math.random() * 1.5;
   private hitFlash = 0;
@@ -59,7 +68,9 @@ export class Enemy {
     // Enemy::Enemy: facing = sign(pLookDir) if set, otherwise sign(pxVel) (e.g. pxVel=-120 starts walking left).
     const look = +(this.p.pLookDir ?? 0) || 0;
     this.dir = look ? Math.sign(look) : (this.vx < 0 ? -1 : 1);
+    if (this.type === 'Thrower') this.dir = (+(this.p.pxOffset ?? 1) || 1) > 0 ? 1 : -1;
     this.vy = +(this.p.pyVel ?? 0) || 0;
+    this.fireT = this.randomWait();
     const animName = this.p.pAnim ?? '';
     if (animName) this.anim = new Anim(animName);
     else this.img = this.p.pAsset ?? null;
@@ -108,19 +119,146 @@ export class Enemy {
       case 'popup': this.popup(dt); break;
       case 'slide': this.slide(dt); break;
       case 'boss': this.boss(dt); break;
-      case 'patrol': this.patrol(dt); break;
+      case 'patrol': if (!this.androidStopped) this.patrol(dt); break;
       default: break; // static
     }
-    if (this.canShoot()) {
-      switch (this.type) {
-        case 'Cannon': this.shootParabola(dt); break;
-        case 'SmartUFO': this.shootToHero(dt); break;
-        case 'Double': this.shootDoubleSide(dt); break;
-        case 'PiranhaRobot': this.shootFall(dt); break;
-        case 'FloorCannon': this.shootFallRand(dt); break;
-        default: this.shoot(dt); break;
+    switch (this.type) {
+      case 'Android': this.androidShoot(dt); break;
+      case 'Thrower': this.thrower(dt); break;
+      case 'Jumper2': case 'JumperShooter': this.cobraShoot(); break;
+      default:
+        if (AUTO_SHOOTERS[this.type]) this.autoShoot(dt, AUTO_SHOOTERS[this.type]);
+        break;
+    }
+  }
+
+  private randomWait(): number {
+    const lo = +(this.p.pMinTime ?? 1.5) || 0, hi = +(this.p.pMaxTime ?? 3) || 0;
+    return lo + Math.random() * Math.max(0, hi - lo);
+  }
+
+  /** Shooter::shooterUpdate with autoShoot: when the timer runs out the sync anim is rewound and played; the
+   *  bullets are created when it finishes (frame sync -1), then a new pMinTime..pMaxTime wait starts. */
+  private autoShoot(dt: number, pattern: string): void {
+    if (!this.shotPending) {
+      this.fireT -= dt;
+      if (this.fireT > 0) return;
+      this.fireT = this.randomWait();
+      this.anim?.goToAndPlay(0);
+      this.shotPending = true;
+    }
+    if (this.anim && !this.anim.isOver() && this.anim.type?.loop === 0) return;
+    this.shotPending = false;
+    this.createBullets(pattern);
+  }
+
+  /** XABulletFactory::createBullets for the enemy patterns. */
+  private createBullets(pattern: string): void {
+    const W = this.world, cx = this.x, cy = this.y - this.h * 0.5;
+    switch (pattern) {
+      case 'SIMPLE_ENEMY':
+        W.spawnEnemyBullet(cx + this.dir * 14, cy, this.dir * 240, 0);
+        break;
+      case 'TO_HERO': {
+        const hero = W.hero;
+        const dx = hero.pos.x - cx, dy = hero.pos.y - 22 - cy;
+        const m = Math.hypot(dx, dy) || 1;
+        this.dir = dx < 0 ? -1 : 1;
+        W.spawnEnemyBullet(cx, cy, (dx / m) * 300, (dy / m) * 300);
+        break;
+      }
+      case 'DOUBLE_SIDE':
+        W.spawnEnemyBullet(cx, cy, 224, 0);
+        W.spawnEnemyBullet(cx, cy, -224, 0);
+        break;
+      case 'PARABLE': {
+        // fountain lob at 12° from vertical, toward the cannon's own facing (sign of pxVel), gravity 400
+        const speed = 300 + Math.random() * 80;
+        const a = this.dir * (12 * Math.PI / 180);
+        W.spawnEnemyBullet(cx, this.y - this.h, Math.sin(a) * speed, -Math.cos(a) * speed, 400);
+        break;
+      }
+      case '3_FALL': {
+        // one bullet drops straight down, two drift out at ±100 px/s braking at ∓70, all with gravity 300
+        const by = this.y;
+        W.spawnEnemyBullet(cx, by, 0, 0, 300);
+        W.spawnEnemyBullet(cx, by, 100, 0, 300, -70);
+        W.spawnEnemyBullet(cx, by, -100, 0, 300, 70);
+        break;
+      }
+      case '4_FALL': case '4_FALL_RAND': {
+        // four bullets launched up at ±30° / ±15°, |v| = base ± 25, x-accel ∓15, gravity 300
+        const base = pattern === '4_FALL' ? 220 : 300;
+        const by = this.y - this.h;
+        const k = Math.PI / 6;
+        const shots: [number, number, boolean][] = [[k, -15, true], [-k, 15, true], [k / 2, -15, true], [-k / 2, 15, false]];
+        for (const [ang, ax, rnd] of shots) {
+          const v = base + (rnd ? Math.random() * 50 - 25 : 0);
+          W.spawnEnemyBullet(cx, by, Math.sin(ang) * v, -Math.cos(ang) * v, 300, ax);
+        }
+        break;
       }
     }
+  }
+
+  /** EnemyAndroid::internalUpdate: every pMinTime..pMaxTime s, if the hero is AHEAD in its walking direction it
+   *  stops, plays ANDROID_SHOOT and fires SIMPLE_ENEMY on frame 1 (offset 22,5); then resumes walking. A hero
+   *  behind it is ignored until the next wait. */
+  private androidShoot(dt: number): void {
+    if (this.androidStopped) {
+      if (this.anim && !this.shotPending && this.anim.frameNum() >= 1) {
+        this.shotPending = true;
+        this.world.spawnEnemyBullet(this.x + this.dir * 22, this.y - this.h * 0.5 + 5, this.dir * 240, 0);
+      }
+      if (!this.anim || this.anim.isOver()) {
+        this.androidStopped = false;
+        this.shotPending = false;
+        this.anim?.set(this.p.pAnim ?? 'ANDROID');
+        this.fireT = this.randomWait();
+      }
+      return;
+    }
+    this.fireT -= dt;
+    if (this.fireT > 0) return;
+    const hero = this.world.hero;
+    const ahead = hero.isAlive() && (this.dir > 0 ? hero.pos.x > this.x : hero.pos.x < this.x);
+    if (!ahead) { this.fireT = this.randomWait(); return; }
+    this.androidStopped = true;
+    this.shotPending = false;
+    this.anim?.set('ANDROID_SHOOT');
+    this.anim?.goToAndPlay(0);
+  }
+
+  /** EnemyThrower (WALLE): idles on frame 0 for pMinTime..pMaxTime, then plays its anim and throws one
+   *  BULLET_ENEMY at 240 px/s toward its fixed facing (sign of pxOffset) from object pos + (pxOffset, pyOffset). */
+  private thrower(dt: number): void {
+    const ox = +(this.p.pxOffset ?? 0) || 0, oy = +(this.p.pyOffset ?? 0) || 0;
+    if (!this.shotPending) {
+      this.fireT -= dt;
+      if (this.anim) this.anim.goToAndPlay(0);
+      if (this.fireT > 0) return;
+      this.shotPending = true;
+      this.prevFrame = 0;
+    }
+    const f = this.anim ? this.anim.frameNum() : 3;
+    if (f > 2 && this.prevFrame <= 2) {
+      const dir = ox > 0 ? 1 : -1;
+      this.world.spawnEnemyBullet(this.o.x + ox, this.o.y + oy, dir * 240, 0);
+    }
+    this.prevFrame = f;
+    if (!this.anim || this.anim.isOver()) {
+      this.shotPending = false;
+      this.fireT = this.randomWait();
+    }
+  }
+
+  /** JumperShooter (COBRA_SHOOT): fires SIMPLE_ENEMY toward its facing each time its hop anim leaves frame 3. */
+  private cobraShoot(): void {
+    const f = this.anim ? this.anim.frameNum() : 0;
+    if (f !== this.prevFrame && this.prevFrame === 3) {
+      this.world.spawnEnemyBullet(this.x + this.dir * 26, this.y - this.h * 0.5 - 15, this.dir * 240, 0); // offset (26,-15)
+    }
+    this.prevFrame = f;
   }
 
   private movement(): string {
@@ -132,10 +270,6 @@ export class Enemy {
     if (STATIC.has(this.type)) return 'static';
     if (BOSS.has(this.type)) return 'boss';
     return 'patrol';
-  }
-
-  private canShoot(): boolean {
-    return !!this.p.pBulletAsset || SHOOTERS.has(this.type);
   }
 
   // ground patrol (Enemy + MobileObject::internalUpdate): walks at |pxVel|, reverses on walls (pCollidesH) and
@@ -265,84 +399,6 @@ export class Enemy {
       this.anim.set(this.p.pAnim ?? 'BOSS');
       this.fireT = +(this.p.pMinTime ?? 0.5) + Math.random() * Math.max(0, +(this.p.pMaxTime ?? 1.5) - +(this.p.pMinTime ?? 0.5));
     }
-  }
-
-  // stationary turret: fires toward the hero on a pMinTime..pMaxTime cadence.
-  private shoot(dt: number): void {
-    this.fireT -= dt;
-    if (this.fireT > 0) return;
-    const hero = this.world.hero;
-    if (!hero.isAlive()) return;
-    const dx = hero.pos.x - this.x;
-    if (Math.abs(dx) > 420) return;
-    const dir = dx < 0 ? -1 : 1;
-    this.dir = dir;
-    this.world.spawnEnemyBullet(this.x + dir * 14, this.y - this.h * 0.5, dir * 240, 0);
-    this.fireT = +(this.p.pMinTime ?? 1.5) + Math.random() * Math.max(0, +(this.p.pMaxTime ?? 3) - +(this.p.pMinTime ?? 1.5));
-  }
-
-  // "Cannon" (Parabolon): lobs a projectile in a fountain arc (XABulletFactory: launch up at 12°, gravity 400).
-  private shootParabola(dt: number): void {
-    this.fireT -= dt;
-    if (this.fireT > 0) return;
-    const hero = this.world.hero;
-    if (!hero.isAlive()) return;
-    const dx = hero.pos.x - this.x;
-    if (Math.abs(dx) > 420) return;
-    this.dir = dx < 0 ? -1 : 1;
-    const speed = 300 + Math.random() * 80;
-    const a = this.dir * (12 * Math.PI / 180);
-    this.world.spawnEnemyBullet(this.x, this.y - this.h, Math.sin(a) * speed, -Math.cos(a) * speed, 400);
-    this.fireT = +(this.p.pMinTime ?? 1.5) + Math.random() * Math.max(0, +(this.p.pMaxTime ?? 3) - +(this.p.pMinTime ?? 1.5));
-  }
-
-  // SmartUFO: "TO_HERO" — fires straight at the hero (speed 300).
-  private shootToHero(dt: number): void {
-    this.fireT -= dt;
-    if (this.fireT > 0) return;
-    const hero = this.world.hero;
-    if (!hero.isAlive()) return;
-    const y = this.y - this.h * 0.5;
-    const dx = hero.pos.x - this.x;
-    const dy = hero.pos.y - 22 - y;
-    const m = Math.hypot(dx, dy) || 1;
-    this.dir = dx < 0 ? -1 : 1;
-    this.world.spawnEnemyBullet(this.x, y, (dx / m) * 300, (dy / m) * 300);
-    this.fireT = +(this.p.pMinTime ?? 1.5) + Math.random() * Math.max(0, +(this.p.pMaxTime ?? 3) - +(this.p.pMinTime ?? 1.5));
-  }
-
-  // Double: "DOUBLE_SIDE" — two horizontal bullets, one left and one right (speed 224).
-  private shootDoubleSide(dt: number): void {
-    this.fireT -= dt;
-    if (this.fireT > 0) return;
-    if (!this.world.hero.isAlive()) return;
-    const y = this.y - this.h * 0.5;
-    this.world.spawnEnemyBullet(this.x, y, 224, 0);
-    this.world.spawnEnemyBullet(this.x, y, -224, 0);
-    this.fireT = +(this.p.pMinTime ?? 1) + Math.random() * Math.max(0, +(this.p.pMaxTime ?? 3) - +(this.p.pMinTime ?? 1));
-  }
-
-  // PiranhaRobot: "4_FALL" — drops a bullet that falls straight down (gravity 300).
-  private shootFall(dt: number): void {
-    this.fireT -= dt;
-    if (this.fireT > 0) return;
-    if (!this.world.hero.isAlive()) return;
-    this.world.spawnEnemyBullet(this.x, this.y - this.h, 0, 0, 300);
-    this.fireT = +(this.p.pMinTime ?? 1.2) + Math.random() * Math.max(0, +(this.p.pMaxTime ?? 1.5) - +(this.p.pMinTime ?? 1.2));
-  }
-
-  // FloorCannon: "4_FALL_RAND" — four bullets launched up at ±30°/±15°, arcing back down (gravity 300).
-  private shootFallRand(dt: number): void {
-    this.fireT -= dt;
-    if (this.fireT > 0) return;
-    if (!this.world.hero.isAlive()) return;
-    const y = this.y - this.h;
-    const base = Math.PI / 6; // 30°
-    for (const a of [base, -base, base * 0.5, -base * 0.5]) {
-      const spd = 220 + (Math.random() * 50 - 25);
-      this.world.spawnEnemyBullet(this.x, y, Math.sin(a) * spd, -Math.cos(a) * spd, 300);
-    }
-    this.fireT = +(this.p.pMinTime ?? 2) + Math.random() * Math.max(0, +(this.p.pMaxTime ?? 3) - +(this.p.pMinTime ?? 2));
   }
 
   // ---------- render ----------

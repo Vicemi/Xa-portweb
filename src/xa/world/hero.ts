@@ -127,7 +127,10 @@ export class Hero {
           this.vel = { x: 0, y: 0 };
           this.acc = { x: 0, y: 0 };
           const col = Math.floor((this.rect.x + HERO_W * 0.5) / ts);
+          // centre on the ladder column (particle position too, or the end-of-frame setPosition(ppos) undoes
+          // it and an off-centre hero snags on the walls beside the ladder)
           this.setPosition((col + 0.5) * ts, this.pos.y);
+          this.ppos.x = this.pos.x;
           this.state = s;
           this.setAnim('CLIMB');
           this.anim.goToAndPlay(0);

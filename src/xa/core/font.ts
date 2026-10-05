@@ -16,15 +16,16 @@ export const FONT_PATHS = {
 export type FontName = keyof typeof FONT_PATHS;
 
 const CHAR_SPACE: Record<FontName, number> = { white: 2.5, black: 2.5, black2: 2.5, pixel: 0 };
+const PIXEL_STEP = 16;
 const INDEX = new Map<string, number>([...META.alphabet].map((c, i) => [c, i]));
 
 function glyphIndex(ch: string): number {
   return INDEX.get(ch) ?? INDEX.get(META.notFound) ?? 0;
 }
 function letterWidth(ch: string, font: FontName = 'black'): number {
-  // Lang::initFontManager only gives the per-letter widths (addCharacter) to fonts 0-2; the pixel font keeps
-  // GameFontDesc::getLetterWidth's default, the 30 px cell, so it is monospaced
-  if (font === 'pixel') return META.cell;
+  // Lang::initFontManager only gives per-letter widths to fonts 0-2, so the pixel font is monospaced. Its digits
+  // are ~14 px of ink: a 16 px step keeps them together and readable (the 30 px cell left them too far apart)
+  if (font === 'pixel') return PIXEL_STEP;
   return META.widths[ch] ?? META.cell;
 }
 

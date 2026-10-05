@@ -847,3 +847,5 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   las fuentes 0-2; la 3 se queda con GameFontDesc::getLetterWidth por defecto = this+0x10 = ancho de celda (30) y
   charSpace 0 → avance fijo de 30 px. El port le aplicaba la tabla de anchos de la fuente negra (~7.5 px) a glifos
   de ~14 px de tinta. font.ts: letterWidth('pixel') = 30.
+- Ajuste (pedido del usuario): con el avance de 30 px los dígitos quedaban demasiado separados. Paso fijo de 16 px
+  (tinta ~14 px + 2 de aire): "1000", "45", "80" juntos y legibles (PIXEL_STEP en font.ts).

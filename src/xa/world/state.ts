@@ -68,8 +68,16 @@ export class HeroState {
     this.keys = [];
   }
 
+  /** HeroState::getHighScore (+0x4): saveGame sums the best score of every level. */
+  recordTotal(): number {
+    let sum = 0;
+    for (const p of Object.values(this.progress)) sum += p?.score ?? 0;
+    return sum;
+  }
+  /** HeroState::addLives caps at 99. */
+  addLives(n: number): void { this.lives = Math.min(99, this.lives + n); }
   addPoints(n: number): void {
-    this.score += n;
+    this.score = Math.min(999999, this.score + n); // HeroState::addPoints caps at 999999
     if (this.score > this.highScore) this.highScore = this.score;
   }
   subEnergy(n: number): void { this.energy = Math.max(0, this.energy - n); }

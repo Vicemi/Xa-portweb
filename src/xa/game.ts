@@ -60,6 +60,7 @@ const NODE_POS = [
 const SCREEN_IMAGES = [
   'assets/images/menuElements/screen_logo_batovi.jpg',
   'assets/images/menuElements/screen_logo_calcar.jpg',
+  'assets/images/menuElements/menu.jpg',
   'assets/images/menuElements/menu_night.jpg',
   'assets/images/menuElements/buttons_tile.png',
   'assets/images/menuElements/map.png',
@@ -780,7 +781,9 @@ export class XaGame {
   }
 
   private renderMenu(w: CanvasRenderingContext2D): void {
-    this.coverTop(w, 'assets/images/menuElements/menu_night.jpg');
+    // AssetsGeneral "MENU": the day art between 10:00 and 18:59 of the player's clock, the night art otherwise
+    const hour = new Date().getHours();
+    this.coverTop(w, hour - 10 >= 0 && hour - 10 < 9 ? 'assets/images/menuElements/menu.jpg' : 'assets/images/menuElements/menu_night.jpg');
     const bt = img('assets/images/menuElements/buttons_tile.png');
     if (!bt) return;
     MENU_ITEMS.forEach((it, i) => {
@@ -788,6 +791,9 @@ export class XaGame {
       const [sx, sy, sw, sh] = active ? it.h : it.n;
       w.drawImage(bt, sx, sy, sw, sh, it.x - sw / 2, it.y - sh / 2, sw, sh);
     });
+    // Menu::init → setHighScore(HeroState::getHighScore): the record = sum of every level's best score (saveGame),
+    // zero-padded to 6 digits, black font, left-aligned inside the "RÉCORD:" box
+    drawText(w, String(this.state.recordTotal()).padStart(6, '0'), 419, 21, 'black', 'left');
   }
 
   private renderLevels(w: CanvasRenderingContext2D): void {

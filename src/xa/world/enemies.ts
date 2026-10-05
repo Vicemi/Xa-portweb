@@ -17,6 +17,7 @@ const STATIC = new Set(['Cannon', 'Stub', 'Spikes', 'Stalactite', 'Lava', 'AcidD
 const AUTO_SHOOTERS: Record<string, string> = {
   Cannon: 'PARABLE', Down3: '3_FALL', SmartUFO: 'TO_HERO', Double: 'DOUBLE_SIDE',
   PiranhaRobot: '4_FALL', FloorCannon: '4_FALL_RAND', FixedShooter: 'SIMPLE_ENEMY',
+  UFO: 'SIMPLE_ENEMY', // EnemyUFO: Shooter SIMPLE_ENEMY, offset (30,-4), toward the side it flies
 };
 const BOSS = new Set(['Boss']);
 // InteractiveObject::isInvisibleForBullet → these are ignored by hero bullets.
@@ -25,7 +26,8 @@ const BULLET_PROOF = new Set(['Guillotine', 'Rocket']);
 // NOTE: "Stub" (los pinchos) NO está aquí: el usuario confirmó que resta vida, no mata.
 const INSTANT_KILL = new Set(['Spikes', 'Stalactite', 'Lava', 'AcidDrop', 'DeathBarrier', 'DummyDeathBarrier', 'Fire']);
 // Contact is lethal too, but these remain destructible by bullets (EnemyBomb explodes on death).
-const CONTACT_KILL = new Set([...INSTANT_KILL, 'Bomb']);
+// EnemyUltraton::intersects (inherited by EnemyBoss): touching them = Hero::setState(9); bullets only.
+const CONTACT_KILL = new Set([...INSTANT_KILL, 'Bomb', 'Ultraton', 'Boss']);
 // Never destroyed by bullets/stomps. "Stub" deals contact damage (no instant death).
 const INDESTRUCTIBLE = new Set(['Stub', ...INSTANT_KILL]);
 
@@ -71,7 +73,7 @@ export class Enemy {
     if (this.type === 'Thrower') this.dir = (+(this.p.pxOffset ?? 1) || 1) > 0 ? 1 : -1;
     this.vy = +(this.p.pyVel ?? 0) || 0;
     this.fireT = this.randomWait();
-    const animName = this.p.pAnim ?? '';
+    const animName = o.type === 'Boss' ? 'BOSS' : this.p.pAnim ?? '';
     if (animName) this.anim = new Anim(animName);
     else this.img = this.p.pAsset ?? null;
   }
@@ -156,9 +158,11 @@ export class Enemy {
   private createBullets(pattern: string): void {
     const W = this.world, cx = this.x, cy = this.y - this.h * 0.5;
     switch (pattern) {
-      case 'SIMPLE_ENEMY':
-        W.spawnEnemyBullet(cx + this.dir * 14, cy, this.dir * 240, 0);
+      case 'SIMPLE_ENEMY': {
+        const [ox, oy] = this.type === 'UFO' ? [30, -4] : [14, 0];
+        W.spawnEnemyBullet(cx + this.dir * ox, cy + oy, this.dir * 240, 0);
         break;
+      }
       case 'TO_HERO': {
         const hero = W.hero;
         const dx = hero.pos.x - cx, dy = hero.pos.y - 22 - cy;
@@ -167,10 +171,13 @@ export class Enemy {
         W.spawnEnemyBullet(cx, cy, (dx / m) * 300, (dy / m) * 300);
         break;
       }
-      case 'DOUBLE_SIDE':
-        W.spawnEnemyBullet(cx, cy, 224, 0);
-        W.spawnEnemyBullet(cx, cy, -224, 0);
+      case 'DOUBLE_SIDE': {
+        // two bullets at ±224 from (centre ± 45, top + 17)
+        const by = this.y - this.h + 17;
+        W.spawnEnemyBullet(cx + 45, by, 224, 0);
+        W.spawnEnemyBullet(cx - 45, by, -224, 0);
         break;
+      }
       case 'PARABLE': {
         // fountain lob at 12° from vertical, toward the cannon's own facing (sign of pxVel), gravity 400
         const speed = 300 + Math.random() * 80;
@@ -373,32 +380,44 @@ export class Enemy {
     this.x = this.homeX + p * +(this.p.pxDelta ?? 60);
   }
 
-  // boss: patrols, stops to play "BOSS_SHOOT", and fires a 5-bullet fan ("BOSS_BULLETS") toward the hero.
+  /** EnemyBoss (an EnemyUltraton): walks like an Android; every pMinTime..pMaxTime s, if the hero is AHEAD in its
+   *  walking direction it stops, plays BOSS_SHOOT and on frame 1 fires BOSS_BULLETS (5-bullet fan, 200 px/s,
+   *  offset (-22,15)); then resumes walking. A hero behind it is ignored until the next wait. */
   private boss(dt: number): void {
     if (!this.bossShooting) {
       this.patrol(dt);
       this.fireT -= dt;
-      if (this.fireT <= 0) {
-        const hero = this.world.hero;
-        if (hero.isAlive() && Math.abs(hero.pos.x - this.x) < 500) {
-          this.dir = hero.pos.x < this.x ? -1 : 1;
-          this.bossShooting = true;
-          this.anim?.set('BOSS_SHOOT');
-          // 5-bullet fan at 60°..120° from "up", speed 200, mirrored by facing direction.
-          for (let i = 0; i < 5; i++) {
-            const ang = Math.PI / 3 + i * (Math.PI / 12);
-            this.world.spawnEnemyBullet(
-              this.x + this.dir * 20, this.y - this.h * 0.5,
-              this.dir * Math.sin(ang) * 200, -Math.cos(ang) * 200,
-            );
-          }
-        }
-      }
-    } else if (this.anim && this.anim.isOver()) {
-      this.bossShooting = false;
-      this.anim.set(this.p.pAnim ?? 'BOSS');
-      this.fireT = +(this.p.pMinTime ?? 0.5) + Math.random() * Math.max(0, +(this.p.pMaxTime ?? 1.5) - +(this.p.pMinTime ?? 0.5));
+      if (this.fireT > 0) return;
+      const hero = this.world.hero;
+      const ahead = hero.isAlive() && (this.dir > 0 ? hero.pos.x > this.x : hero.pos.x < this.x);
+      if (!ahead) { this.fireT = this.randomWait(); return; }
+      this.bossShooting = true;
+      this.shotPending = false;
+      this.anim?.set('BOSS_SHOOT');
+      this.anim?.goToAndPlay(0);
+      return;
     }
+    if (!this.shotPending && (!this.anim || this.anim.frameNum() >= 1)) {
+      this.shotPending = true;
+      const ox = this.x - this.dir * 22, oy = this.y - this.h * 0.5 + 15;
+      for (let i = 0; i < 5; i++) {
+        const ang = Math.PI / 3 + i * (Math.PI / 12);
+        this.world.spawnEnemyBullet(ox, oy, this.dir * Math.sin(ang) * 200, -Math.cos(ang) * 200);
+      }
+    }
+    if (!this.anim || this.anim.isOver()) {
+      this.bossShooting = false;
+      this.shotPending = false;
+      this.anim?.set('BOSS');
+      this.fireT = this.randomWait();
+    }
+  }
+
+  /** Item granted when this object is removed (InteractiveObject::reactionAfterRemove): the boss carries the
+   *  BOSS_KEY that opens the last gate. */
+  get dropsKey(): string | null {
+    if (this.p.pIsKey === 'true' || this.isBoss) return this.p.pRequiredItem ?? null;
+    return null;
   }
 
   // ---------- render ----------

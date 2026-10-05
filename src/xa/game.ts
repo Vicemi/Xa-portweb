@@ -18,6 +18,13 @@ export const LEVEL_COUNT = 16;
 const LANG = levelData as unknown as { titles: string[]; descriptions: string[]; ids: string[]; ui: Record<string, string> };
 const LEVEL_TITLES = LANG.titles;
 const STEP = 1 / 60;
+const SPLASH_TIME = 3.5; // SplashScreen: sendMessage("fadeToBlack", delay 3.5 s)
+const SPLASH_FADE = 0.5;
+// Checkbox centres of the Windows-only options rows in options_win.png ("Pantalla completa", "Estirar pantalla").
+const OPT_FULLSCREEN = [292, 260] as const;
+const OPT_STRETCH = [292, 285] as const;
+// Rows of options_win.png measured on the art (the label lines and the slider bars under them).
+const OPT_ROW_MUSIC = 173, OPT_ROW_SFX = 215, OPT_BAR_MUSIC = 197, OPT_BAR_SFX = 240;
 // Font placement: bat::TextSprite positions refer to the glyph band, which sits TEXT_TOP px below the 30 px
 // cell top; vertically-centred text puts the middle of an 18 px line on the anchor.
 const LINE_H = 18;
@@ -67,6 +74,8 @@ const SCREEN_IMAGES = [
   'assets/lang/images/menu/press_any_key.png',
   'assets/images/menuElements/cursor.png',
   'assets/images/menuElements/info_map.png',
+  'assets/lang/images/menu/banner.png',
+  'assets/images/menuElements/exit_confirmation.png',
 ];
 
 const INTRO_PAGES = ['page_1', 'page_2', 'page_3', 'page_4', 'page_5'].map(
@@ -109,6 +118,11 @@ export class XaGame {
   private soundsReady = false;   // ...and until every sound is decoded
   private infoT = 0;             // level-select info bar slide-in timer (ButtonInformation, easeInOutQuad 0.3 s)
   private infoIndex = -1;
+  private stretch = false;
+  private resizeObs: ResizeObserver | null = null;       // "Estirar pantalla"
+  private pauseIndex = 0;        // PauseDialog: 0 = JUGAR, 1 = SALIR
+  private confirming = false;    // ConfirmationDialog "¿Seguro que quieres volver al menú principal?"
+  private confirmIndex = 1;      // 0 = SÍ, 1 = NO
   private cowCache: Record<number, number> = {};
   levelNum = 1;
 
@@ -120,6 +134,7 @@ export class XaGame {
     this.canvas.style.cursor = 'none';
     loadPrefs();
     this.state.load();
+    try { this.stretch = localStorage.getItem('xa-stretch') === '1'; } catch { /* storage unavailable */ }
   }
 
   async start(): Promise<void> {
@@ -128,6 +143,10 @@ export class XaGame {
     window.addEventListener('pointermove', this.onMouseMove);
     window.addEventListener('pointerdown', this.onPointerDown);
     window.addEventListener('pointerup', this.onPointerUp);
+    window.addEventListener('keydown', this.onKeyDown);
+    document.addEventListener('fullscreenchange', this.resize);
+    this.resizeObs = new ResizeObserver(this.resize);
+    this.resizeObs.observe(this.canvas);
     this.resize();
     const r = await restoreGameFolder(false);
     if (r === 'ok') await this.onFilesReady();
@@ -145,6 +164,9 @@ export class XaGame {
     window.removeEventListener('pointermove', this.onMouseMove);
     window.removeEventListener('pointerdown', this.onPointerDown);
     window.removeEventListener('pointerup', this.onPointerUp);
+    window.removeEventListener('keydown', this.onKeyDown);
+    document.removeEventListener('fullscreenchange', this.resize);
+    this.resizeObs?.disconnect();
     stopMusic();
   }
 
@@ -261,12 +283,32 @@ export class XaGame {
     this.mouseX = (e.clientX - r.left) * (this.canvas.width / r.width);
     this.mouseY = (e.clientY - r.top) * (this.canvas.height / r.height);
   };
-  private onPointerDown = () => { this.clicked = true; this.mouseDown = true; };
+  private onPointerDown = (e: PointerEvent) => {
+    this.onMouseMove(e);
+    this.clicked = true;
+    this.mouseDown = true;
+    // the fullscreen request must run inside the click handler itself (user activation)
+    if (this.screen === 'options') {
+      const m = this.mouseGamePos();
+      if (Math.abs(m.x - OPT_FULLSCREEN[0]) <= 16 && Math.abs(m.y - OPT_FULLSCREEN[1]) <= 13) this.toggleFullscreen();
+    }
+  };
+  private onKeyDown = (e: KeyboardEvent) => {
+    if (e.code === 'KeyF' && !e.repeat) this.toggleFullscreen();
+    if (this.screen === 'options' && this.optionIndex === 2 && (e.code === 'Enter' || e.code === 'NumpadEnter') && !e.repeat) this.toggleFullscreen();
+  };
+  private setStretch(on: boolean): void {
+    this.stretch = on;
+    try { localStorage.setItem('xa-stretch', on ? '1' : '0'); } catch { /* storage unavailable */ }
+  }
   private onPointerUp = () => { this.mouseDown = false; };
 
   toggleFullscreen(): void {
-    if (document.fullscreenElement) void document.exitFullscreen();
-    else void this.canvas.parentElement?.requestFullscreen?.();
+    try {
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+      else void this.canvas.parentElement?.requestFullscreen?.({ navigationUI: 'hide' }).catch(() => {});
+    } catch { /* not supported (iOS Safari) */ }
+    playSound('CLICK');
   }
 
   private frame = (now: number) => {
@@ -292,21 +334,21 @@ export class XaGame {
 
   private update(dt: number): void {
     pollInput();
-    if (keyPressed('F11') || keyPressed('KeyF')) this.toggleFullscreen();
     this.t += dt;
     this.hoverIndex = -1;
     switch (this.screen) {
       case 'splash': {
-        const dur = 1.8; // fade in + hold + fade out per logo
-        if (this.t >= dur || this.clicked || isFirstPress('confirm') || isFirstPress('jumpHold')) {
+        // SplashScreen: each logo is its own state that plays intro_piano once and sends itself "fadeToBlack"
+        // after 3.5 s (or on any key/click); leaving the state cuts its sound. Logo 2 → PreLoader with xa_intro.
+        if (this.t >= SPLASH_TIME || this.clicked || isFirstPress('any')) {
           this.splashStep++;
           this.t = 0;
           if (this.splashStep >= 2) {
-            // the piano "dong" belongs to the two logo screens only; the intro music starts with the loader
-            this.screen = 'loading'; this.loadingIsBoot = true; this.t = 0;
+            this.screen = 'loading'; this.loadingIsBoot = true;
             playMusic('xa_intro');
+          } else {
+            playMusic('intro_piano', false); // restarts the "dong" for the second logo
           }
-          else playSound('CLICK');
         }
         break;
       }
@@ -356,26 +398,36 @@ export class XaGame {
         break;
       }
       case 'options': {
-        // keyboard: up/down pick the item, left/right adjust, confirm toggles on/off
-        if (isFirstPress('up') || isFirstPress('down')) { this.optionIndex = 1 - this.optionIndex; playSound('CLICK'); }
+        // OptionsState: rows = music, effects, "Pantalla completa", "Estirar pantalla", ATRÁS.
+        // up/down pick the row, left/right move the volume, Enter toggles; Esc / ATRÁS go back.
+        const rows = 5;
+        if (isFirstPress('up')) { this.optionIndex = (this.optionIndex + rows - 1) % rows; playSound('CLICK'); }
+        if (isFirstPress('down')) { this.optionIndex = (this.optionIndex + 1) % rows; playSound('CLICK'); }
         if (isFirstPress('left') || isFirstPress('right')) {
           const d = isFirstPress('left') ? -1 : 1;
-          if (this.optionIndex === 0) setSoundVolume(Math.min(1, Math.max(0, getSoundVolume() + d * 0.1)));
-          else setMusicVolume(Math.min(1, Math.max(0, getMusicVolume() + d * 0.1)));
+          if (this.optionIndex === 0) setMusicVolume(Math.min(1, Math.max(0, getMusicVolume() + d * 0.1)));
+          else if (this.optionIndex === 1) setSoundVolume(Math.min(1, Math.max(0, getSoundVolume() + d * 0.1)));
         }
+        const back = () => { this.screen = 'menu'; this.menuIndex = -1; this.draggingSlider = null; playSound('CLICK'); };
         if (isFirstPress('confirm')) {
-          if (this.optionIndex === 0) setSoundEnabled(!isSoundEnabled());
-          else setMusicEnabled(!isMusicEnabled());
-          playSound('CLICK');
+          if (this.optionIndex === 0) { setMusicEnabled(!isMusicEnabled()); playSound('CLICK'); }
+          else if (this.optionIndex === 1) { setSoundEnabled(!isSoundEnabled()); playSound('CLICK'); }
+          else if (this.optionIndex === 3) { this.setStretch(!this.stretch); playSound('CLICK'); }
+          else if (this.optionIndex === 4) { back(); break; }
+          // index 2 (fullscreen) is handled in the keydown event (needs user activation)
         }
-        // mouse: click the toggles, click/drag the sliders
+        // mouse: click the toggles / checkboxes / ATRÁS, click or drag the sliders
         const m = this.mouseGamePos();
         const hit = (cx: number, cy: number, w: number, h: number) => m.x >= cx - w / 2 && m.x <= cx + w / 2 && m.y >= cy - h / 2 && m.y <= cy + h / 2;
+        this.hoverIndex = hit(256, 320, 106, 50) ? 4 : -1;
         if (this.clicked && !this.draggingSlider) {
-          if (hit(290, 180, 27, 26)) { setMusicEnabled(!isMusicEnabled()); playSound('CLICK'); }
-          else if (hit(290, 231, 27, 26)) { setSoundEnabled(!isSoundEnabled()); playSound('CLICK'); }
-          else if (m.x >= 152 && m.x <= 318 && Math.abs(m.y - 205) <= 15) this.draggingSlider = 'sound';
-          else if (m.x >= 152 && m.x <= 318 && Math.abs(m.y - 256) <= 15) this.draggingSlider = 'music';
+          if (hit(290, OPT_ROW_MUSIC, 27, 26)) { setMusicEnabled(!isMusicEnabled()); playSound('CLICK'); }
+          else if (hit(290, OPT_ROW_SFX, 27, 26)) { setSoundEnabled(!isSoundEnabled()); playSound('CLICK'); }
+          else if (hit(OPT_STRETCH[0], OPT_STRETCH[1], 32, 26)) { this.setStretch(!this.stretch); playSound('CLICK'); }
+          else if (hit(OPT_FULLSCREEN[0], OPT_FULLSCREEN[1], 32, 26)) { /* toggled in the pointerdown handler */ }
+          else if (this.hoverIndex === 4) { back(); break; }
+          else if (m.x >= 152 && m.x <= 318 && Math.abs(m.y - OPT_BAR_MUSIC) <= 15) this.draggingSlider = 'music';
+          else if (m.x >= 152 && m.x <= 318 && Math.abs(m.y - OPT_BAR_SFX) <= 15) this.draggingSlider = 'sound';
         }
         if (this.draggingSlider) {
           if (!this.mouseDown) this.draggingSlider = null;
@@ -384,7 +436,7 @@ export class XaGame {
             if (this.draggingSlider === 'sound') setSoundVolume(v); else setMusicVolume(v);
           }
         }
-        if (isFirstPress('back')) { this.screen = 'menu'; this.menuIndex = -1; this.draggingSlider = null; }
+        if (isFirstPress('back')) back();
         break;
       }
       case 'help': case 'credits':
@@ -408,6 +460,9 @@ export class XaGame {
       case 'play':
         if (isFirstPress('back') || keyPressed('KeyP')) {
           this.screen = 'paused';
+          this.pauseIndex = 0;
+          this.confirming = false;
+          playSound('CLICK');
           stopMusic();
           break;
         }
@@ -415,14 +470,7 @@ export class XaGame {
         this.hud.update(dt);
         break;
       case 'paused':
-        if (isFirstPress('back') || keyPressed('KeyP') || isFirstPress('confirm')) {
-          this.screen = 'play';
-          this.scenario?.resumeMusic();
-        }
-        if (keyPressed('KeyQ')) {
-          this.scenario = null;
-          this.screen = 'levels';
-        }
+        this.updatePause();
         break;
       case 'error':
         if (isFirstPress('back') && hasGameFiles()) this.screen = 'menu';
@@ -458,11 +506,18 @@ export class XaGame {
   }
 
   /** Convert the mouse's canvas position into 512x384 game space. */
-  private mouseGamePos(): { x: number; y: number } {
+  /** Where the 512x384 frame lands on the canvas: letterboxed 4:3, or filling the window when the original
+   *  "Estirar pantalla" option (Options::setAspectRatioEnabled) is on. */
+  private viewport(): { x: number; y: number; w: number; h: number } {
     const cw = this.canvas.width, ch = this.canvas.height;
+    if (this.stretch) return { x: 0, y: 0, w: cw, h: ch };
     const s = Math.min(cw / VIEW_W, ch / VIEW_H);
-    const ox = (cw - VIEW_W * s) / 2, oy = (ch - VIEW_H * s) / 2;
-    return { x: (this.mouseX - ox) / s, y: (this.mouseY - oy) / s };
+    const w = Math.round(VIEW_W * s), h = Math.round(VIEW_H * s);
+    return { x: Math.floor((cw - w) / 2), y: Math.floor((ch - h) / 2), w, h };
+  }
+  private mouseGamePos(): { x: number; y: number } {
+    const v = this.viewport();
+    return { x: ((this.mouseX - v.x) * VIEW_W) / v.w, y: ((this.mouseY - v.y) * VIEW_H) / v.h };
   }
   private menuHoverIndex(): number {
     const m = this.mouseGamePos();
@@ -503,17 +558,17 @@ export class XaGame {
 
     // scale the 512x384 frame to the canvas, letterboxed to 4:3
     const c = this.ctx, cw = this.canvas.width, ch = this.canvas.height;
-    const s = Math.min(cw / VIEW_W, ch / VIEW_H);
-    const dw = Math.round(VIEW_W * s), dh = Math.round(VIEW_H * s);
+    const v = this.viewport();
+    const s = v.h / VIEW_H;
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.fillStyle = '#000';
     c.fillRect(0, 0, cw, ch);
     c.imageSmoothingEnabled = true;
     c.imageSmoothingQuality = 'high';
-    c.drawImage(this.world, Math.floor((cw - dw) / 2), Math.floor((ch - dh) / 2), dw, dh);
+    c.drawImage(this.world, v.x, v.y, v.w, v.h);
 
-    // custom cursor (original POINTER sprite)
-    const cur = frameOf('POINTER', 0);
+    // custom cursor (original POINTER sprite) — hidden while playing so it doesn't get in the way
+    const cur = this.screen === 'play' ? null : frameOf('POINTER', 0);
     if (cur) {
       const cs = Math.max(16, Math.round(32 * s));
       c.drawImage(cur.image, cur.sx, cur.sy, cur.sw, cur.sh, Math.round(this.mouseX), Math.round(this.mouseY), cs, cs);
@@ -569,7 +624,7 @@ export class XaGame {
 
   private renderSplash(w: CanvasRenderingContext2D): void {
     const logo = this.splashStep === 0 ? 'assets/images/menuElements/screen_logo_batovi.jpg' : 'assets/images/menuElements/screen_logo_calcar.jpg';
-    const a = Math.min(1, Math.min(this.t * 2, Math.max(0, (1.8 - this.t) * 2)));
+    const a = Math.min(1, this.t / SPLASH_FADE, Math.max(0, (SPLASH_TIME - this.t) / SPLASH_FADE));
     w.fillStyle = '#000';
     w.fillRect(0, 0, VIEW_W, VIEW_H);
     const im = img(logo);
@@ -578,7 +633,6 @@ export class XaGame {
       w.drawImage(im, 0, 0, im.width, Math.min(im.height, VIEW_H), 0, 0, VIEW_W, VIEW_H);
       w.globalAlpha = 1;
     }
-    if (this.t > 0.4) this.drawPressAnyKey(w);
   }
 
   /** PreLoader: cargando_tile background; the 3-frame "CARGANDO" ribbon (anchor 260,0 at 512,288) covers the
@@ -717,25 +771,91 @@ export class XaGame {
   }
 
   private renderOptions(w: CanvasRenderingContext2D): void {
-    // Background (frame 0) + draggable volume knobs + ON/OFF toggles, matching OptionsState.
+    // OptionsState: background (frame 0), volume knobs on the bars under "Música" and "Efectos", ON/OFF
+    // toggles (✓ frame 2 / ✗ frame 3) next to each label, the Windows-only "Pantalla completa" / "Estirar
+    // pantalla" checkboxes, and the ATRÁS button (BUTTONS_MENU 12/13 at 256,320).
     const draw = (index: number, x: number, y: number) => {
       const f = frameOf('OPTIONS', index);
       if (f) w.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, x - f.sw / 2, y - f.sh / 2, f.sw, f.sh);
     };
     draw(0, VIEW_W / 2, VIEW_H / 2); // background
-    draw(isMusicEnabled() ? 1 : 4, getMusicVolume() * 166 + 152, 256); // music knob
-    draw(isSoundEnabled() ? 1 : 4, getSoundVolume() * 166 + 152, 205); // sound knob
-    draw(isMusicEnabled() ? 2 : 3, 290, 180); // music toggle
-    draw(isSoundEnabled() ? 2 : 3, 290, 231); // sound toggle
+    draw(isMusicEnabled() ? 1 : 4, getMusicVolume() * 166 + 152, OPT_BAR_MUSIC); // music knob
+    draw(isSoundEnabled() ? 1 : 4, getSoundVolume() * 166 + 152, OPT_BAR_SFX); // effects knob
+    draw(isMusicEnabled() ? 2 : 3, 290, OPT_ROW_MUSIC); // music toggle
+    draw(isSoundEnabled() ? 2 : 3, 290, OPT_ROW_SFX); // effects toggle
+    draw(document.fullscreenElement ? 2 : 3, OPT_FULLSCREEN[0], OPT_FULLSCREEN[1]);
+    draw(this.stretch ? 2 : 3, OPT_STRETCH[0], OPT_STRETCH[1]);
+    const back = frameOf('BUTTONS_MENU', this.optionIndex === 4 || this.hoverIndex === 4 ? 13 : 12);
+    if (back) w.drawImage(back.image, back.sx, back.sy, back.sw, back.sh, 256 - back.sw / 2, 320 - back.sh / 2, back.sw, back.sh);
+    // keyboard focus marker on the selected row
+    const rowY = [OPT_ROW_MUSIC, OPT_ROW_SFX, OPT_FULLSCREEN[1], OPT_STRETCH[1]][this.optionIndex];
+    if (rowY !== undefined) {
+      w.fillStyle = 'rgba(255,255,140,0.9)';
+      w.beginPath();
+      w.moveTo(140, rowY - 5); w.lineTo(147, rowY); w.lineTo(140, rowY + 5);
+      w.fill();
+    }
   }
 
+  /** PauseDialog / ConfirmationDialog hit boxes (512x384 space, BUTTONS_* sprites drawn centred on these). */
+  private pauseButtons(): { x: number; y: number; w: number; h: number }[] {
+    return this.confirming
+      ? [{ x: 256 - 85, y: 292, w: 60, h: 50 }, { x: 256 + 85, y: 292, w: 60, h: 50 }]
+      : [{ x: 256, y: 218, w: 106, h: 50 }, { x: 256, y: 268, w: 106, h: 50 }];
+  }
+  private pauseHover(): number {
+    const m = this.mouseGamePos();
+    return this.pauseButtons().findIndex((b) => Math.abs(m.x - b.x) <= b.w / 2 && Math.abs(m.y - b.y) <= b.h / 2);
+  }
+
+  /** PauseDialog::evaluateKeyboard / onClick: arrows move between the two buttons, Enter/Space/click activate,
+   *  Esc/P resumes (or closes the confirmation). JUGAR resumes; SALIR asks for confirmation → main menu. */
+  private updatePause(): void {
+    const hover = this.pauseHover();
+    const move = isFirstPress('up') || isFirstPress('down') || isFirstPress('left') || isFirstPress('right');
+    if (this.confirming) {
+      if (move) { this.confirmIndex = 1 - this.confirmIndex; playSound('CLICK'); }
+      if (hover >= 0) this.confirmIndex = hover;
+      const yes = () => {
+        playSound('CLICK');
+        this.scenario = null;
+        this.screen = 'menu';
+        this.menuIndex = -1;
+        playMusic('xa_menu');
+      };
+      if (isFirstPress('back')) { this.confirming = false; playSound('CLICK'); return; }
+      if ((this.clicked && hover >= 0) || isFirstPress('confirm') || isFirstPress('jumpHold')) {
+        if (this.confirmIndex === 0) yes();
+        else { this.confirming = false; playSound('CLICK'); }
+      }
+      return;
+    }
+    if (move) { this.pauseIndex = 1 - this.pauseIndex; playSound('CLICK'); }
+    if (hover >= 0) this.pauseIndex = hover;
+    if (isFirstPress('back') || keyPressed('KeyP')) { this.resumeFromPause(); return; }
+    if ((this.clicked && hover >= 0) || isFirstPress('confirm') || isFirstPress('jumpHold')) {
+      if (this.pauseIndex === 0) this.resumeFromPause();
+      else { this.confirming = true; this.confirmIndex = 1; playSound('CLICK'); }
+    }
+  }
+  private resumeFromPause(): void {
+    playSound('CLICK');
+    this.screen = 'play';
+    this.scenario?.resumeMusic();
+  }
+
+  /** PAUSE_DIALOG (banner.png: dimmed backdrop + green panel) with the JUGAR / SALIR buttons (BUTTONS_MENU 0/1
+   *  and 2/3); SALIR swaps to CONFIRMATION (exit_confirmation.png) with SÍ / NO (BUTTONS_YESNO 0/1, 2/3). */
   private renderPause(w: CanvasRenderingContext2D): void {
-    w.fillStyle = 'rgba(0,0,0,.55)';
-    w.fillRect(0, 0, VIEW_W, VIEW_H);
-    const f = frameOf('PAUSE_DIALOG', 0);
-    if (f) drawFrame(w, f, VIEW_W / 2, VIEW_H / 2);
-    this.text(w, 'Esc / P: continuar', VIEW_W / 2, 210, 12);
-    this.text(w, 'Q: salir a selección de nivel', VIEW_W / 2, 232, 12);
+    const bg = frameOf(this.confirming ? 'CONFIRMATION' : 'PAUSE_DIALOG', 0);
+    if (this.confirming) { w.fillStyle = 'rgba(0,0,0,.55)'; w.fillRect(0, 0, VIEW_W, VIEW_H); } // banner.png has its own dim
+    if (bg) w.drawImage(bg.image, bg.sx, bg.sy, bg.sw, bg.sh, 0, 0, VIEW_W, VIEW_H);
+    const map = this.confirming ? 'BUTTONS_YESNO' : 'BUTTONS_MENU';
+    const sel = this.confirming ? this.confirmIndex : this.pauseIndex;
+    this.pauseButtons().forEach((b, i) => {
+      const f = frameOf(map, i * 2 + (i === sel ? 1 : 0));
+      if (f) w.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, Math.round(b.x - f.sw / 2), Math.round(b.y - f.sh / 2), f.sw, f.sh);
+    });
   }
 
   private text(w: CanvasRenderingContext2D, t: string, x: number, y: number, size = 14, _color = '#e8f0e0', align: CanvasTextAlign = 'center'): void {

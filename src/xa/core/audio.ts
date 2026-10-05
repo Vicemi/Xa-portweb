@@ -13,6 +13,10 @@ const FX: Record<string, string> = {
   STEP_3: 'foot_3', STEP_4: 'foot_4', STAIR_1: 'stair_1', STAIR_2: 'stair_2', DOOR_OPENED: 'door_1',
   GUILLOTINE: 'guillotina', SAVING: 'save', CLICK: 'click', DOUBLE_JUMP: 'double_jump', COIN: 'coin',
   ENTRANCE: 'init_fall', INFO: 'info', SHOOT_ENEMY: 'enemy_shot',
+  // extra enemies (Super Vampire Ninja Zero)
+  SV_CUT: 'svnz_weakCut', SV_STRONG_CUT: 'svnz_strongCut', SV_HIT: 'svnz_weakHit', SV_STRONG_HIT: 'svnz_strongHit',
+  SV_JUMP: 'svnz_jump', SV_FALL: 'svnz_fall', SV_SPECIAL: 'svnz_special', SV_ACTION: 'svnz_action',
+  SV_DEMON_HURT: 'svnz_demon_hurt',
 };
 
 let ctx: AudioContext | null = null;

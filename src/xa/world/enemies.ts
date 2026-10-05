@@ -54,10 +54,10 @@ export class Enemy {
   vy = 0;
   dir: number;
   lives: number;
-  private anim: Anim | null = null;
+  protected anim: Anim | null = null;
   private img: string | null = null;
-  private readonly type: string;
-  private readonly p: Record<string, string>;
+  protected readonly type: string;
+  protected readonly p: Record<string, string>;
   private readonly homeX: number;
   private readonly homeY: number;
   private t = 0; // EnemyBird::initInterpolaltion starts every cycle at phase 0
@@ -74,10 +74,10 @@ export class Enemy {
   // restarts its anim there and only hops once that anim is over
   private jumpPhase: 'ground' | 'air' = 'air';
   private jumpT = 0;
-  private hitFlash = 0;
+  protected hitFlash = 0;
   private bossShooting = false;
 
-  constructor(private world: World, public o: TmxObject, x: number, y: number) {
+  constructor(protected world: World, public o: TmxObject, x: number, y: number) {
     this.type = o.type;
     this.p = o.props;
     this.x = this.homeX = x;
@@ -114,6 +114,10 @@ export class Enemy {
   }
 
   get isBoss(): boolean { return BOSS.has(this.type); }
+  /** Melee hit box active this frame (Super Vampire Ninja enemies' red rects); Xa enemies have none. */
+  attackRect(): { x: number; y: number; w: number; h: number } | null { return null; }
+  /** Xa rule: touching a (non-boss) enemy hurts the hero and removes the enemy. Heavy extra enemies stay. */
+  get contactRemoves(): boolean { return !this.isBoss; }
   /** intersects returns 0 without touching the hero: EnemyThrower and the fixed turrets (Cannon / Down3 share the
    *  EnemyFixedShooter-style ctor 0x434e10 in the Windows loadObjects). */
   get ignoresContact(): boolean { return NO_CONTACT.has(this.type); }

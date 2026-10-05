@@ -28,6 +28,7 @@ export class HeroState {
   cereals = 0;
   keys: string[] = [];
   actualLevel = 1;
+  keysHud = false;          // mod: extra levels with a gate show the key counter too
   lastPlayedLevel = 1;
   highScore = 0;
   progress: Record<number, LevelProgress> = {};
@@ -59,6 +60,7 @@ export class HeroState {
 
   startStage(level: number, totalCows: number, totalCoins: number): void {
     this.actualLevel = level;
+    this.keysHud = level >= 14;
     this.lastPlayedLevel = level;
     this.cows = 0;
     this.coins = 0;
@@ -71,7 +73,8 @@ export class HeroState {
   /** HeroState::getHighScore (+0x4): saveGame sums the best score of every level. */
   recordTotal(): number {
     let sum = 0;
-    for (const p of Object.values(this.progress)) sum += p?.score ?? 0;
+    // the original 16 levels only (the map-2 extra levels keep their own scores, numbered from 101)
+    for (const [n, p] of Object.entries(this.progress)) if (+n <= 16) sum += p?.score ?? 0;
     return sum;
   }
   /** HeroState::addLives caps at 99. */

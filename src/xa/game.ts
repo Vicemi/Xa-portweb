@@ -41,7 +41,25 @@ const TEXT_VC = LINE_H / 2;
 
 export type Screen = 'pick' | 'splash' | 'loading' | 'intro' | 'menu' | 'levels' | 'help' | 'credits' | 'options' | 'levelIntro' | 'play' | 'paused' | 'gameover' | 'win' | 'error';
 
-interface LevelEntry { label: string; path: string; num: number }
+interface LevelEntry { label: string; path: string; num: number; base?: number; extra?: number }
+
+// ---- Map 2: extra levels (mod) with the enemies of Super Vampire Ninja Zero (tools/gen_extra_levels.py) ----
+// Progress is stored under numbers 101..108; `base` is the original level whose terrain, tiles and moving
+// platforms the extra level reuses.
+const EXTRA_FIRST = 101;
+// When true the extra levels only open after the 16 original ones are completed. For now they are open.
+const EXTRA_REQUIRES_ORIGINALS = false;
+const EXTRA = [
+  { title: 'La Costa', base: 2, desc: 'Unos ninjas demonio desembarcaron\nen la costa. ¡Detenelos!' },
+  { title: 'El Puerto', base: 11, desc: 'Entre contenedores y barcos\nacechan murciélagos y ninjas.' },
+  { title: 'La Granja Solar', base: 8, desc: 'Los ninjas rojos saltan desde\nlos techos. ¡Atento!' },
+  { title: 'La Cantera', base: 6, desc: 'En lo profundo de la cantera\nvive un gran demonio.' },
+  { title: 'La Granja de Vacas', base: 4, desc: 'Los cuatreros y los demonios\nse unieron. ¡Salvá las vacas!' },
+  { title: 'La Bodega Embrujada', base: 7, desc: 'De noche los vampiros salen\nde la vieja bodega.' },
+  { title: 'La Ciudad de Noche', base: 9, desc: 'Las calles están tomadas.\nDrácula está cerca.' },
+  { title: 'El Castillo de Drácula', base: 7, desc: 'El señor de los vampiros te espera.\n¡Vencelo y salvá al planeta!' },
+] as const;
+const PAGE_ARROWS = [[494, 200], [18, 200]] as const; // map 1 -> map 2 (right edge), map 2 -> map 1 (left edge)
 
 // Button sprites (buttons_tile.png) + screen positions, from Menu::Menu (decompiled): [x, y] are the anchor
 // centres in the 512x384 menu art; n/h are [sx, sy, sw, sh] source rects for normal / hover states.
@@ -72,6 +90,8 @@ const SCREEN_IMAGES = [
   'assets/images/menuElements/menu_night.jpg',
   'assets/images/menuElements/buttons_tile.png',
   'assets/images/menuElements/map.png',
+  'assets/images/menuElements/map_2.png',
+  'assets/images/menuElements/preview_extra.jpg',
   'assets/images/menuElements/options_win.png',
   'assets/images/menuElements/cargando_tile.png',
   'assets/images/menuElements/black_back.jpg',
@@ -112,6 +132,8 @@ export class XaGame {
   private menuIndex = -1;       // -1 = nothing selected (first arrow selects JUGAR)
   private levelIndex = 0;
   private levels: LevelEntry[] = [];
+  private extras: LevelEntry[] = [];
+  private page = 0;              // level select: 0 = original map, 1 = map 2 (extra levels)
   private error = '';
   private needsPermission = false;
   private t = 0;                // time in the current screen
@@ -134,6 +156,7 @@ export class XaGame {
   private soundsReady = false;   // ...and until every sound is decoded
   private infoT = 0;             // level-select info bar slide-in timer (ButtonInformation, easeInOutQuad 0.3 s)
   private infoIndex = -1;
+  private introExtra = 0;        // extra level number (1-8) of the level intro card, 0 for the originals
   private arrowFrom = 0;         // level-select arrow glides from this node to levelIndex
   private arrowT = ARROW_GLIDE_INIT;
   private hdArt: string | null = null; // high-res screen art redrawn at display resolution this frame
@@ -259,15 +282,25 @@ export class XaGame {
     this.soundsReady = false;
     void preloadSounds().finally(() => { this.soundsReady = true; }); // PreLoader: CARGANDO until decoded
     const custom = listFiles('assets/data/')
-      .filter((p) => p.endsWith('.tmx') && !/\/level\d+\.tmx$/.test(p))
+      .filter((p) => p.endsWith('.tmx') && !/\/level\d+\.tmx$/.test(p) && !p.includes('/extra/'))
       .map((p) => ({ label: p.split('/').pop()!.replace('.tmx', ''), path: p, num: 0 }));
     this.levels = [
       ...Array.from({ length: LEVEL_COUNT }, (_, i) => ({ label: `Nivel ${i + 1} - ${LEVEL_TITLES[i] ?? ''}`, path: `assets/data/level${i + 1}.tmx`, num: i + 1 })),
       ...custom,
     ];
+    this.extras = EXTRA.map((e, k) => ({
+      label: e.title, path: `assets/data/extra/extra${k + 1}.tmx`, num: EXTRA_FIRST + k, base: e.base, extra: k + 1,
+    }));
     // Modding / testing shortcuts: ?level=N jumps straight into level N, ?map=assets/data/x.tmx into any TMX.
     const q = new URLSearchParams(location.search);
-    const lv = +(q.get('level') ?? 0), map = q.get('map');
+    const lv = +(q.get('level') ?? 0), map = q.get('map'), ex = +(q.get('extra') ?? 0);
+    if (ex >= 1 && ex <= this.extras.length) {
+      this.page = 1;
+      this.selectLevel(ex - 1);
+      playMusic('xa_menu');
+      void this.loadLevel(this.extras[ex - 1]);
+      return;
+    }
     if (map || (lv >= 1 && lv <= LEVEL_COUNT)) {
       const entry = map
         ? this.levels.find((l) => l.path === map.toLowerCase()) ?? { label: map.split('/').pop()!.replace('.tmx', ''), path: map, num: 0 }
@@ -292,11 +325,13 @@ export class XaGame {
     this.levelReady = false;
     this.readyT = 0;
     this.introNum = entry.num;
-    this.introLabel = entry.num ? (LEVEL_TITLES[entry.num - 1] ?? entry.label) : entry.label;
+    this.introLabel = entry.num && !entry.extra ? (LEVEL_TITLES[entry.num - 1] ?? entry.label) : entry.label;
+    this.introExtra = entry.extra ?? 0;
     this.t = 0;
     const t0 = performance.now();
     try {
-      const level = parseTmx(await loadText(entry.path));
+      const text = await loadText(entry.path);
+      const level = parseTmx(text);
       await preloadImages(Scenario.imagePaths(level));
       stopMusic();
       // keep the "CARGANDO..." ribbon visible for a minimum time (otherwise it flashes for microseconds)
@@ -305,7 +340,7 @@ export class XaGame {
       this.levelNum = entry.num || this.levelNum;
       this.hud = new Hud();
       this.state.beginLevel(); // power-ups/keys/coins never carry over between levels (HeroState::goToLevelSelect)
-      this.scenario = new Scenario(level, entry.num, this.state, {
+      this.scenario = new Scenario(level, entry.base ?? entry.num, this.state, {
         gameOver: () => {
           this.state.reset();
           this.scenario = null;
@@ -318,6 +353,15 @@ export class XaGame {
           if (n) this.state.recordLevel(n);
           this.scenario = null;
           this.t = 0;
+          if (entry.extra) {
+            // map 2: back to the extra map with the next extra level selected; the last one ends the game
+            if (entry.extra >= EXTRA.length) { playMusic('xa_win'); this.screen = 'win'; return; }
+            playMusic('xa_menu');
+            this.screen = 'levels';
+            this.page = 1;
+            this.selectLevel(Math.min(entry.extra, this.extraUnlocked() - 1));
+            return;
+          }
           if (n && n >= LEVEL_COUNT) {
             // last level only: "game complete" screen
             playMusic('xa_win');
@@ -326,12 +370,15 @@ export class XaGame {
             // otherwise: back to level select, cursor on the newly unlocked next level
             playMusic('xa_menu');
             this.screen = 'levels';
+            this.page = 0;
             if (n) this.selectLevel(Math.min(n, this.unlockedCount() - 1)); // cursor on the newly unlocked level
           }
         },
         message: (t, seconds) => this.hud.showMessage(t, seconds),
         saving: () => this.hud.showSaving(),
       });
+      // the key counter shows from level 14 on, and in extra levels that have a gate
+      if (entry.extra) this.state.keysHud = /type="Door"/.test(text);
       this.levelReady = true;
       this.readyT = 0;
     } catch (e) {
@@ -457,6 +504,14 @@ export class XaGame {
         // LevelSelectScreen::update: right/up = next level, left/down = previous, along the map path (no wrap),
         // never past the last unlocked one; holding the key keeps stepping once the arrow has glided over
         this.arrowT = Math.min(ARROW_GLIDE, this.arrowT + dt);
+        // map 1 <-> map 2: the arrow on the map edge, or right past the last open level / left before the first
+        // extra one
+        if ((this.page === 0 && isFirstPress('right') && this.levelIndex === this.lastSelectable())
+          || (this.page === 1 && isFirstPress('left') && this.levelIndex === 0)
+          || (this.clicked && this.pageArrowHover())) {
+          this.openPage(1 - this.page);
+          break;
+        }
         if (this.arrowT >= ARROW_GLIDE) {
           const next = isPressed('right') || isPressed('up');
           const prev = isPressed('left') || isPressed('down');
@@ -478,11 +533,11 @@ export class XaGame {
         this.infoT += dt;
         if (this.clicked && this.hoverIndex >= 0 && this.isUnlocked(this.hoverIndex)) {
           this.selectLevel(this.hoverIndex);
-          void this.loadLevel(this.levels[this.hoverIndex]);
+          void this.loadLevel(this.pageLevels[this.hoverIndex]);
         } else if (isFirstPress('confirm') || isFirstPress('jumpHold') || isFirstPress('jumpTap') || isFirstPress('fire')) {
           // isSelectionAccept: fire, jump or Enter
           playSound('CLICK');
-          if (this.isUnlocked(this.levelIndex)) void this.loadLevel(this.levels[this.levelIndex]);
+          if (this.isUnlocked(this.levelIndex)) void this.loadLevel(this.pageLevels[this.levelIndex]);
         }
         break;
       }
@@ -576,7 +631,7 @@ export class XaGame {
   private activateMenu(action: string): void {
     playSound('CLICK');
     switch (action) {
-      case 'levels': this.screen = 'levels'; this.selectLevel(this.unlockedCount() - 1); this.t = 0; playMusic('xa_menu'); break; // cursor on the newest unlocked level
+      case 'levels': this.screen = 'levels'; this.page = 0; this.selectLevel(this.unlockedCount() - 1); this.t = 0; playMusic('xa_menu'); break; // cursor on the newest unlocked level
       case 'help': this.screen = 'help'; this.t = 0; break;
       case 'options': this.screen = 'options'; this.t = 0; break;
       case 'credits': this.screen = 'credits'; this.t = 0; break;
@@ -594,8 +649,35 @@ export class XaGame {
    *  custom maps listed after level 16. */
   private lastSelectable(): number {
     let last = 0;
-    for (let i = 0; i < this.levels.length; i++) if (this.isUnlocked(i)) last = i;
+    const list = this.pageLevels;
+    for (let i = 0; i < list.length; i++) if (this.isUnlocked(i)) last = i;
     return last;
+  }
+
+  /** Levels shown on the current map page. */
+  private get pageLevels(): LevelEntry[] { return this.page ? this.extras : this.levels; }
+
+  /** Extra levels open one after another (the first one right away, or after level 16 when required). */
+  private extraUnlocked(): number {
+    if (EXTRA_REQUIRES_ORIGINALS && !this.state.progress[LEVEL_COUNT]?.done) return 0;
+    let u = 1;
+    for (let k = 0; k < EXTRA.length; k++) if (this.state.progress[EXTRA_FIRST + k]?.done) u = k + 2;
+    return Math.min(EXTRA.length, u);
+  }
+
+  private openPage(p: number): void {
+    this.page = p;
+    this.selectLevel(p ? Math.max(0, this.extraUnlocked() - 1) : this.unlockedCount() - 1);
+    this.infoIndex = -1;
+    this.t = 0;
+    playSound('CLICK');
+  }
+
+  /** Is the pointer on the page arrow of the current map? */
+  private pageArrowHover(): boolean {
+    const m = this.mouseGamePos();
+    const [ax, ay] = PAGE_ARROWS[this.page];
+    return Math.abs(m.x - ax) < 22 && Math.abs(m.y - ay) < 26;
   }
 
   /** Highest level number the player may play (1 + last completed). */
@@ -605,8 +687,9 @@ export class XaGame {
     return Math.min(LEVEL_COUNT, u);
   }
   private isUnlocked(idx: number): boolean {
-    const e = this.levels[idx];
+    const e = this.pageLevels[idx];
     if (!e) return false;
+    if (e.extra) return e.extra <= this.extraUnlocked();
     if (e.num === 0) return true; // custom/mod levels are always playable
     return e.num <= this.unlockedCount();
   }
@@ -802,12 +885,14 @@ export class XaGame {
   }
 
   private renderLevels(w: CanvasRenderingContext2D): void {
-    this.coverTop(w, 'assets/images/menuElements/map.png');
+    this.coverTop(w, this.page ? 'assets/images/menuElements/map_2.png' : 'assets/images/menuElements/map.png');
+    const list = this.pageLevels;
     for (let i = 0; i < NODE_POS.length; i++) {
       const [px, py] = NODE_POS[i];
-      const entry = this.levels[i];
+      const entry = list[i];
+      if (!entry && this.page) continue; // map 2 only shows the extra levels that exist
       const num = entry?.num ?? 0;
-      const locked = num !== 0 && num > this.unlockedCount();
+      const locked = !!entry && !this.isUnlocked(i);
       const perfect = !!num && this.state.isPerfect(num);
       const current = i === this.levelIndex || i === this.hoverIndex;
       if (i === this.levelIndex) {
@@ -833,14 +918,31 @@ export class XaGame {
         if (a) w.drawImage(a.image, a.sx, a.sy, a.sw, a.sh, ax + 20 - 20, ay + 10 - 30 - bob, a.sw, a.sh);
       }
     }
+    this.renderPageArrow(w);
     this.renderInfoBar(w);
+  }
+
+  /** Mod: arrow on the map edge to switch between the original map and map 2 (the original ARROW sprite turned
+   *  sideways, bobbing like the node arrow). */
+  private renderPageArrow(w: CanvasRenderingContext2D): void {
+    const a = frameOf('ARROW', 0);
+    if (!a) return;
+    const [ax, ay] = PAGE_ARROWS[this.page];
+    const ph = (this.t % ARROW_BOB) / ARROW_BOB, kb = ph < 0.5 ? ph * 2 : 2 - ph * 2;
+    const bob = ((1 - Math.cos(Math.PI * kb)) / 2) * 6 * (this.page ? -1 : 1);
+    w.save();
+    w.translate(Math.round(ax + bob), ay);
+    w.rotate(this.page ? Math.PI / 2 : -Math.PI / 2);
+    if (this.pageArrowHover()) w.scale(1.15, 1.15);
+    w.drawImage(a.image, a.sx, a.sy, a.sw, a.sh, -a.sw / 2, -a.sh / 2, a.sw, a.sh);
+    w.restore();
   }
 
   /** ButtonInformation: info_map.png bar slid up from the bottom (easeInOutQuad, 0.3 s) showing the selected
    *  level's number, cows x / y, coin %, title and 6-digit score, all in the black game font (font 0). */
   private renderInfoBar(w: CanvasRenderingContext2D): void {
     const bar = img('assets/images/menuElements/info_map.png');
-    const entry = this.levels[this.infoIndex >= 0 ? this.infoIndex : this.levelIndex];
+    const entry = this.pageLevels[this.infoIndex >= 0 ? this.infoIndex : this.levelIndex];
     if (!bar || !entry) return;
     const k = Math.min(1, this.infoT / 0.3);
     const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
@@ -848,23 +950,23 @@ export class XaGame {
     w.drawImage(bar, 0, top);
     const num = entry.num;
     const prog = num ? this.state.progress[num] : undefined;
-    const totalCows = prog?.totalCows ?? (num ? this.totalCowsOf(num) : 0);
+    const totalCows = prog?.totalCows ?? (num ? this.totalCowsOf(num, entry.path) : 0);
     const pct = levelCoinPct(prog);
     const score = String(prog?.score ?? 0).padStart(6, '0');
     const c = (t: string, x: number, y: number) => drawText(w, t, x, top + y - TEXT_VC, 'black', 'center');
-    c(num ? String(num) : '-', 96, 30);
+    c(entry.extra ? `E${entry.extra}` : num ? String(num) : '-', 96, 30);
     c(String(prog?.cows ?? 0), 165, 30);
     c(String(totalCows), 197, 30);
     c(String(pct), 273, 30);
-    c(num ? (LEVEL_TITLES[num - 1] ?? entry.label) : entry.label, 257, 11);
+    c(num && !entry.extra ? (LEVEL_TITLES[num - 1] ?? entry.label) : entry.label, 257, 11);
     c(score, 448, 30);
   }
 
   /** Cow count of a level, read once from its TMX, so the bar shows "0 / N" before the level is played. */
-  private totalCowsOf(num: number): number {
+  private totalCowsOf(num: number, path: string): number {
     if (this.cowCache[num] === undefined) {
       this.cowCache[num] = 0;
-      void loadText(`assets/data/level${num}.tmx`).then((t) => { this.cowCache[num] = (t.match(/type="Cow"/g) ?? []).length; }).catch(() => {});
+      void loadText(path).then((t) => { this.cowCache[num] = (t.match(/type="Cow"/g) ?? []).length; }).catch(() => {});
     }
     return this.cowCache[num];
   }
@@ -889,18 +991,22 @@ export class XaGame {
     w.fillRect(0, 0, VIEW_W, VIEW_H);
     const n = this.introNum;
     const prev = img('assets/lang/images/intros/preview_levels_tile.jpg');
-    if (prev && n >= 1 && n <= LEVEL_COUNT) {
+    const ex = this.introExtra;
+    const prevX = img('assets/images/menuElements/preview_extra.jpg');
+    if (ex && prevX) w.drawImage(prevX, 0, (ex - 1) * 115, 512, 115, 0, 128, 512, 115);
+    else if (prev && n >= 1 && n <= LEVEL_COUNT) {
       const sx = n <= 8 ? 0 : 512, sy = ((n - 1) % 8) * 115;
       w.drawImage(prev, sx, sy, 512, 115, 0, 128, 512, 115);
     }
     const mask = img('assets/lang/images/intros/fondo_niveles.png');
     if (mask) w.drawImage(mask, 0, 0, 512, 384, 0, 0, 512, 384);
-    const desc = n ? LANG.descriptions[n - 1] ?? '' : '';
+    const desc = ex ? EXTRA[ex - 1].desc : n ? LANG.descriptions[n - 1] ?? '' : '';
     if (desc) {
       const lines = desc.split('\n').length;
       drawText(w, desc, 256, Math.round(57 - (lines * LINE_H) / 2), 'black', 'center');
     }
-    if (n) drawText(w, LANG.ids[n - 1] ?? `Nivel ${n}`, 425, 212, 'white', 'left');
+    if (ex) drawText(w, `Extra ${ex}`, 425, 212, 'white', 'left');
+    else if (n) drawText(w, LANG.ids[n - 1] ?? `Nivel ${n}`, 425, 212, 'white', 'left');
     drawText(w, this.introLabel, 256, 256, 'black2', 'center');
     if (!this.levelReady) {
       const f = frameOf('PRESS_ANY_KEY', 3); // "CARGANDO..."

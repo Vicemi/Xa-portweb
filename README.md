@@ -52,13 +52,29 @@ Si encontrás algún problema, abrí un *issue* contando **en qué nivel**, **qu
 - **Opciones:** volumen de música y efectos, **pantalla completa** y **estirar pantalla**; todo se recuerda entre partidas.
 - **Celular:** controles táctiles con multitouch (ver abajo) y aviso para girar el teléfono.
 
+### 🧛 Niveles extra: el mapa 2 (mod)
+
+Además del juego original, el port suma un **segundo mapa con 8 niveles nuevos** que mezclan Xa con los enemigos de **[Super Vampire Ninja Zero](http://www.supervampireninja.com)**, el prototipo de pelea que Batoví Games Studio hizo en 2009.
+
+- **Cómo entrar:** en el mapa de niveles, tocá la **flecha del borde derecho** (o apretá **→** sobre el último nivel abierto). En el mapa 2, la **flecha izquierda** (o **←** sobre el primer nivel) vuelve al mapa original.
+- **Desbloqueo:** el primer nivel extra está abierto desde el principio y cada uno abre el siguiente. Más adelante se van a desbloquear al terminar los 16 originales (`EXTRA_REQUIRES_ORIGINALS` en [`game.ts`](src/xa/game.ts)).
+- **Enemigos nuevos**, con sus sprites, animaciones y zonas de golpe originales, adaptados a las reglas de Xa:
+  - **Ninja demonio**: patrulla, te persigue y ataca con un tajo.
+  - **Ninja rojo**: salta hacia vos y remata con un golpe.
+  - **Murciélago**: revolotea y se lanza en picada.
+  - **Gran demonio**: lento y blindado; golpea el piso (la pantalla tiembla y salen ondas de choque) y salta para aplastarte. No se puede pisar.
+  - **Drácula** (jefe del nivel 8): combo de golpes, conjuro de balas en abanico, teletransporte con la capa y patada en picada. Al vencerlo suelta la llave de la salida.
+- **Escenarios:** el terreno de cada nivel sale de los niveles originales, recombinado con empalmes invisibles. Los fondos de SVNZ (arena, dojo, mazmorra y grilla) están recortados y adaptados al parallax de Xa, y suena la música de SVNZ.
+- Para regenerarlos desde tu instalación de SVNZ: `python tools/import_svnz.py "F:/Games/SuperVampireNinjaZero"` y después `python tools/gen_extra_levels.py`.
+
 ### 🗺️ Planes a futuro
 
 - [x] Port fiel del juego completo, publicado online con deploy continuo
 - [ ] Comparación lado a lado con el original para los últimos detalles finos
+- [x] Niveles y enemigos nuevos: mapa 2 con los personajes de Super Vampire Ninja Zero
 - [ ] Soporte para mods
 - [ ] Editor / creación de mapas nuevos
-- [ ] Nuevos personajes
+- [ ] Más personajes (por ejemplo Mina y su hermana poseída, de SVNZ)
 - [ ] Expansión general del contenido del juego
 
 ---
@@ -169,6 +185,7 @@ Todos se ejecutan desde la raíz del proyecto:
 | URL | Qué hace |
 | :--- | :--- |
 | `/?level=5` | Entra directo al nivel 5 (1 a 16) |
+| `/?extra=3` | Entra directo al nivel extra 3 del mapa 2 (1 a 8) |
 | `/?map=assets/data/mi_mapa.tmx` | Carga cualquier mapa TMX |
 | `/?touch=1` / `/?touch=0` | Fuerza / desactiva los controles táctiles |
 
@@ -191,7 +208,7 @@ Los objetos del mapa usan los mismos tipos y propiedades que el original (`Enemy
 ```text
 /
 ├── public/
-│   ├── assets/          # assets originales del juego + manifest.json
+│   ├── assets/          # assets originales del juego + manifest.json (svnz/ y data/extra/: mapa 2)
 │   └── favicon.png
 ├── src/
 │   ├── components/
@@ -201,12 +218,15 @@ Los objetos del mapa usan los mismos tipos y propiedades que el original (`Enemy
 │   └── xa/              # el motor del port
 │       ├── core/        # assets, audio, input, sprites, fuente bitmap
 │       ├── data/        # sprites.json, levels.json, font.json (extraídos del juego original)
-│       ├── world/       # mundo, héroe, enemigos, tilemap, objetos, HUD, cámara
+│       ├── world/       # mundo, héroe, enemigos, tilemap, objetos, HUD, cámara (svnz.ts: enemigos del mapa 2)
 │       └── game.ts      # bucle principal (60 fps) y flujo de pantallas
 ├── tools/               # herramientas de ingeniería inversa y de datos
 │   ├── extract_texts.py # extrae títulos, descripciones y textos del xa.exe original
 │   ├── xre.py           # explora el xa.exe (strings, lecturas/escrituras, constantes)
 │   ├── xre_points.py    # busca los puntos de cada enemigo en el xa.exe
+│   ├── xre_types.py     # qué sprites/patrones fija cada tipo de enemigo en el xa.exe
+│   ├── import_svnz.py   # importa personajes, fondos y sonidos de Super Vampire Ninja Zero
+│   ├── gen_extra_levels.py # arma los niveles extra del mapa 2
 │   ├── build_data.py    # genera sprites.json a partir de lo extraído
 │   ├── gen-manifest.mjs # regenera public/assets/manifest.json
 │   └── …                # anims.py, imagemaps.py, letterwidth.py, collision-sim.mjs, cap.ps1
@@ -220,6 +240,8 @@ Este port **incluye** los assets originales (imágenes, sonidos, mapas `.tmx`) e
 
 - Al cargar, el juego usa primero los assets incluidos (`/assets/`).
 - Si no los encuentra, cae al modo de carpeta: el navegador te pide elegir tu instalación del juego (File System Access API; con alternativa de selector de carpeta en Firefox/Safari). Los archivos se leen **localmente en tu navegador** y **nunca** se suben a ningún servidor.
+
+Los personajes, fondos, música y sonidos del mapa 2 vienen de *Super Vampire Ninja Zero* (Batoví Games Studio, 2009), el prototipo que el estudio publicó gratis.
 
 > ⚠️ *XA: Contra los Cuatreros Galácticos* es obra de **Batoví Games Studio** y **Calcar**. Este es un proyecto de fans **sin fines de lucro**; si algún titular de derechos lo solicita, el repositorio se dará de baja.
 
@@ -238,6 +260,7 @@ El trabajo se hace en la rama `develop` y se integra en `main` cuando está prob
 ## ⚖️ Créditos y aviso legal
 
 - **XA: Contra los Cuatreros Galácticos** es obra de sus creadores originales, **Batoví Games Studio** y **Calcar**. Todos los derechos sobre el juego original, sus personajes y sus assets les pertenecen.
+- **Super Vampire Ninja Zero** (cuyos personajes aparecen en el mapa 2) es obra de **Batoví Games Studio**: Federico Medina, Sebastián García y Juan Fornos (música).
 - Este es un **proyecto de fans, sin fines de lucro**, hecho por nostalgia y con el objetivo de preservar el juego. No está afiliado ni respaldado por los autores originales.
 - Si sos uno de los titulares de los derechos y tenés alguna inquietud sobre este proyecto, no dudes en contactarme.
 

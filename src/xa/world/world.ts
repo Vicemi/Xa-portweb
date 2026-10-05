@@ -332,12 +332,12 @@ export class Scenario implements World {
       e.update(dt);
       if (h.isAlive()) {
         const eb = e.bounds();
-        if (overlaps(h.rect, eb)) {
+        if (!e.ignoresContact && overlaps(h.rect, eb)) {
           if (e.isInstantKill) {
             h.setState(HS.Dead); // StubEnemy/EnemyDeathBarrier: touching = instant death (no damage)
           } else if (e.isIndestructible) {
             h.onCollisionEnemy(4); // hazard: contact damage only, never destroyed
-          } else if (h.vel.y > 0 && h.rect.y + h.rect.h - eb.y < 24) {
+          } else if (!e.unstompable && h.vel.y > 0 && h.rect.y + h.rect.h - eb.y < 24) {
             h.bounce();
             if (e.isBoss) { if (e.onBullet()) this.killBoss(e); }
             else this.killEnemy(e);

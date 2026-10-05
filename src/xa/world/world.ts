@@ -358,7 +358,10 @@ export class Scenario implements World {
           }
         }
       } else if (h.isAlive()) {
-        if (b.x > h.rect.x && b.x < h.rect.x + h.rect.w && b.y > h.rect.y && b.y < h.rect.y + h.rect.h) {
+        // bullets are 6x6 rects (XABulletFactory setSize(6,6)); while Xa blocks facing the shot, the hit area
+        // reaches the front of the raised shield so the bullet visibly smashes against it
+        const hr = h.hitRectFor(b.vx);
+        if (overlaps({ x: b.x - 3, y: b.y - 3, w: 6, h: 6 }, hr)) {
           b.alive = false;
           h.onBullet(b.x, b.y, Math.sign(b.vx));
         }

@@ -22,14 +22,15 @@ const AUTO_SHOOTERS: Record<string, string> = {
 const BOSS = new Set(['Boss']);
 // InteractiveObject::isInvisibleForBullet → these are ignored by hero bullets.
 const BULLET_PROOF = new Set(['Guillotine', 'Rocket']);
-// Hazards that kill the hero outright on contact (EnemyDeathBarrier::intersects → Hero::setState(Dead)).
-// NOTE: "Stub" (los pinchos) NO está aquí: el usuario confirmó que resta vida, no mata.
-const INSTANT_KILL = new Set(['Spikes', 'Stalactite', 'Lava', 'AcidDrop', 'DeathBarrier', 'DummyDeathBarrier', 'Fire']);
+// Hazards that kill the hero outright on contact (Hero::setState(9)). "Stub" = the spiky balls (UFO_SPIKY):
+// StubEnemy::intersects kills on any overlap with its TMX rect, as the level-1 sign warns ("¡Si pisas estos
+// objetos punteagudos morirás al instante!").
+const INSTANT_KILL = new Set(['Stub', 'Spikes', 'Stalactite', 'Lava', 'AcidDrop', 'DeathBarrier', 'DummyDeathBarrier', 'Fire']);
 // Contact is lethal too, but these remain destructible by bullets (EnemyBomb explodes on death).
 // EnemyUltraton::intersects (inherited by EnemyBoss): touching them = Hero::setState(9); bullets only.
 const CONTACT_KILL = new Set([...INSTANT_KILL, 'Bomb', 'Ultraton', 'Boss']);
-// Never destroyed by bullets/stomps. "Stub" deals contact damage (no instant death).
-const INDESTRUCTIBLE = new Set(['Stub', ...INSTANT_KILL]);
+// Never destroyed by bullets/stomps.
+const INDESTRUCTIBLE = new Set(INSTANT_KILL);
 
 export class Enemy {
   alive = true;
@@ -81,6 +82,12 @@ export class Enemy {
   }
 
   bounds(): { x: number; y: number; w: number; h: number } {
+    // spiky balls: the object's bound is its image (UFO_SPIKY 38x27, anchor 20,24) where it is drawn, trimmed to
+    // the visible spikes, so touching what you see kills and the empty top of the tile doesn't
+    if (this.type === 'Stub') {
+      const f = this.img ? frameOf(this.img, 0) : null;
+      if (f) return { x: this.x - f.ax + 3, y: this.y - f.ay + 3, w: f.sw - 6, h: f.sh - 4 };
+    }
     return { x: this.x - this.w / 2, y: this.y - this.h, w: this.w, h: this.h };
   }
 

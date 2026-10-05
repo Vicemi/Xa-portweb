@@ -20,6 +20,7 @@ const FIRE_RATE = 12;  // bullets per second while holding fire
 const BURST = 3;
 const BURST_PAUSE = 0.25;
 const HIT_FLASH = 0.5;
+const SHIELD_REACH = 30; // front edge of the BLOCK_IN shield (HERO frame 25 reaches x+33 from the anchor)
 const DEATH_WAIT = 1.0;
 
 export const enum HS {
@@ -205,12 +206,26 @@ export class Hero {
     playSound('HERO_HIT');
   }
   /** Hero::onCollision: hit by an enemy bullet travelling with horizontal velocity sign `bulletDir`. */
+  /** Hero::onCollision(Bullet): blocking (state 12, not shooting) stops shots that come from the front. */
+  private shieldStops(bulletVx: number): boolean {
+    return this.state === HS.Block && !this.shooting && this.dir !== Math.sign(bulletVx);
+  }
+  /** Area a bullet must touch: the body, plus the raised shield (up to 30 px ahead of the feet) when blocking. */
+  hitRectFor(bulletVx: number): Rect {
+    const r = this.rect;
+    if (!this.shieldStops(bulletVx)) return r;
+    const front = this.pos.x + this.dir * SHIELD_REACH;
+    const x0 = Math.min(r.x, front), x1 = Math.max(r.x + r.w, front);
+    return { x: x0, y: r.y, w: x1 - x0, h: r.h };
+  }
+
   onBullet(bulletX: number, bulletY: number, bulletDir: number): void {
     if (this.state === HS.Dead) return;
     const W = this.world;
-    if (this.state === HS.Block && !this.shooting && this.dir !== Math.sign(bulletDir)) {
+    if (this.shieldStops(bulletDir)) {
+      // HERO_DEFENSE_1/2 at random + ORANGE_SHINE where the shot meets the shield; no energy lost
       playSound(Math.random() < 0.5 ? 'HERO_DEFENSE_1' : 'HERO_DEFENSE_2');
-      W.addEffect('ORANGE_SHINE', bulletX + -Math.sign(bulletDir) * 15, bulletY, -Math.sign(bulletDir));
+      W.addEffect('ORANGE_SHINE', bulletX, bulletY, -Math.sign(bulletDir) || -this.dir);
       return;
     }
     W.state.subEnergy(1);

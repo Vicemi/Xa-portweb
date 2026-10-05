@@ -51,7 +51,7 @@ export class Hud {
     drawLine(ctx, 'Puntos', 271, 10, 'black', 'center', 1);
     drawLine(ctx, pad(s.score, 6), 271, 25, 'black', 'center', 1);
     this.blit(ctx, 'COINS', 323, 12);
-    drawLine(ctx, pad(s.coins, 3), 369, 8, 'black', 'center', 1);
+    drawLine(ctx, pad(s.coinPercentage(), 3), 369, 8, 'black', 'center', 1); // Hud::setCoins: coin %, 3 digits
     this.blit(ctx, 'COW', 410, 10);
     drawLine(ctx, pad(s.cows, 2), 450, 10, 'black', 'left', 1);
     drawLine(ctx, pad(s.totalCows, 2), 480, 10, 'black', 'left', 1);

@@ -532,3 +532,23 @@ documentado en el descompilado, sin copiar código descompilado al repo.
 - Verificado en el navegador sobre los 80 `pText` de los 16 niveles: 0 barras invertidas, 0 caracteres fuera del
   alfabeto de la fuente, 0 líneas > 410 px (ancho útil del globo).
 - Lección: los patch scripts deben `assert` cada reemplazo (los que no lo hacían fallaron sin avisar).
+
+## Estado 2026-10-05 (ronda 26 — nivel perfecto, pinchos, escudo)
+- **Nivel perfecto** (LevelSelectScreen ctor): `perfect = cows == totalCows && coinPct == 100` → BUTTONS_PERFECT_LEVELS
+  (0 normal / 2 hover / 1 pulsado), si no BUTTONS_LEVELS (1/3/2, 0 bloqueado). **HeroState::saveGame guarda el MEJOR
+  resultado por nivel** (max vacas, max % monedas, max puntaje). El port sobrescribía con la última partida (un replay
+  peor borraba el perfecto) y comparaba cantidades. Ahora `HeroState.recordLevel(n)` (best-of) + `isPerfect(n)` +
+  `levelCoinPct()` (compatible con saves viejos). Verificado: niveles 1,2,3,6,10,14,16 con todo → perfecto; replay
+  malo del 1 sigue perfecto.
+- **HUD monedas** (Hud::setCoins): muestra el PORCENTAJE de monedas del nivel con 3 dígitos, no la cantidad.
+  Monedas: Hero::addItems("POINTS", n, isItem) → addPoints(n) + addCoins(1).
+- **Pinchos** (StubEnemy::intersects): cualquier contacto = Hero::setState(9) (muerte instantánea), como avisa el
+  cartel del nivel 1. Caja = imagen UFO_SPIKY (38x27, anchor 20,24) donde se dibuja, recortada a las púas visibles.
+- **Escudo** (Hero::onCollision(Bullet)): en estado 12 sin disparar y bala de frente → HERO_DEFENSE_1/2 al azar +
+  ORANGE_SHINE, sin daño; por la espalda o sin bloquear → -1 energía, ORANGE_SHINE, flash rojo 0.5 s, HERO_HIT.
+  Balas = rect 6x6. Al bloquear, la zona de impacto llega al frente del escudo (`SHIELD_REACH` 30 px; frame HERO 25
+  llega a +33 del anchor) → la bala choca y destella sobre el escudo.
+- **Cajas de enemigos**: InteractiveObject ctor arma `bound = (x - w/2, y - h, w, h)` con el BatRect que recibe; el
+  port usa el rect del TMX (tamaños puestos a mano: UFO 128x32, Bomb 64x64, Guillotine 32x160). Sin `loadObjects`
+  (no descompiló) no está 100% probado. Oráculo posible: `Config` byte 6 = dibujar rectángulos (tecla 0x30 con
+  debugKeys), apagado en release → requeriría parchear memoria del xa.exe en ejecución (pedir permiso al usuario).

@@ -22,6 +22,7 @@ const SPLASH_TIME = 3.5; // SplashScreen: sendMessage("fadeToBlack", delay 3.5 s
 // bat::App state changes go through StateTransition(0.8, 0.8): the old state fades to black in 0.8 s, the new one
 // fades in from black in 0.8 s (SplashScreen uses that value as the logo's alpha).
 const STATE_FADE = 0.8;
+const INTRO_WAIT = 0.6; // Intro wait before a key is accepted on the comic pages
 const END_WAIT = 2; // Intro wait (0x314 = 2.0) for the game-over and ending screens
 const ARROW_GLIDE = 0.25; // level-select arrow glide between nodes
 const ARROW_GLIDE_INIT = 0.25;
@@ -165,7 +166,7 @@ export class XaGame {
       case 'menu': this.toggleFullscreen(); break;
       case 'splash': if (this.splashClose < 0) this.splashClose = 0; break; // next logo
       case 'loading': this.clicked = true; break;       // same as tapping the screen (once loaded)
-      case 'intro': this.skipIntro(); break;
+      case 'intro': this.t = INTRO_WAIT; this.clicked = true; break; // same as any key: next page
       case 'levelIntro': if (this.levelReady && this.scenario) this.screen = 'play'; break;
       case 'gameover': case 'win': if (this.t > END_WAIT) { this.screen = 'menu'; this.menuIndex = -1; this.t = 0; playMusic('xa_menu'); } break;
       case 'levels': case 'options': case 'help': case 'credits':
@@ -419,9 +420,9 @@ export class XaGame {
         if (this.loadingIsBoot && this.t >= this.bootReadyAt && this.soundsReady && (this.clicked || isFirstPress('confirm') || isFirstPress('jumpHold') || isFirstPress('fire'))) { this.screen = 'intro'; this.introPage = 0; this.t = 0; }
         break;
       case 'intro':
-        // comic: Space / click / fire turn one page, Enter (or Esc) skips the whole story (as in the original)
-        if (this.t > 0.4 && (isFirstPress('confirm') || isFirstPress('back'))) { this.skipIntro(); break; }
-        if (this.t > 0.4 && (this.clicked || isFirstPress('jumpHold') || isFirstPress('fire'))) {
+        // comic (InGame::loadIntroGeneral → General2..5 → loadMenu): every page is an Intro that turns on ANY key
+        // or click after its 0.6 s wait (0x314 = 0x3f19999a); there is no "skip the whole story" key
+        if (this.t > INTRO_WAIT && (this.clicked || isFirstPress('any'))) {
           this.introPage++;
           this.t = 0;
           if (this.introPage >= INTRO_PAGES.length) this.skipIntro();
@@ -775,7 +776,7 @@ export class XaGame {
 
   private renderIntro(w: CanvasRenderingContext2D): void {
     this.cover(w, INTRO_PAGES[this.introPage] ?? INTRO_PAGES[0]);
-    if (this.t > 0.3) this.drawPressAnyKey(w);
+    if (this.t > INTRO_WAIT) this.drawPressAnyKey(w);
   }
 
   private renderMenu(w: CanvasRenderingContext2D): void {

@@ -38,7 +38,7 @@ export type Align = 'left' | 'center' | 'right';
 /** Draw one line with its top-left (or top-centre / top-right) at (x, y). */
 export function drawLine(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, font: FontName = 'black', align: Align = 'left', scale = 1): void {
   const sheet = img(FONT_PATHS[font]);
-  if (!sheet) return;
+  if (!sheet) { console.warn('[font] no sheet for', font, FONT_PATHS[font]); return; }
   const cell = META.cell, cols = META.cols, s = CHAR_SPACE[font];
   const total = lineWidth(text, font) * scale;
   let cx = align === 'center' ? x - total / 2 : align === 'right' ? x - total : x;

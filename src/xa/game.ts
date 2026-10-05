@@ -53,6 +53,8 @@ const SCREEN_IMAGES = [
   'assets/lang/images/intros/page_5.jpg',
   'assets/lang/images/intros/game_over.jpg',
   'assets/lang/images/intros/screen_win.jpg',
+  'assets/lang/images/intros/fondo_niveles.png',
+  'assets/lang/images/intros/preview_levels_tile.jpg',
   'assets/lang/images/help/ayuda.jpg',
   'assets/lang/images/credits/creditos.jpg',
   'assets/lang/images/menu/press_any_key.png',
@@ -172,10 +174,14 @@ export class XaGame {
     this.screen = 'loading';
     this.loadingIsBoot = false;
     this.t = 0;
+    const t0 = performance.now();
     try {
       const level = parseTmx(await loadText(entry.path));
       await preloadImages(Scenario.imagePaths(level));
       stopMusic();
+      // keep the loading screen visible for a minimum time (otherwise it flashes for microseconds)
+      const elapsed = performance.now() - t0;
+      if (elapsed < 600) await new Promise((r) => setTimeout(r, 600 - elapsed));
       this.levelNum = entry.num || this.levelNum;
       this.hud = new Hud();
       this.introLabel = entry.label;
@@ -642,8 +648,20 @@ export class XaGame {
   }
 
   private text(w: CanvasRenderingContext2D, t: string, x: number, y: number, size = 14, _color = '#e8f0e0', align: CanvasTextAlign = 'center'): void {
-    // Use the game's bitmap font (fuente_blanca) instead of a system font, matching the original typography.
+    // Use the game's bitmap font (fuente_blanca); fall back to a system font if the sheet isn't loaded yet.
     const scale = size / 18;
-    drawText(w, t, x, y - 9 * scale, 'white', align === 'center' ? 'center' : align === 'right' ? 'right' : 'left', scale);
+    const sheet = img('assets/lang/images/fuente_blanca.png');
+    if (sheet) {
+      drawText(w, t, x, y - 9 * scale, 'white', align === 'center' ? 'center' : align === 'right' ? 'right' : 'left', scale);
+    } else {
+      w.font = `bold ${size}px system-ui, sans-serif`;
+      w.textAlign = align;
+      w.textBaseline = 'middle';
+      w.lineWidth = 3;
+      w.strokeStyle = 'rgba(0,0,0,0.85)';
+      w.strokeText(t, x, y);
+      w.fillStyle = '#fff';
+      w.fillText(t, x, y);
+    }
   }
 }

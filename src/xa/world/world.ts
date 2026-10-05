@@ -223,7 +223,9 @@ export class Scenario implements World {
           h.landOnPlatform(p.y);                     // snap feet to the platform top (vertical)
           h.ridePlatform(p.x - p.prevX, 0);          // carry horizontally (vertical already handled)
         }
-      } else if (h.isAlive() && h.vel.y >= 0 && onX && h.prev.y <= p.y + 1 && h.pos.y >= p.y - 1) {
+      } else if (h.isAlive() && h.vel.y >= 0 && onX &&
+                 h.pos.y >= p.y - 1 && h.pos.y - h.vel.y * dt <= p.y + 2) {
+        // crossed the platform top during this fall (prev is overwritten by collision, so use velocity)
         h.landOnPlatform(p.y);
         this.heroOnPlatform = p;
       }
@@ -233,6 +235,7 @@ export class Scenario implements World {
       if (!e.alive || !e.isGroundBound) continue;
       for (const p of this.platforms) {
         if (e.x > p.x - 6 && e.x < p.x + p.w + 6 && Math.abs(e.y - p.y) < 6) {
+          e.x += p.x - p.prevX;
           e.y += p.y - p.prevY;
           break;
         }

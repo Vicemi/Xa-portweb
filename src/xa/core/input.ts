@@ -20,10 +20,13 @@ let prev = new Set<string>();
 let curr = new Set<string>();
 let anyPressedThisFrame = false;
 let anyQueued = false;
+// Keys pressed since the last poll. A tap shorter than one update (fast taps, slow frames, background tabs)
+// is still seen for exactly one update instead of being lost between two polls.
+const tapped = new Set<string>();
 
 export function attachInput(target: Window = window): () => void {
   const kd = (e: KeyboardEvent) => {
-    if (!down.has(e.code)) anyQueued = true;
+    if (!down.has(e.code)) { anyQueued = true; tapped.add(e.code); }
     down.add(e.code);
     if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
   };
@@ -43,6 +46,9 @@ export function attachInput(target: Window = window): () => void {
 export function pollInput(): void {
   prev = curr;
   curr = new Set(down);
+  // a key that went down AND up since the last poll counts as held for this one update
+  for (const k of tapped) { curr.add(k); prev.delete(k); } // also a quick release+re-press = new press
+  tapped.clear();
   anyPressedThisFrame = anyQueued;
   anyQueued = false;
 }

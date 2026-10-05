@@ -12,7 +12,7 @@ const out = [];
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) walk(p);
-    else if (name !== 'manifest.json') out.push(relative(root, p).split(sep).join('/').toLowerCase());
+    else if (name !== 'manifest.json') out.push(relative(root, p).split(sep).join('/')); // keep the real case: URLs are case-sensitive
   }
 })(base);
 out.sort();

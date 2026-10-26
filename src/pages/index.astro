@@ -95,21 +95,29 @@ import XaGameView from '../components/XaGame.tsx';
   }
   .xa-online-card {
     width: min(960px, 100%); max-height: calc(100dvh - 2rem); overflow: auto;
-    background: linear-gradient(180deg, rgba(12,19,29,0.96), rgba(5,9,15,0.98));
-    border: 2px solid rgba(255,210,58,0.42); border-radius: 16px;
-    box-shadow: 0 22px 70px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,255,255,0.05);
+    background:
+      radial-gradient(120% 80% at 50% 0%, rgba(255,210,58,0.08), transparent 60%),
+      linear-gradient(180deg, #141e2b 0%, #080e16 100%);
+    border: 3px solid #0a0f14; border-radius: 18px;
+    box-shadow: 0 22px 70px rgba(0,0,0,0.85), inset 0 0 0 1px rgba(255,210,58,0.35), inset 0 0 0 4px rgba(0,0,0,0.4);
     color: #eef3ea; padding: 1.1rem 1.25rem 1.25rem;
     font-family: 'Trebuchet MS', system-ui, -apple-system, sans-serif;
   }
-  .xa-online-head { display: flex; align-items: center; gap: 0.8rem; padding-bottom: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.1); }
-  .xa-online-head-icon {
-    width: 44px; height: 34px; flex: none; image-rendering: pixelated;
-    background-image: url('/assets/images/menuElements/items_tile.png');
-    background-size: 512px 512px; background-position: -12px -8px; background-repeat: no-repeat;
-  }
-  .xa-online-head-text { display: flex; flex-direction: column; line-height: 1.15; flex: 1; min-width: 0; }
-  .xa-online-head-text strong { color: #ffd23a; font-size: 1.35rem; letter-spacing: 0.12em; text-shadow: 0 2px 0 #000; }
+  .xa-online-head { display: flex; align-items: center; gap: 0.8rem; padding-bottom: 0.8rem; border-bottom: 2px solid rgba(255,210,58,0.25); }
+  .xa-online-head-text { display: flex; flex-direction: column; line-height: 1.1; flex: 1; min-width: 0; }
+  .xa-online-head-text strong { color: #ffe9a8; font-weight: 900; font-size: 1.5rem; line-height: 1; font-family: 'Trebuchet MS', system-ui, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; text-shadow: 0 2px 0 #000, 0 0 14px rgba(255,210,58,0.25); }
   .xa-online-head-text small { color: #a9b6a4; font-size: 0.78rem; letter-spacing: 0.04em; }
+  .xa-online-signal {
+    width: 26px; height: 16px; flex: none; position: relative;
+    background: linear-gradient(180deg, #1b2733, #0a0f14); border: 1px solid rgba(255,210,58,0.4);
+    border-radius: 4px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+  .xa-online-signal::before {
+    content: ''; position: absolute; left: 4px; bottom: 3px; width: 4px; height: 4px; background: #7cf05a;
+    box-shadow: 6px -3px 0 0 #7cf05a, 12px -6px 0 0 #7cf05a; border-radius: 1px;
+  }
+  .xa-online-signal.is-direct::before { background: #ffd23a; box-shadow: 6px -3px 0 0 #ffd23a, 12px -6px 0 0 #ffd23a; }
+  .xa-online-signal.is-lost::before { background: #ff9a8a; box-shadow: 6px -3px 0 0 #ff9a8a, 12px -6px 0 0 #ff9a8a; }
   .xa-online-x {
     flex: none; background: #1b2430; color: #ffb3a8; border: 1px solid #ffffff25; border-radius: 8px;
     padding: 0.4rem 0.7rem; font: 800 0.72rem/1 'Trebuchet MS', system-ui, sans-serif; letter-spacing: 0.08em; cursor: pointer;

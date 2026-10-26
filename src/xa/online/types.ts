@@ -90,6 +90,8 @@ export interface Snap {
   d: number;
   /** música del nivel, si cambió */
   mu?: string;
+  /** efectos de sonido replicados (solo el anfitrión los arma; los invitados los reproducen) */
+  a?: string[];
   /** enemigos que aparecieron después de cargar el nivel (ayudantes de los jefes): id, tipo, x, y, props */
   ne?: [number, string, number, number, Record<string, string>][];
   /** objetos que aparecieron después (ítems de curación de los jefes): índice, asset, x, y, cantidad */

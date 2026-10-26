@@ -2,7 +2,7 @@
 import { Anim, ANIMS, drawFrame, drawTinted, frameOf, MAPS } from '../core/sprites';
 import { drawLine } from '../core/font';
 import { img } from '../core/assets';
-import { playMusic, playSound, stopMusic } from '../core/audio';
+import { playMusic, playSound, stopMusic, onSound } from '../core/audio';
 import { resetInput } from '../core/input';
 import { GameCamera, VIEW_H, VIEW_W } from './camera';
 import { Enemy, createEnemy } from './enemies';
@@ -194,6 +194,9 @@ export class Scenario implements World {
   /** coop: enemigos y objetos creados en vivo (ayudantes/ítems de los jefes) que hay que replicar en los invitados */
   private dynEnemies: { id: number; type: string; x: number; y: number; props: Record<string, string> }[] = [];
   private dynItems: { idx: number; asset: string; x: number; y: number; count: number }[] = [];
+  /** coop: efectos de sonido que el anfitrión generó desde la última instantánea (los invitados los reproducen) */
+  private sfx: string[] = [];
+  private offSfx: (() => void) | null = null;
 
   constructor(readonly level: TmxLevel, readonly levelNum: number, public state: HeroState, private events: WorldEvents, coop?: CoopConfig) {
     this.coop = coop ?? null;
@@ -214,9 +217,18 @@ export class Scenario implements World {
     this.loadObjects();
     this.music = level.props.pMusic ?? null;
     if (this.music) playMusic(this.music);
+    // coop (anfitrión): cada playSound que ocurra durante el nivel se replica a los invitados en la siguiente instantánea
+    if (this.coop?.role === 'host') {
+      this.offSfx = onSound((id) => {
+        if (this.sfx.length < 16) this.sfx.push(id);
+      });
+    }
   }
 
-  /** Héroe que los enemigos toman como objetivo: el más cercano a la cámara (siempre uno vivo). */
+  /** Libera la suscripción de audio (llamar antes de descartar el escenario). */
+  dispose(): void {
+    if (this.offSfx) { this.offSfx(); this.offSfx = null; }
+  }
   get hero(): Hero {
     const alive = this.players.filter((p) => p.hero.isAlive() && !p.eliminated);
     const list = alive.length ? alive : this.players;
@@ -905,7 +917,7 @@ export class Scenario implements World {
       s: [s.score, s.coins, s.cows, s.totalCows, s.keysHud ? 1 : 0, [...s.keys]],
       d: Math.round(this.soloPenalty * 100) / 100,
     };
-    if (this.lastEnd) snap.end = this.lastEnd;
+    if (this.sfx.length) { snap.a = this.sfx; this.sfx = []; }
     if (this.deadIds.length) snap.k = this.deadIds.map((d) => d.id);
     if (this.msgT > 0 && this.msgText) snap.m = [this.msgText, Math.round(this.msgT * 10) / 10];
     if (this.savingT > 0) snap.g = Math.round(this.savingT * 10) / 10;
@@ -999,6 +1011,7 @@ export class Scenario implements World {
     if (s.g && this.prevG <= 0) this.events.saving();
     this.prevG = s.g ?? 0;
     if (s.mu && s.mu !== this.music) { this.music = s.mu; playMusic(s.mu); }
+    if (s.a?.length) for (const id of s.a) playSound(id);
   }
 
   /** Invitado: entre instantáneas deja correr animaciones, suaviza el mundo y sigue a su propio héroe. */

@@ -25,3 +25,6 @@ pnpm-debug.log*
 
 # Material del juego original del usuario: nunca se versiona
 research/
+
+# Art source / reference material (not shipped)
+art-source/

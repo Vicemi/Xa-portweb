@@ -63,10 +63,19 @@ export function preloadSounds(): Promise<unknown> {
   return Promise.all(Object.values(FX).map((f) => buffer(FX_DIR + f + '.ogg')));
 }
 
+const soundListeners = new Set<(id: string) => void>();
+
+/** Suscribe un callback que se dispara con cada `playSound` (usado para replicar audio en coop). */
+export function onSound(fn: (id: string) => void): () => void {
+  soundListeners.add(fn);
+  return () => soundListeners.delete(fn);
+}
+
 export function playSound(id: string): void {
   if (!soundOn) return;
   const f = FX[id];
   if (!f) return;
+  for (const fn of soundListeners) fn(id);
   void buffer(FX_DIR + f + '.ogg').then((b) => {
     if (!b) return;
     const s = ac().createBufferSource();

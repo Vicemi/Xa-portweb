@@ -38,6 +38,8 @@ export interface GameHooks {
   ended?: (why: unknown) => void;
   /** volver al menú principal */
   exit?: () => void;
+  /** abrir el selector de niveles del juego para elegir/votar (anfitrión elige, invitados votan) */
+  pick?: () => void;
   /** controles de un invitado (solo anfitrión) */
   input?: (from: number, b: number, q: number) => void;
   /** instantánea del mundo (solo invitados) */
@@ -308,7 +310,8 @@ export class OnlineSession {
   kick(id: number): void { this.net.send({ t: 'kick', id }); }
   start(): void { this.net.send({ t: 'start' }); }
 
-  /** Sale de la sala y vuelve al menú. */
+  /** Abre el selector de niveles del juego (anfitrión elige, invitados votan). */
+  pickLevel(): void { this.hooks.pick?.(); }
   backToMenu(): void {
     if (this.state.phase === 'playing') this.net.send({ t: 'end', d: { manual: true } });
     if (this.state.room) this.net.send({ t: 'leave' });

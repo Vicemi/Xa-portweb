@@ -44,11 +44,11 @@ export default function OnlinePanel() {
     <div className="xa-online" onPointerDown={(e) => e.stopPropagation()}>
       <div className="xa-online-card">
         <header className="xa-online-head">
-          <span className="xa-online-head-icon" aria-hidden="true" />
           <div className="xa-online-head-text">
             <strong>SALA ONLINE</strong>
             <small>Hasta {s.max} amigos · el anfitrión manda</small>
           </div>
+          <span className={`xa-online-signal ${s.link === 'lost' ? 'is-lost' : s.direct ? 'is-direct' : ''}`} title={s.link === 'lost' ? 'reconectando…' : `${s.rtt || '—'} ms`} />
           <button className="xa-online-x" onClick={() => online.backToMenu()} title="Volver al menú">SALIR</button>
         </header>
 
@@ -170,30 +170,41 @@ export default function OnlinePanel() {
             </div>
 
             <div className="xa-online-levels-head">
-              <span className="xa-online-kicker">{host ? 'ELEGÍ EL NIVEL' : 'VOTÁ EL NIVEL'}</span>
+              <span className="xa-online-kicker">{host ? 'NIVEL ELEGIDO' : 'NIVEL ELEGIDO'}</span>
               <span className="xa-online-selected">
                 {selected ? <>Nivel elegido: <b>{levelTitle(selected)}</b></> : 'Todavía no hay nivel elegido'}
               </span>
             </div>
 
             <div className="xa-online-levels">
-              {ONLINE_LEVELS.map((l) => {
-                const n = votes.get(l.num) ?? 0;
-                const isHostLevel = selected === l.num;
-                return (
-                  <button
-                    key={l.num}
-                    className={`xa-online-level ${isHostLevel ? 'is-selected' : ''} ${l.boss ? 'is-boss' : ''}`}
-                    title={`${l.title}${l.boss ? ' (jefe)' : ''}`}
-                    onClick={() => (host ? online.setLevel(l.num) : online.vote(l.num))}
-                  >
-                    <span className="xa-online-level-num">{l.boss ? `E${l.num - 100}` : l.num}</span>
-                    <span className="xa-online-level-title">{l.title}</span>
-                    {l.boss && <span className="xa-online-boss">JEFE</span>}
-                    {n > 0 && <span className="xa-online-votes" title={`${n} voto${n > 1 ? 's' : ''}`}>{'●'.repeat(Math.min(4, n))}</span>}
-                  </button>
-                );
-              })}
+              <div className="xa-online-levels-summary">
+                {selected ? (
+                  <div className="xa-online-level-card">
+                    <span className="xa-online-level-num">{isBossLevel(selected) ? `E${selected - 100}` : selected}</span>
+                    <span className="xa-online-level-title">{levelTitle(selected)}</span>
+                    {isBossLevel(selected) && <span className="xa-online-boss">JEFE</span>}
+                  </div>
+                ) : (
+                  <span className="xa-online-hint">El anfitrión todavía no eligió nivel.</span>
+                )}
+                {votes.size > 0 && (
+                  <div className="xa-online-votes-list">
+                    <span className="xa-online-kicker">VOTOS</span>
+                    {Array.from(votes.entries()).map(([lvl, n]) => (
+                      <span key={lvl} className="xa-online-vote-chip">{levelTitle(lvl)} · {n}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                className="xa-online-primary"
+                disabled={host ? (!allReady) : false}
+                title={host ? (allReady ? 'Elegir el nivel en el mapa del juego' : 'Primero todos deben estar listos') : 'Votá el nivel en el mapa del juego'}
+                onClick={() => online.pickLevel()}
+              >
+                {host ? (allReady ? 'ELEGIR NIVEL EN EL MAPA' : 'FALTAN LISTOS') : 'VOTAR NIVEL EN EL MAPA'}
+              </button>
+              {!host && <p className="xa-online-hint">El anfitrión es quien inicia la partida; vos podés votar el nivel que más te guste.</p>}
             </div>
 
             <div className="xa-online-foot">

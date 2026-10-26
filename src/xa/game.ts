@@ -14,6 +14,7 @@ import { HeroState, levelCoinPct } from './world/state';
 import { parseTmx } from './world/tmx';
 import { Scenario } from './world/world';
 import { online } from './online/session';
+import { levelTitle } from './online/levels';
 import type { Difficulty } from './online/types';
 
 export const LEVEL_COUNT = 16;
@@ -200,6 +201,8 @@ export class XaGame {
   levelNum = 1;
   /** coop online: configuración de la partida en curso (null = un jugador) */
   private coopConfig: CoopConfig | null = null;
+  /** coop online: estamos dentro del selector de niveles del juego (el host elige, los demás votan) */
+  private onlinePick = false;
   /** coop: pantalla final mostrada, a la espera de volver al lobby */
   private coopEnd: 'win' | 'over' | null = null;
   private skipIntro(): void {
@@ -267,6 +270,7 @@ export class XaGame {
       start: (level, difficulty, settings, room) => { void this.startOnline(level, difficulty, settings, room); },
       ended: () => this.finishOnline(),
       exit: () => this.exitOnline(),
+      pick: () => this.openOnlineLevels(),
       input: (from, b, q) => this.scenario?.setRemoteInput(from, b, q),
       snap: (s) => this.scenario?.applySnap(s),
     });
@@ -300,6 +304,7 @@ export class XaGame {
   private finishOnline(): void {
     this.coopConfig = null;
     this.coopEnd = null;
+    this.scenario?.dispose();
     this.scenario = null;
     this.hud = new Hud();
     this.screen = 'online';
@@ -307,10 +312,25 @@ export class XaGame {
     playMusic('xa_menu');
   }
 
-  /** El panel online pidió volver al menú principal (o se perdió la sala). */
+  /** Abre el selector de niveles del juego para elegir/votar el nivel de la sala (anfitrión elige, invitados votan). */
+  private openOnlineLevels(): void {
+    const st = online.getState();
+    if (!st.room) return;
+    this.onlinePick = true;
+    this.screen = 'levels';
+    this.t = 0;
+    const level = st.room.level;
+    const extra = level >= EXTRA_FIRST;
+    this.page = extra ? 1 : 0;
+    const idx = this.pageLevels.findIndex((e) => e.num === level || e.extra === level - EXTRA_FIRST);
+    this.selectLevel(idx >= 0 ? idx : (extra ? Math.max(0, this.extraUnlocked() - 1) : this.unlockedCount() - 1));
+    this.infoIndex = -1;
+    playMusic('xa_menu');
+  }
   private exitOnline(): void {
     this.coopConfig = null;
     this.coopEnd = null;
+    this.scenario?.dispose();
     this.scenario = null;
     this.hud = new Hud();
     this.screen = 'menu';
@@ -437,6 +457,7 @@ export class XaGame {
     this.coopConfig = coop ?? null;
     this.coopEnd = null;
     this.screen = 'levelIntro';
+    this.scenario?.dispose();
     this.scenario = null;
     this.levelReady = false;
     resetInput();
@@ -469,7 +490,8 @@ export class XaGame {
             return;
           }
           this.state.reset();
-          this.scenario = null;
+          this.scenario?.dispose();
+    this.scenario = null;
           this.screen = 'gameover';
           this.t = 0;
           playMusic('lose');
@@ -485,7 +507,8 @@ export class XaGame {
           }
           const n = entry.num;
           if (n) this.state.recordLevel(n);
-          this.scenario = null;
+          this.scenario?.dispose();
+    this.scenario = null;
           this.t = 0;
           if (entry.extra) {
             // map 2: back to the extra map with the next extra level selected; the last one ends the game
@@ -675,18 +698,42 @@ export class XaGame {
             playSound('CLICK');
           }
         }
-        if (isFirstPress('back')) { this.screen = 'menu'; this.menuIndex = -1; }
+        if (isFirstPress('back')) {
+          if (this.onlinePick) { this.onlinePick = false; this.screen = 'online'; return; }
+          this.screen = 'menu'; this.menuIndex = -1;
+        }
         this.hoverIndex = this.levelHoverIndex();
         const shown = this.hoverIndex >= 0 ? this.hoverIndex : this.levelIndex;
         if (shown !== this.infoIndex) { this.infoIndex = shown; this.infoT = 0; }
         this.infoT += dt;
         if (this.clicked && this.hoverIndex >= 0 && this.isUnlocked(this.hoverIndex)) {
+          if (this.onlinePick) {
+            this.selectLevel(this.hoverIndex);
+            const entry = this.pageLevels[this.hoverIndex];
+            const num = entry?.num ? (entry.extra ? EXTRA_FIRST + entry.extra - 1 : entry.num) : 0;
+            const st = online.getState();
+            if (st.host) online.setLevel(num); else online.vote(num);
+            this.onlinePick = false;
+            this.screen = 'online';
+            return;
+          }
           this.selectLevel(this.hoverIndex);
           void this.loadLevel(this.pageLevels[this.hoverIndex]);
         } else if (isFirstPress('confirm') || isFirstPress('jumpHold') || isFirstPress('jumpTap') || isFirstPress('fire')) {
           // isSelectionAccept: fire, jump or Enter
           playSound('CLICK');
-          if (this.isUnlocked(this.levelIndex)) void this.loadLevel(this.pageLevels[this.levelIndex]);
+          if (this.isUnlocked(this.levelIndex)) {
+            if (this.onlinePick) {
+              const entry = this.pageLevels[this.levelIndex];
+              const num = entry?.num ? (entry.extra ? EXTRA_FIRST + entry.extra - 1 : entry.num) : 0;
+              const st = online.getState();
+              if (st.host) online.setLevel(num); else online.vote(num);
+              this.onlinePick = false;
+              this.screen = 'online';
+              return;
+            }
+            void this.loadLevel(this.pageLevels[this.levelIndex]);
+          }
         }
         break;
       }
@@ -1061,7 +1108,7 @@ export class XaGame {
     this.coverTop(w, hour - 10 >= 0 && hour - 10 < 9 ? 'assets/images/menuElements/menu.jpg' : 'assets/images/menuElements/menu_night.jpg');
     w.fillStyle = 'rgba(3, 7, 12, 0.62)';
     w.fillRect(0, 0, VIEW_W, VIEW_H);
-    drawText(w, 'SALA ONLINE', VIEW_W / 2, 44, 'black2', 'center', 1.7);
+    drawText(w, 'SALA ONLINE', VIEW_W / 2, 44, 'black2', 'center', 1.0);
     // si el panel no está montado (backend sin configurar) al menos queda el cartel del canvas
     const st = online.getState();
     if (!st.enabled) drawText(w, 'Sin servidor online en este build', VIEW_W / 2, 180, 'white', 'center', 0.7);
@@ -1070,6 +1117,13 @@ export class XaGame {
   private renderLevels(w: CanvasRenderingContext2D): void {
     this.coverTop(w, this.page ? 'assets/images/menuElements/map_2.png' : 'assets/images/menuElements/map.png');
     const list = this.pageLevels;
+    if (this.onlinePick) {
+      const st = online.getState();
+      const txt = st.host ? 'ELEGÍ EL NIVEL' : 'VOTÁ EL NIVEL';
+      drawText(w, txt, VIEW_W / 2, 6, 'black2', 'center', 1.0);
+      const chosen = st.room?.level ?? 0;
+      if (chosen) drawText(w, `${chosen >= 101 ? 'E' + (chosen - 100) : chosen} - ${levelTitle(chosen)}`, VIEW_W / 2, 28, 'white', 'center', 0.7);
+    }
     for (let i = 0; i < NODE_POS.length; i++) {
       const [px, py] = NODE_POS[i];
       const entry = list[i];
@@ -1078,6 +1132,13 @@ export class XaGame {
       const locked = !!entry && !this.isUnlocked(i);
       const perfect = !!num && this.state.isPerfect(num);
       const current = i === this.levelIndex || i === this.hoverIndex;
+      if (this.onlinePick && online.getState().room) {
+        const votes = new Map<number, number>();
+        for (const v of online.getState().room!.votes ?? []) votes.set(v.level, (votes.get(v.level) ?? 0) + 1);
+        const lvl = entry?.extra ? EXTRA_FIRST + entry.extra - 1 : entry?.num;
+        const vc = lvl ? (votes.get(lvl) ?? 0) : 0;
+        if (vc > 0) drawText(w, `${vc}`, px + 26, py - 10, 'black', 'center', 0.8);
+      }
       if (i === this.levelIndex) {
         // MAP_ANIMATED_SELECTION: glowing ring under the current node
         const ring = frameOf('MAP_ANIMATED_SELECTION', Math.floor(this.t * 6) % 3);
@@ -1247,7 +1308,8 @@ export class XaGame {
       if (hover >= 0) this.confirmIndex = hover;
       const yes = () => {
         playSound('CLICK');
-        this.scenario = null;
+        this.scenario?.dispose();
+    this.scenario = null;
         this.screen = 'menu';
         this.menuIndex = -1;
         playMusic('xa_menu');

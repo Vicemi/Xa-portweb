@@ -46,6 +46,9 @@ const INDESTRUCTIBLE = new Set(INSTANT_KILL);
 
 export class Enemy {
   alive = true;
+  /** identidad estable para las instantáneas del coop: la asigna el escenario en el mismo orden en todas las
+   *  pestañas (mismo nivel + misma semilla = mismos enemigos) */
+  netId = 0;
   x: number;      // feet x
   y: number;      // feet y
   w: number;      // collision box
@@ -157,6 +160,38 @@ export class Enemy {
     this.hitFlash = 0.5;
     playSound('ENEMY_HIT_' + (1 + ((Math.random() * 6) | 0)));
     return this.lives < 1;
+  }
+
+  // ---------- coop: instantáneas ----------
+  get netAnim(): string { return this.anim?.name ?? this.img ?? ''; }
+  get netFrame(): number { return this.anim?.frameNum() ?? 0; }
+  get netTime(): number { return this.anim?.time ?? 0; }
+  get netFlash(): number { return this.hitFlash; }
+  /** objetivo suavizado (invitado) */
+  private netTarget = { x: 0, y: 0, ok: false };
+  /** Invitado: aplica la posición y la animación que mandó el anfitrión. */
+  applyNet(x: number, y: number, dir: number, lives: number, anim: string, time: number, flash: number): void {
+    this.netTarget = { x, y, ok: true };
+    this.dir = dir || 1;
+    this.lives = lives;
+    this.hitFlash = flash;
+    if (anim && this.anim?.name !== anim) {
+      if (ANIMS[anim]) { this.anim = new Anim(anim); this.img = null; }
+      else { this.anim = null; this.img = anim; }
+    } else if (!anim) {
+      this.anim = null;
+    }
+    if (this.anim) this.anim.time = time;
+  }
+  /** Invitado: entre instantáneas, suaviza la posición y deja correr la animación. */
+  updateGuest(dt: number): void {
+    if (this.netTarget.ok) {
+      const k = Math.min(1, dt * 16);
+      this.x += (this.netTarget.x - this.x) * k;
+      this.y += (this.netTarget.y - this.y) * k;
+    }
+    this.anim?.update(dt);
+    if (this.hitFlash > 0) this.hitFlash -= dt;
   }
 
   // ---------- update ----------

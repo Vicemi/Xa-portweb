@@ -51,6 +51,7 @@ Si encontrás algún problema, abrí un *issue* contando **en qué nivel**, **qu
 - **Mapa de niveles** con progreso guardado: vacas rescatadas, porcentaje de monedas, puntaje por nivel e indicador de nivel perfecto.
 - **Opciones:** volumen de música y efectos, **pantalla completa** y **estirar pantalla**; todo se recuerda entre partidas.
 - **Celular:** controles táctiles con multitouch (ver abajo) y aviso para girar el teléfono.
+- **Cooperativo online de hasta 4 jugadores** (ver abajo): salas por código o link, listo/votación de nivel, vidas y savepoints compartidos, más enemigos y dificultad según cuántos juegan.
 
 ### 🧛 Niveles extra: el mapa 2 (mod)
 
@@ -81,11 +82,55 @@ Además del juego original, el port suma un **segundo mapa con 12 niveles nuevos
 - **Escenarios:** los fondos de SVNZ (arena, dojo, mazmorra y grilla) están recortados y adaptados al parallax de Xa, y suena la música de SVNZ.
 - Para regenerarlos desde tu instalación de SVNZ: `python tools/import_svnz.py "F:/Games/SuperVampireNinjaZero"` y después `python tools/gen_extra_levels.py`.
 
+### 🌐 Cooperativo online (hasta 4 jugadores)
+
+El port suma un **modo online** para jugar la campaña con hasta **4 amigos** en la misma sala. Se entra desde el botón **ONLINE** del menú principal, que mantiene el arte y la tipografía originales.
+
+- **Salas por código o link:** creás una sala y compartís el código de 5 caracteres o el link (`?sala=ABC12`), que ya deja el código cargado. El que crea la sala es el **anfitrión**.
+- **Nombre y color:** cada jugador elige un nombre de hasta 10 caracteres y recibe un color libre de la paleta (los colores no se repiten y no son los de los power-ups).
+- **Listo para jugar:** cada uno marca **ESTOY LISTO**; el anfitrión puede empezar cuando están todos listos. También puede expulsar a alguien desde la lista.
+- **Nivel:** solo el anfitrión elige el nivel y lo enciende; los demás **votan** y sus votos se ven en la lista. Están los 16 niveles originales y los 12 del mapa 2.
+- **Power-ups:** en los niveles originales el anfitrión puede prender o apagar los power-ups; contra los jefes del mapa 2 **van siempre**, no se pueden desactivar.
+- **HUD:** arriba aparecen la cabecita de Xa, el nombre y la vida de cada amigo, con una fila propia para no tapar el HUD original. Cada jugador ve su nombre y su vida, y un puntero marca cuál es él en pantalla.
+- **Cámara:** solo se ven los amigos que están dentro del foco visual; el resto sigue jugando igual.
+- **Sin fuego amigo:** las balas de un jugador no lastiman a los demás.
+- **Vidas y savepoints:** cada uno tiene sus vidas. Al llegar a un **punto de guardado reviven todos** los que habían quedado sin vidas; si muere uno solo, espera al próximo savepoint. El nivel se pierde únicamente cuando **mueren todos**. Por nivel hay vidas extra equivalentes a la cantidad de conectados, repartidas al azar y separadas entre sí, así no se amontonan.
+- **Dificultad:** con cada amigo suben la vida y la cantidad de enemigos (y la vida de los jefes), y en algunas zonas aparecen más enemigos. Si alguien se queda mucho tiempo solo, la dificultad sube de a poco; si mueren todos, se mantiene como venía.
+- **Niveles separados:** si los jugadores quedan muy lejos en vertical, cada pantalla carga normalmente (el anfitrión simula el mundo y manda el estado).
+
+#### Cómo levantarlo
+
+El modo online necesita el backend [`xa-backend`](https://github.com/Vicemi/xa-backend), que es un servidor de **salas y retransmisión** (WebSocket + WebRTC para bajar el ping). El anfitrión simula la partida y los invitados mandan sus controles.
+
+1. **Levantá el backend** en otra carpeta (necesita Node 22.12 o superior y un `GAME_TOKEN`; `npm run token` genera uno):
+
+   ```sh
+   git clone https://github.com/Vicemi/xa-backend.git
+   cd xa-backend
+   npm install
+   cp .env.example .env   # completá GAME_TOKEN
+   npm run dev            # http://localhost:8787
+   ```
+
+2. **Configurá el frontend.** Copiá `.env.example` a `.env` en la raíz del port y completá:
+
+   ```env
+   PUBLIC_XA_BACKEND_URL=http://127.0.0.1:8787
+   PUBLIC_XA_BACKEND_TOKEN=el-mismo-token-del-backend
+   ```
+
+   Son variables `PUBLIC_*`: se incorporan al compilar, así que después de cambiarlas hay que reiniciar `npm run dev` (o volver a hacer `npm run build`). En Cloudflare Pages van en *Settings → Variables and Secrets*.
+
+3. **Jugá:** abrí [http://localhost:4321](http://localhost:4321), entrá a **ONLINE**, creá una sala y unite desde otra pestaña, otro navegador o la compu de un amigo con el código o el link.
+
+> Sin `PUBLIC_XA_BACKEND_URL` y `PUBLIC_XA_BACKEND_TOKEN` el juego funciona igual: el botón ONLINE avisa que ese build no tiene servidor.
+
 ### 🗺️ Planes a futuro
 
 - [x] Port fiel del juego completo, publicado online con deploy continuo
 - [ ] Comparación lado a lado con el original para los últimos detalles finos
 - [x] Niveles y enemigos nuevos: mapa 2 con los personajes de Super Vampire Ninja Zero
+- [x] Cooperativo online para hasta 4 jugadores
 - [ ] Soporte para mods
 - [ ] Editor / creación de mapas nuevos
 - [ ] Más personajes de SVNZ (por ejemplo, Mina como personaje jugable)
@@ -201,6 +246,7 @@ Todos se ejecutan desde la raíz del proyecto:
 | `/?level=5` | Entra directo al nivel 5 (1 a 16) |
 | `/?extra=3` | Entra directo al nivel extra 3 del mapa 2 (1 a 12) |
 | `/?map=assets/data/mi_mapa.tmx` | Carga cualquier mapa TMX |
+| `/?sala=ABC12` | Abre el lobby online con el código de sala ya cargado (si ya hay apodo, entra directo) |
 | `/?touch=1` / `/?touch=0` | Fuerza / desactiva los controles táctiles |
 
 ---

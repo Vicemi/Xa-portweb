@@ -1,13 +1,26 @@
 // HUD: original Xa HUD. Component positions come from Hud::Hud in xa.exe (see MODLOG), the pixels from
 // the user's own items_tile.png / hud_message_back.png, and numbers from the bitmap font (GameFont 0 =
 // fuente_negra, black, 30px grid).
-import { frameOf } from '../core/sprites';
+import { drawTinted, frameOf } from '../core/sprites';
 import { img } from '../core/assets';
 import { drawLine, drawText } from '../core/font';
 import { VIEW_W } from './camera';
 import type { HeroState } from './state';
+import type { PlayerRuntime } from './player';
 
 const pad = (n: number, len: number) => String(Math.max(0, n)).padStart(len, '0');
+
+/** Coop: quién juega y cuál es el jugador de esta pestaña (para la fila de amigos y su energía). */
+export interface HudCoop {
+  players: PlayerRuntime[];
+  local: PlayerRuntime;
+}
+
+// Coop: fila de amigos arriba a la izquierda (cabecita + nombre + vidas), una por jugador.
+const CHIP_X = 2;
+const CHIP_Y = 2;
+const CHIP_W = 55;
+const CHIP_H = 32;
 
 // Escape codes of the TMX sign texts, decoded exactly like the original (switch on the char after '\'):
 // ! ¡  ? ¿  a/e/i/o/u → á/é/í/ó/ú (upper-case too), m/M → ñ/Ñ, n → newline, \ → backslash.
@@ -48,41 +61,52 @@ export class Hud {
     if (this.doubleT >= 0) this.doubleT += dt;
   }
 
-  render(ctx: CanvasRenderingContext2D, s: HeroState): void {
+  render(ctx: CanvasRenderingContext2D, s: HeroState, coop?: HudCoop): void {
+    const me = coop?.local;
+    const energy = me ? me.energy : s.energy;
+    const cereals = me ? me.cereals : s.cereals;
+    const power = me ? me.power : s.power;
+    const powerT = me ? me.powerT : s.powerT;
     // ---- top bar ----
-    this.blit(ctx, 'AVATAR', 7, 13);                          // Xa head + "x"
-    drawLine(ctx, pad(s.lives, 2), 66, 10, 'black', 'left', 1);
-    // Hud::render: ENERGY_BAR frame = energy - 1
-    if (s.energy !== this.lastEnergy) {
-      // Hud::setEnergy → initEnergyLoseDo: the lost chunk is drawn with ENERGY_BAR_LOSE and shrinks over 1 s
-      if (this.lastEnergy >= 0 && s.energy < this.lastEnergy) this.lose = { from: s.energy, w: (this.lastEnergy - s.energy) * 4 + 2, t: 1 };
-      else this.lose = null;
-      this.lastEnergy = s.energy;
+    if (coop) this.renderFriends(ctx, coop);
+    else {
+      this.blit(ctx, 'AVATAR', 7, 13);                          // Xa head + "x"
+      drawLine(ctx, pad(s.lives, 2), 66, 10, 'black', 'left', 1);
     }
-    if (s.energy > 0) this.blit(ctx, 'ENERGY_BAR', 8, 48, Math.max(0, Math.min(9, s.energy - 1)));
+    // Hud::render: ENERGY_BAR frame = energy - 1
+    if (energy !== this.lastEnergy) {
+      // Hud::setEnergy → initEnergyLoseDo: the lost chunk is drawn with ENERGY_BAR_LOSE and shrinks over 1 s
+      if (this.lastEnergy >= 0 && energy < this.lastEnergy) this.lose = { from: energy, w: (this.lastEnergy - energy) * 4 + 2, t: 1 };
+      else this.lose = null;
+      this.lastEnergy = energy;
+    }
+    const barX = this.coopEnergyX(coop), barY = coop ? CHIP_Y + 34 : 48;
+    if (energy > 0) this.blit(ctx, 'ENERGY_BAR', barX, barY, Math.max(0, Math.min(9, energy - 1)));
     if (this.lose) {
       const f = frameOf('ENERGY_BAR_LOSE', 0);
       const x0 = this.lose.from * 4 + 2, w = Math.round(this.lose.w * this.lose.t);
-      if (f && w > 0) ctx.drawImage(f.image, f.sx + x0, f.sy, Math.min(w, f.sw - x0), f.sh, 8 + x0, 48, Math.min(w, f.sw - x0), f.sh);
+      if (f && w > 0) ctx.drawImage(f.image, f.sx + x0, f.sy, Math.min(w, f.sw - x0), f.sh, barX + x0, barY, Math.min(w, f.sw - x0), f.sh);
     }
-    // Hud::setDouble: the power-up plays DOUBLE_JUMP_HUD (8 frames x 3 ticks) and rests on its last frame
-    if (s.cereals > 0) {
+    // Hud::setDouble: the power-up plays DOUBLE_JUMP_HUD (8 frames x 3 ticks) and rests on its last frame.
+    // Coop: the friends row takes the top-left, so these two indicators drop to the bottom-left corner.
+    const djX = coop ? 8 : 100, djY = coop ? 282 : 8;
+    if (cereals > 0) {
       if (this.doubleT < 0) this.doubleT = 0;
-      this.blit(ctx, 'DOUBLE_JUMP_HUD', 100, 8, Math.min(7, Math.floor(this.doubleT / 0.1)));
+      this.blit(ctx, 'DOUBLE_JUMP_HUD', djX, djY, Math.min(7, Math.floor(this.doubleT / 0.1)));
     } else {
       this.doubleT = -1;
-      this.blit(ctx, 'DOUBLE_JUMP_NONE', 100, 8);
+      this.blit(ctx, 'DOUBLE_JUMP_NONE', djX, djY);
     }
-    if (s.power) {
+    if (power) {
       // mod power-up: its icon next to the double-jump slot, with the time it has left as a shrinking bar
-      const f = frameOf(s.power, 0);
+      const f = frameOf(power, 0);
       if (f) {
-        const k = 0.7, x = 160, y = 8;
+        const k = 0.7, x = coop ? 76 : 160, y = coop ? 286 : 8;
         ctx.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, x, y, Math.round(f.sw * k), Math.round(f.sh * k));
-        const w = Math.round(40 * Math.max(0, Math.min(1, s.powerT / 15)));
+        const w = Math.round(40 * Math.max(0, Math.min(1, powerT / 15)));
         ctx.fillStyle = '#000';
         ctx.fillRect(x - 6, y + 36, 42, 6);
-        ctx.fillStyle = s.powerT > 3 ? '#7cf05a' : '#ff5a3c';
+        ctx.fillStyle = powerT > 3 ? '#7cf05a' : '#ff5a3c';
         ctx.fillRect(x - 5, y + 37, w, 4);
       }
     }
@@ -134,6 +158,33 @@ export class Hud {
     drawLine(ctx, b.name, VIEW_W / 2, y - 22, 'white', 'center', 1);
   }
   private bossShown = 2;
+
+  /** Coop: x de la barra de energía, debajo de la cabecita del jugador de esta pestaña. */
+  private coopEnergyX(coop?: HudCoop): number {
+    if (!coop) return 8;
+    return CHIP_X + Math.max(0, coop.players.indexOf(coop.local)) * CHIP_W;
+  }
+
+  /** Coop: una ficha por amigo — cabecita de Xa con su color, apodo (máx. 10) y vidas. */
+  private renderFriends(ctx: CanvasRenderingContext2D, coop: HudCoop): void {
+    coop.players.forEach((p, i) => {
+      const x = CHIP_X + i * CHIP_W;
+      const me = p === coop.local;
+      ctx.fillStyle = 'rgba(8,12,18,0.62)';
+      ctx.fillRect(x, CHIP_Y, CHIP_W - 3, CHIP_H);
+      ctx.fillStyle = p.hex ?? '#ffffff';
+      ctx.fillRect(x, CHIP_Y, 2, CHIP_H);
+      if (me) { // el que juega en esta pestaña queda marcado
+        ctx.strokeStyle = '#ffe27a';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x - 0.5, CHIP_Y - 0.5, CHIP_W - 2, CHIP_H + 1);
+      }
+      const head = frameOf('AVATAR_HEAD', 0);
+      if (head) drawTinted(ctx, head, x + 3, CHIP_Y + 1, 1, p.hex ?? '#ffffff', 0.7, 0.5);
+      drawLine(ctx, 'x' + Math.max(0, p.lives), x + 26, CHIP_Y + 3, 'white', 'left', 0.5);
+      drawLine(ctx, p.name.slice(0, 10) || 'Xa', x + 4, CHIP_Y + 19, 'white', 'left', 0.42);
+    });
+  }
 
   /** Draw a HUD image-map component at a top-left position (extracted anchors are unreliable → blit raw). */
   private blit(ctx: CanvasRenderingContext2D, name: string, x: number, y: number, frameIndex = 0): void {

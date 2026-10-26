@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { XaGame } from '../xa/game';
+import OnlinePanel from './OnlinePanel';
 import TouchControls from './TouchControls';
 
 /** Full-window, responsive game canvas (4:3 letterboxed, or stretched from Options). On touch devices it adds
@@ -66,6 +67,8 @@ export default function XaGameView() {
       )}
 
       <TouchControls active={isTouch && !portrait && screen === 'play'} />
+
+      {screen === 'online' && <OnlinePanel />}
 
       {/* always-visible back / Esc button on touch screens; its icon and action follow the current screen */}
       {isTouch && !portrait && screen && screen !== 'pick' && (

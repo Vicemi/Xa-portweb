@@ -28,6 +28,8 @@ const pu = (x: number, y: number, w: number, h: number): MapDef => ({ path: ITEM
 Object.assign(MAPS, {
   PU_CRYSTAL: pu(168, 210, 26, 40), PU_POTION: pu(226, 207, 30, 43),
   PU_BATTERY: pu(289, 211, 26, 39), PU_GEARS: pu(346, 211, 34, 38),
+  // la cabecita sola de Xa (sin la chapa "x N") para la fila de amigos del coop; ancla arriba a la izquierda
+  AVATAR_HEAD: { path: ITEMS_SHEET, type: 3, rect: [12, 8, 44, 34], anchor: [0, 0] },
 });
 
 /** Draw a frame washed with a colour (power-up tint, like Mega Man's weapon colours). */

@@ -1,11 +1,11 @@
 // Hero: reimplementation of Hero::update / processState / setState / processIntersections from xa.exe.
 // Constants come from xa.exe's .data (see MODLOG "Constantes del binario").
 import { Anim, ANIMS, drawFrame, drawTinted, frameOf, type Frame } from '../core/sprites';
-import { isFirstPress, isPressed } from '../core/input';
-import { playSound, stopMusic } from '../core/audio';
+import { playSound } from '../core/audio';
 import { Place, isFloorPlace, type Rect } from './tilemap';
 import type { World } from './world';
 import { MAX_ENERGY } from './state';
+import type { PlayerRuntime } from './player';
 
 export const GRAVITY = 1800;
 export const VELOCITY_WALK = 250;
@@ -56,8 +56,12 @@ export class Hero {
   visible = true;
   platform: { y: number; vx: number; vy: number } | null = null; // 0x294
   limit = { w: 0, h: 0 };    // 0x340
+  /** estado de este jugador (energía, power-up, vidas, controles) */
+  readonly p: PlayerRuntime;
+  /** objetivo de red (invitado): posición/animación que mandó el anfitrión */
+  net = { x: 0, y: 0, ok: false };
 
-  constructor(private world: World) {}
+  constructor(private world: World, player: PlayerRuntime) { this.p = player; }
 
   // ---------- placement ----------
   setPosition(x: number, y: number): void {
@@ -127,7 +131,7 @@ export class Hero {
         return;
       case HS.Ladder: {
         const footX = HERO_W * 0.5 + this.rect.x, footY = this.rect.y + HERO_H + 1;
-        if (isPressed('up') || !W.map.isHard(footX, footY)) {
+        if (this.p.input.up || !W.map.isHard(footX, footY)) {
           this.vel = { x: 0, y: 0 };
           this.acc = { x: 0, y: 0 };
           const col = Math.floor((this.rect.x + HERO_W * 0.5) / ts);
@@ -150,18 +154,18 @@ export class Hero {
       case HS.DoubleJump: {
         if (this.state === HS.Ladder || this.state === HS.Entrance) this.acc = { x: 0, y: GRAVITY };
         this.state = s;
-        const horizontal = dirX() !== 0;
+        const horizontal = this.dirX() !== 0;
         const fx = this.pos.x, fy = this.pos.y - 5;
-        W.addEffect(horizontal ? 'JUMP_EFFECT_RIGHT' : 'JUMP_EFFECT_UP', fx, fy, horizontal && dirX() < 0 ? -1 : 1);
+        W.addEffect(horizontal ? 'JUMP_EFFECT_RIGHT' : 'JUMP_EFFECT_UP', fx, fy, horizontal && this.dirX() < 0 ? -1 : 1);
         return;
       }
       case HS.Dead:
         if (W.immortal || this.immortal) return;
-        W.state.energy = MAX_ENERGY;
+        this.p.energy = MAX_ENERGY;
         this.platform = null;
         this.deathWait = DEATH_WAIT;
         W.startDeathTransition(DEATH_WAIT * 2);
-        stopMusic();
+        W.onDeathStarted(this);
         playSound('HERO_DEATH');         // the SOUND; there is no death animation
         this.state = s;
         return;
@@ -170,7 +174,7 @@ export class Hero {
         const col = Math.floor((this.rect.x + HERO_W * 0.5) / ts);
         this.translate((col + 0.5) * ts - this.pos.x, 0);
         if (!this.entranceActive) {
-          if (dirY() >= 0) {
+          if (this.dirY() >= 0) {
             this.setAnim('END_CLIMB');
             this.standAfterClimb = true;
           } else {
@@ -199,9 +203,9 @@ export class Hero {
   /** Hero::onCollisionEnemy: contact damage. redTime is the invulnerability window after a hit. */
   onCollisionEnemy(damage: number): void {
     if (this.state === HS.Dead || this.redTime > 0) return;
-    if (this.world.state.power === 'PU_CRYSTAL') damage = Math.ceil(damage / 2); // mod power-up: crystal armour
-    this.world.state.subEnergy(damage);
-    if (this.world.state.energy < 1) {
+    if (this.p.power === 'PU_CRYSTAL') damage = Math.ceil(damage / 2); // mod power-up: crystal armour
+    this.p.energy = Math.max(0, this.p.energy - damage);
+    if (this.p.energy < 1) {
       this.setState(HS.Dead);
       return;
     }
@@ -229,14 +233,14 @@ export class Hero {
       W.addEffect('ORANGE_SHINE', bulletX + back * 15, bulletY, back);
       return;
     }
-    if (W.state.power === 'PU_CRYSTAL' && Math.random() < 0.5) {
+    if (this.p.power === 'PU_CRYSTAL' && Math.random() < 0.5) {
       // mod power-up: the crystal armour stops half of the shots
       playSound('HERO_DEFENSE_1');
       W.addEffect('ORANGE_SHINE', bulletX, bulletY, -Math.sign(bulletDir) || -this.dir);
       return;
     }
-    W.state.subEnergy(1);
-    if (W.state.energy < 1) {
+    this.p.energy = Math.max(0, this.p.energy - 1);
+    if (this.p.energy < 1) {
       this.setState(HS.Dead);
       return;
     }
@@ -257,7 +261,7 @@ export class Hero {
       else { this.setStandAnim(); this.setState(HS.Stand); }
     }
     this.ppos = { ...this.pos };
-    this.world.camera.setPlatformPos(this.pos.x, this.pos.y, this.rect.h);
+    if (this.p.local) this.world.camera.setPlatformPos(this.pos.x, this.pos.y, this.rect.h);
   }
 
   /** Carry the hero along with a moving platform. */
@@ -282,13 +286,14 @@ export class Hero {
 
   // ---------- Hero::update ----------
   update(dt: number): void {
+    if (this.p.eliminated) { this.limitBounds(); return; }
     if (this.state === HS.Dead) {
       if (this.deathWait <= 0) {
         this.integrate(dt);
         this.state = HS.Fall;
         this.setAnim('JUMP');
         this.dir = 1;                    // Hero::update: setImage("HERO"), setScaleX(1)
-        this.world.onHeroDeathFinished();
+        this.world.onHeroDeathFinished(this);
       } else {
         this.deathWait -= dt;
       }
@@ -319,9 +324,9 @@ export class Hero {
   private fire(): void {
     playSound('BULLET_XA');
     const yOff = this.state === HS.Jump ? -20 : this.state === HS.Block ? -13 : -15;
-    this.world.spawnHeroBullet(this.pos.x + this.dir * 25, this.pos.y + yOff, this.dir * 500);
+    this.world.spawnHeroBullet(this.pos.x + this.dir * 25, this.pos.y + yOff, this.dir * 500, this.p);
     this.shotCount++;
-    const rapid = this.world.state.power === 'PU_BATTERY';
+    const rapid = this.p.power === 'PU_BATTERY';
     this.shotWait = 1 / (rapid ? FIRE_RATE * 2 : FIRE_RATE);
     if (this.shotCount >= (rapid ? BURST * 3 : BURST)) {
       this.shotCount = 0;
@@ -336,13 +341,13 @@ export class Hero {
     this.ppos.x = this.ppos.x || this.pos.x;
 
     // shooting
-    if (isFirstPress('fire') && !this.winner && this.state !== HS.Ladder && this.state !== HS.Entrance) {
+    if (this.p.input.firePressed && !this.winner && this.state !== HS.Ladder && this.state !== HS.Entrance) {
       this.shotHold = 0;
       this.fire();
     }
     this.shotHold += dt;
     if (!this.shooting || this.shotHold > 0.05) {
-      this.shooting = !this.winner && isPressed('fire');
+      this.shooting = !this.winner && this.p.input.fire;
     }
     if (this.state === HS.Ladder || this.state === HS.Entrance) {
       this.shooting = false;
@@ -354,13 +359,13 @@ export class Hero {
       if (this.shotWait <= 0) this.fire();
     }
 
-    if (dirY() < 0 && (this.state === HS.Stand || this.state === HS.Walk)) this.setState(HS.Block);
+    if (this.dirY() < 0 && (this.state === HS.Stand || this.state === HS.Walk)) this.setState(HS.Block);
 
     // jump
-    const jump = !this.winner && (isFirstPress('jumpHold') || isFirstPress('jumpTap'));
-    if (jump && !(this.state === HS.Ladder && dirY() > 0) && this.state !== HS.Entrance && this.state !== HS.DoubleJump) {
+    const jump = !this.winner && this.p.input.jumpPressed;
+    if (jump && !(this.state === HS.Ladder && this.dirY() > 0) && this.state !== HS.Entrance && this.state !== HS.DoubleJump) {
       if (this.state === HS.Ladder) {
-        if (dirY() < 0) {
+        if (this.dirY() < 0) {
           this.setState(HS.Fall);
           this.jumpedStraight = true;
           this.vel.y = 0;
@@ -368,24 +373,24 @@ export class Hero {
           this.platform = null;
         }
       } else if (this.state === HS.Jump) {
-        if (W.state.cereals > 0) {
+        if (this.p.cereals > 0) {
           this.setState(HS.DoubleJump);
           playSound('DOUBLE_JUMP');
-          this.vel.y = VELOCITY_DOUBLE_JUMP[Math.min(W.state.cereals, 4)];
+          this.vel.y = VELOCITY_DOUBLE_JUMP[Math.min(this.p.cereals, 4)];
           this.setJumpAnim(0);
           this.platform = null;
-          this.jumpedStraight = dirX() === 0;
+          this.jumpedStraight = this.dirX() === 0;
           this.translate(0, -IGNORE_Y);
           this.ppos.y -= IGNORE_Y;
         }
       } else if (this.state !== HS.Fall) {
         this.setState(HS.Jump);
         playSound('HERO_JUMP');
-        this.vel.y = VELOCITY_JUMP[Math.min(W.state.heros, 4)];
+        this.vel.y = VELOCITY_JUMP[Math.min(this.p.heros, 4)];
         this.ppos.y -= IGNORE_Y;
         this.setJumpAnim(0);
         this.platform = null;
-        this.jumpedStraight = dirX() === 0;
+        this.jumpedStraight = this.dirX() === 0;
         this.translate(0, -2);
         this.ppos.y -= 2;
       }
@@ -415,7 +420,7 @@ export class Hero {
     } else {
       // ladders
       const cx = this.rect.x + HERO_W * 0.5;
-      if (dirY() > 0 && this.isInLadder()) {
+      if (this.dirY() > 0 && this.isInLadder()) {
         const top = this.isInLadderEnd();
         if (top !== null && this.state >= HS.Fall && this.state <= HS.DoubleJump) {
           this.setPosition(this.pos.x, Math.floor(top / ts) * ts + 2);
@@ -424,16 +429,16 @@ export class Hero {
         } else if (this.state !== HS.Ladder) {
           this.setState(HS.Ladder);
         }
-      } else if (dirY() < 0 && W.map.isOverLadder(cx, this.rect.y + HERO_H) && this.state !== HS.Ladder) {
+      } else if (this.dirY() < 0 && W.map.isOverLadder(cx, this.rect.y + HERO_H) && this.state !== HS.Ladder) {
         this.setState(HS.Entrance);
       }
     }
 
-    const sx = this.winner ? 1 : Math.sign(dirX()); // ganador: camina solo hacia la derecha (ControllerHero::process)
+    const sx = this.winner ? 1 : Math.sign(this.dirX()); // ganador: camina solo hacia la derecha (ControllerHero::process)
     switch (this.state) {
       case HS.Stand: case HS.State1:
         this.vel.x = sx * VELOCITY_WALK;
-        this.vel.y = Math.sign(dirY()) * 0 || this.vel.y;
+        this.vel.y = Math.sign(this.dirY()) * 0 || this.vel.y;
         if (this.vel.x !== 0) {
           this.setAnim(this.shooting ? 'SHOT_RUN' : 'WALK');
           this.setState(HS.Walk);
@@ -447,11 +452,11 @@ export class Hero {
       }
       case HS.GoDown:
         this.vel.x = 0;
-        this.vel.y = Math.sign(dirY()) * VELOCITY_GO_DOWN;
+        this.vel.y = Math.sign(this.dirY()) * VELOCITY_GO_DOWN;
         break;
       case HS.Ladder: {
         this.vel.x = 0;
-        this.vel.y = -Math.sign(dirY()) * VELOCITY_GO_DOWN;
+        this.vel.y = -Math.sign(this.dirY()) * VELOCITY_GO_DOWN;
         const above = W.map.isAnyLadder(cxOf(this), this.rect.y - 5);
         const below = W.map.isAnyLadder(cxOf(this), this.rect.y);
         if (!above && below) {
@@ -474,7 +479,7 @@ export class Hero {
         break;
       case HS.Block: {
         if (!this.shooting) {
-          if (dirY() < 0) {
+          if (this.dirY() < 0) {
             if (this.anim.name !== 'BLOCK_IN') this.setAnim('BLOCK_IN');
           } else {
             if (this.anim.name !== 'BLOCK_OUT') {
@@ -488,9 +493,9 @@ export class Hero {
             }
           }
         } else {
-          if ((this.anim.name === 'BLOCK_OUT' || this.anim.name === 'SHOT_DUCK') && dirY() < 0 && this.anim.isOver()) this.setAnim('SHOT_DUCK');
+          if ((this.anim.name === 'BLOCK_OUT' || this.anim.name === 'SHOT_DUCK') && this.dirY() < 0 && this.anim.isOver()) this.setAnim('SHOT_DUCK');
           else if (this.anim.name !== 'BLOCK_OUT' && this.anim.name !== 'SHOT_DUCK') this.setAnim('BLOCK_OUT');
-          if (dirY() >= 0) this.setState(HS.Walk);
+          if (this.dirY() >= 0) this.setState(HS.Walk);
         }
         break;
       }
@@ -501,7 +506,7 @@ export class Hero {
     // animation advance (+ footstep / stair sounds)
     if (this.state === HS.Ladder) {
       const before = this.anim.frameNum();
-      this.anim.update(-Math.sign(dirY()) * dt);
+      this.anim.update(-Math.sign(this.dirY()) * dt);
       const after = this.anim.frameNum();
       if (before !== after) {
         if (after === 1) playSound('STAIR_1');
@@ -574,7 +579,7 @@ export class Hero {
           this.setState(HS.Stand);
           this.setStandAnim();
         }
-        W.camera.setPlatformPos(this.pos.x, this.pos.y, HERO_H);
+        if (this.p.local) W.camera.setPlatformPos(this.pos.x, this.pos.y, HERO_H);
         break;
       case Place.Ceiling:
         this.vel.y = 0;
@@ -611,13 +616,18 @@ export class Hero {
     // Hero::setState(9): the sprite shows the single still image HERO_DEAD (Xa lying down) while the death
     // transition runs; the facing of the moment of death is kept
     const f = this.state === HS.Dead ? frameOf('HERO_DEAD', 0) : this.currentFrame();
-    const tint = POWER_TINT[this.world.state.power ?? ''];
-    if (f && tint && this.state !== HS.Dead) {
+    const powerTint = POWER_TINT[this.p.power ?? ''];
+    if (f && powerTint && this.state !== HS.Dead) {
       // mod power-up: Xa takes the colour of the item, blinking during its last 3 seconds
-      if (this.world.state.powerT > 3 || Math.floor(this.world.state.powerT * 8) % 2 === 0) {
-        drawTinted(ctx, f, x, y, this.dir, tint);
+      if (this.p.powerT > 3 || Math.floor(this.p.powerT * 8) % 2 === 0) {
+        drawTinted(ctx, f, x, y, this.dir, powerTint);
         return;
       }
+    }
+    if (f && this.p.hex && this.state !== HS.Dead) {
+      // coop: each friend's Xa takes their colour (the palette avoids the power-up colours)
+      drawTinted(ctx, f, x, y, this.dir, this.p.hex, 0.62);
+      return;
     }
     // Hero::render swaps to the red "_R" sheet while flashing after a hit (blinks 2 of every 4 frames).
     if (f) drawFrame(ctx, f, x, y, this.dir);
@@ -637,8 +647,38 @@ export class Hero {
     }
     return base;
   }
+
+  private dirX(): number { return (this.p.input.right ? 1 : 0) - (this.p.input.left ? 1 : 0); }
+  private dirY(): number { return (this.p.input.up ? 1 : 0) - (this.p.input.down ? 1 : 0); }
+
+  // ---------- invitado: dibujar lo que manda el anfitrión ----------
+  /** Posición/animación recibidas en la última instantánea. */
+  applyNet(x: number, y: number, dir: number, state: HS, anim: string, time: number, alive: boolean, eliminated: boolean): void {
+    this.net.x = x;
+    this.net.y = y;
+    this.net.ok = true;
+    this.dir = dir || 1;
+    this.visible = alive || !eliminated;
+    if (this.state !== state) {
+      this.state = state;
+      if (this.anim.name !== anim && anim) this.anim.set(anim);
+      this.anim.goToAndPlay(0);
+    }
+    if (anim && this.anim.name !== anim) this.anim.set(anim);
+    this.anim.time = time;
+    this.anim.playing = true;
+  }
+
+  /** Entre instantáneas: suavizar la posición y dejar correr la animación. */
+  updateGuest(dt: number): void {
+    if (!this.net.ok) return;
+    const k = Math.min(1, dt * 16);
+    const x = this.pos.x + (this.net.x - this.pos.x) * k;
+    const y = this.pos.y + (this.net.y - this.pos.y) * k;
+    this.setPosition(x, y);
+    this.anim.update(dt);
+    if (this.redTime > 0) this.redTime -= dt;
+  }
 }
 
-function dirX(): number { return (isPressed('right') ? 1 : 0) - (isPressed('left') ? 1 : 0); }
-function dirY(): number { return (isPressed('up') ? 1 : 0) - (isPressed('down') ? 1 : 0); }
 function cxOf(h: Hero): number { return h.rect.x + HERO_W * 0.5; }

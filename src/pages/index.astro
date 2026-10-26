@@ -85,4 +85,147 @@ import XaGameView from '../components/XaGame.tsx';
     .xa-act-fire { width: 4rem; height: 4rem; right: calc(7.6rem + env(safe-area-inset-right)); }
     .xa-stick-hint { width: 5.5rem; height: 5.5rem; }
   }
+
+  /* --- ONLINE lobby (src/components/OnlinePanel.tsx) --- */
+  .xa-online {
+    position: fixed; inset: 0; z-index: 6; display: flex; align-items: center; justify-content: center;
+    padding: calc(1rem + env(safe-area-inset-top)) calc(1rem + env(safe-area-inset-right))
+             calc(1rem + env(safe-area-inset-bottom)) calc(1rem + env(safe-area-inset-left));
+    overflow: auto; cursor: default;
+  }
+  .xa-online-card {
+    width: min(960px, 100%); max-height: calc(100dvh - 2rem); overflow: auto;
+    background: linear-gradient(180deg, rgba(12,19,29,0.96), rgba(5,9,15,0.98));
+    border: 2px solid rgba(255,210,58,0.42); border-radius: 16px;
+    box-shadow: 0 22px 70px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,255,255,0.05);
+    color: #eef3ea; padding: 1.1rem 1.25rem 1.25rem;
+    font-family: 'Trebuchet MS', system-ui, -apple-system, sans-serif;
+  }
+  .xa-online-head { display: flex; align-items: center; gap: 0.8rem; padding-bottom: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.1); }
+  .xa-online-head-icon {
+    width: 44px; height: 34px; flex: none; image-rendering: pixelated;
+    background-image: url('/assets/images/menuElements/items_tile.png');
+    background-size: 512px 512px; background-position: -12px -8px; background-repeat: no-repeat;
+  }
+  .xa-online-head-text { display: flex; flex-direction: column; line-height: 1.15; flex: 1; min-width: 0; }
+  .xa-online-head-text strong { color: #ffd23a; font-size: 1.35rem; letter-spacing: 0.12em; text-shadow: 0 2px 0 #000; }
+  .xa-online-head-text small { color: #a9b6a4; font-size: 0.78rem; letter-spacing: 0.04em; }
+  .xa-online-x {
+    flex: none; background: #1b2430; color: #ffb3a8; border: 1px solid #ffffff25; border-radius: 8px;
+    padding: 0.4rem 0.7rem; font: 800 0.72rem/1 'Trebuchet MS', system-ui, sans-serif; letter-spacing: 0.08em; cursor: pointer;
+  }
+  .xa-online-x:hover { background: #2a1a1a; color: #fff; }
+
+  .xa-online-label { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; font-size: 0.82rem; color: #cfd8ca; letter-spacing: 0.05em; }
+  .xa-online-count { color: #77836f; font-size: 0.72rem; }
+  .xa-online-input {
+    background: #090d13; border: 2px solid rgba(255,255,255,0.15); border-radius: 8px; color: #fff;
+    padding: 0.55rem 0.7rem; font: 700 0.95rem 'Trebuchet MS', system-ui, sans-serif; outline: none; min-width: 0;
+  }
+  .xa-online-input:focus { border-color: #ffd23a; box-shadow: 0 0 0 2px rgba(255,210,58,0.18); }
+  .xa-online-code { width: 9.5rem; text-align: center; letter-spacing: 0.4em; text-transform: uppercase; font-size: 1.35rem; padding-left: 0.9rem; }
+  .xa-online-menu { display: flex; flex-direction: column; gap: 0.9rem; padding-top: 1rem; }
+  .xa-online-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+  .xa-online-join { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+  .xa-online-or { display: flex; align-items: center; gap: 0.6rem; color: #8e9b89; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; }
+  .xa-online-or::before, .xa-online-or::after { content: ''; height: 1px; background: rgba(255,255,255,0.12); flex: 1; }
+  .xa-online-hint { margin: 0; color: #96a291; font-size: 0.78rem; line-height: 1.4; }
+  .xa-online-error {
+    background: rgba(120,20,20,0.35); border: 1px solid rgba(255,120,100,0.45); color: #ffd2c9;
+    padding: 0.55rem 0.7rem; border-radius: 8px; font-size: 0.86rem; margin: 0.8rem 0 0;
+  }
+  .xa-online-error code { color: #ffe89a; }
+
+  .xa-online-primary, .xa-online-ghost, .xa-online-start, .xa-online-readybtn {
+    cursor: pointer; border-radius: 8px; font: 800 0.82rem/1 'Trebuchet MS', system-ui, sans-serif;
+    letter-spacing: 0.08em; padding: 0.7rem 1rem; transition: transform 80ms, filter 80ms;
+  }
+  .xa-online-primary {
+    background: linear-gradient(#ffe05a, #e6a800); color: #201600; border: 2px solid #2a1c00;
+    box-shadow: 0 3px 0 rgba(0,0,0,0.55);
+  }
+  .xa-online-ghost { background: #141d28; color: #dfe8da; border: 1px solid rgba(255,255,255,0.22); }
+  .xa-online-primary:hover, .xa-online-ghost:hover, .xa-online-start:hover, .xa-online-readybtn:hover { transform: translateY(-1px); filter: brightness(1.08); }
+  .xa-online-primary:active, .xa-online-ghost:active, .xa-online-start:active, .xa-online-readybtn:active { transform: translateY(1px); }
+  .xa-online-primary:disabled, .xa-online-start:disabled, .xa-online-readybtn:disabled { opacity: 0.38; cursor: not-allowed; transform: none; filter: grayscale(0.4); }
+
+  .xa-online-wait { display: flex; flex-direction: column; align-items: center; gap: 0.9rem; padding: 2.2rem 0; color: #cfd8ca; }
+  .xa-online-spinner {
+    width: 34px; height: 34px; border-radius: 50%; border: 4px solid rgba(255,210,58,0.2);
+    border-top-color: #ffd23a; animation: xa-online-spin 0.9s linear infinite;
+  }
+  @keyframes xa-online-spin { to { transform: rotate(360deg); } }
+
+  .xa-online-lobby { display: flex; flex-direction: column; gap: 0.8rem; padding-top: 0.85rem; }
+  .xa-online-room { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; }
+  .xa-online-room > div { display: flex; flex-direction: column; }
+  .xa-online-kicker { color: #8e9b89; font-size: 0.68rem; letter-spacing: 0.16em; font-weight: 800; }
+  .xa-online-room-code { color: #ffd23a; font-size: 1.8rem; letter-spacing: 0.22em; text-shadow: 0 2px 0 #000; line-height: 1.1; }
+  .xa-online-net { margin-left: auto; font-size: 0.74rem; color: #8fd98a; letter-spacing: 0.04em; }
+  .xa-online-net.is-direct { color: #7cf05a; }
+  .xa-online-net.is-lost { color: #ff9a8a; }
+
+  .xa-online-players { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.45rem; }
+  .xa-online-player {
+    display: flex; align-items: center; gap: 0.45rem; background: rgba(255,255,255,0.045);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.45rem 0.55rem; min-width: 0;
+  }
+  .xa-online-player.is-me { border-color: rgba(255,210,58,0.6); background: rgba(255,210,58,0.09); }
+  .xa-online-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px rgba(0,0,0,0.45); }
+  .xa-online-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: 0.84rem; }
+  .xa-online-badge { font: 800 0.58rem/1 'Trebuchet MS', system-ui, sans-serif; letter-spacing: 0.08em; color: #ffd23a; border: 1px solid #ffd23a66; border-radius: 4px; padding: 0.16rem 0.28rem; }
+  .xa-online-badge.is-you { color: #7cf05a; border-color: #7cf05a66; }
+  .xa-online-ready { font: 800 0.58rem/1 'Trebuchet MS', system-ui, sans-serif; letter-spacing: 0.08em; color: #76816f; }
+  .xa-online-ready.is-on { color: #7cf05a; }
+  .xa-online-off { font-size: 0.62rem; color: #ff9a8a; }
+  .xa-online-kick { background: none; border: none; color: #7d8a78; font-size: 1rem; line-height: 1; cursor: pointer; padding: 0 0.1rem; }
+  .xa-online-kick:hover { color: #ff8a7a; }
+
+  .xa-online-mid { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
+  .xa-online-readybtn { background: #1b2733; color: #e8f0e2; border: 2px solid rgba(255,255,255,0.2); }
+  .xa-online-readybtn.is-on { background: linear-gradient(#8cf05a, #39a800); color: #0d1a05; border-color: #0d1a05; }
+
+  .xa-online-levels-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+  .xa-online-selected { font-size: 0.8rem; color: #cfd8ca; }
+  .xa-online-selected b { color: #ffd23a; }
+  .xa-online-levels {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(122px, 1fr)); gap: 0.35rem;
+    max-height: 31vh; overflow: auto; padding: 2px; scrollbar-width: thin;
+  }
+  .xa-online-level {
+    position: relative; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0.45rem;
+    background: #0d141d; color: #dbe4d7; border: 1px solid rgba(255,255,255,0.1); border-radius: 7px;
+    padding: 0.38rem 0.45rem; min-height: 44px; cursor: pointer; text-align: left; overflow: hidden;
+  }
+  .xa-online-level:hover { border-color: rgba(255,210,58,0.5); background: #17202a; }
+  .xa-online-level.is-selected { border-color: #ffd23a; background: linear-gradient(180deg, #3a3000, #191500); box-shadow: inset 0 0 0 1px #ffd23a55; }
+  .xa-online-level.is-boss { border-color: rgba(255,110,90,0.35); }
+  .xa-online-level.is-boss.is-selected { border-color: #ff8a6a; background: linear-gradient(180deg, #3a1600, #190b00); }
+  .xa-online-level-num { color: #ffd23a; font: 800 0.95rem/1 'Trebuchet MS', system-ui, sans-serif; min-width: 1.1rem; }
+  .xa-online-level-title { font-size: 0.7rem; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .xa-online-boss { grid-column: 2; color: #ff8a6a; font: 800 0.52rem/1 'Trebuchet MS', system-ui, sans-serif; letter-spacing: 0.13em; }
+  .xa-online-votes { position: absolute; top: 2px; right: 4px; color: #ffd23a; font-size: 0.52rem; letter-spacing: 0.05em; }
+
+  .xa-online-foot { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; flex-wrap: wrap; padding-top: 0.2rem; }
+  .xa-online-toggle { display: flex; align-items: center; gap: 0.45rem; font-size: 0.8rem; color: #cfd8ca; cursor: pointer; }
+  .xa-online-toggle input { width: 1.05rem; height: 1.05rem; accent-color: #ffd23a; cursor: pointer; }
+  .xa-online-toggle.is-readonly { cursor: default; opacity: 0.8; }
+  .xa-online-toggle small { color: #8e9b89; }
+  .xa-online-start { background: linear-gradient(#9dfa6a, #2f9c00); color: #082000; border: 2px solid #082000; box-shadow: 0 3px 0 rgba(0,0,0,0.55); padding: 0.75rem 1.5rem; font-size: 0.9rem; }
+
+  @media (max-width: 640px) {
+    .xa-online-card { padding: 0.85rem; }
+    .xa-online-room-code { font-size: 1.45rem; }
+    .xa-online-levels { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); max-height: 26vh; }
+    .xa-online-foot { align-items: stretch; }
+    .xa-online-start { width: 100%; }
+  }
+  @media (max-height: 480px) {
+    .xa-online { padding: 0.35rem; }
+    .xa-online-card { max-height: calc(100dvh - 0.7rem); padding: 0.7rem 0.8rem; }
+    .xa-online-head { padding-bottom: 0.45rem; }
+    .xa-online-head-text strong { font-size: 1.1rem; }
+    .xa-online-levels { max-height: 24vh; }
+    .xa-online-hint { display: none; }
+  }
 </style>

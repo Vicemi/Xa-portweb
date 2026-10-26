@@ -4,7 +4,7 @@
 import { hasGameFiles, img, listFiles, loadText, pickGameFolder, preloadImages, restoreGameFolder, useBundledAssets, useDevGameFiles } from './core/assets';
 import { attachInput, isFirstPress, isPressed, keyPressed, pollInput, resetInput } from './core/input';
 import { getMusicVolume, getSoundVolume, isMusicEnabled, isSoundEnabled, loadPrefs, playMusic, playSound, preloadSounds, setMusicEnabled, setMusicVolume, setSoundEnabled, setSoundVolume, stopMusic, unlockAudio } from './core/audio';
-import { drawText, fontPaths } from './core/font';
+import { drawText, fontPaths, lineWidth } from './core/font';
 import { drawFrame, frameOf } from './core/sprites';
 import levelData from './data/levels.json';
 import type { CoopConfig } from './world/world';
@@ -315,7 +315,8 @@ export class XaGame {
   /** Abre el selector de niveles del juego para elegir/votar el nivel de la sala (anfitrión elige, invitados votan). */
   private openOnlineLevels(): void {
     const st = online.getState();
-    if (!st.room) return;
+    if (!st.room || st.phase !== 'lobby') return;
+    if (this.screen === 'levels' && this.onlinePick) return;
     this.onlinePick = true;
     this.screen = 'levels';
     this.t = 0;
@@ -327,8 +328,22 @@ export class XaGame {
     this.infoIndex = -1;
     playMusic('xa_menu');
   }
-  private exitOnline(): void {
-    this.coopConfig = null;
+  /** Coop: el anfitrión elige el nivel y la partida arranca sola; los invitados solo votan. */
+  private chooseOnlineLevel(index: number): void {
+    const entry = this.pageLevels[index];
+    const num = entry?.num ? (entry.extra ? EXTRA_FIRST + entry.extra - 1 : entry.num) : 0;
+    if (!num) return;
+    const st = online.getState();
+    this.onlinePick = false;
+    this.screen = 'online';
+    if (st.host) {
+      online.setLevel(num);
+      online.start(); // el servidor aplica el nivel y arranca en el mismo orden de mensajes
+    } else {
+      online.vote(num);
+    }
+  }
+  private exitOnline(): void {    this.coopConfig = null;
     this.coopEnd = null;
     this.scenario?.dispose();
     this.scenario = null;
@@ -709,12 +724,7 @@ export class XaGame {
         if (this.clicked && this.hoverIndex >= 0 && this.isUnlocked(this.hoverIndex)) {
           if (this.onlinePick) {
             this.selectLevel(this.hoverIndex);
-            const entry = this.pageLevels[this.hoverIndex];
-            const num = entry?.num ? (entry.extra ? EXTRA_FIRST + entry.extra - 1 : entry.num) : 0;
-            const st = online.getState();
-            if (st.host) online.setLevel(num); else online.vote(num);
-            this.onlinePick = false;
-            this.screen = 'online';
+            this.chooseOnlineLevel(this.hoverIndex);
             return;
           }
           this.selectLevel(this.hoverIndex);
@@ -723,15 +733,7 @@ export class XaGame {
           // isSelectionAccept: fire, jump or Enter
           playSound('CLICK');
           if (this.isUnlocked(this.levelIndex)) {
-            if (this.onlinePick) {
-              const entry = this.pageLevels[this.levelIndex];
-              const num = entry?.num ? (entry.extra ? EXTRA_FIRST + entry.extra - 1 : entry.num) : 0;
-              const st = online.getState();
-              if (st.host) online.setLevel(num); else online.vote(num);
-              this.onlinePick = false;
-              this.screen = 'online';
-              return;
-            }
+            if (this.onlinePick) { this.chooseOnlineLevel(this.levelIndex); return; }
             void this.loadLevel(this.pageLevels[this.levelIndex]);
           }
         }
@@ -1120,9 +1122,14 @@ export class XaGame {
     if (this.onlinePick) {
       const st = online.getState();
       const txt = st.host ? 'ELEGÍ EL NIVEL' : 'VOTÁ EL NIVEL';
-      drawText(w, txt, VIEW_W / 2, 6, 'black2', 'center', 1.0);
+      drawText(w, txt, VIEW_W - 6, 6, 'black2', 'right', 1.0);
       const chosen = st.room?.level ?? 0;
-      if (chosen) drawText(w, `${chosen >= 101 ? 'E' + (chosen - 100) : chosen} - ${levelTitle(chosen)}`, VIEW_W / 2, 28, 'white', 'center', 0.7);
+      if (chosen) {
+        const label = `${chosen >= 101 ? 'E' + (chosen - 100) : chosen} - ${levelTitle(chosen)}`;
+        w.fillStyle = 'rgba(0,0,0,0.68)';
+        w.fillRect(0, VIEW_H - 24, VIEW_W, 20);
+        drawText(w, label, VIEW_W / 2, VIEW_H - 22, 'white', 'center', 0.8);
+      }
     }
     for (let i = 0; i < NODE_POS.length; i++) {
       const [px, py] = NODE_POS[i];
@@ -1164,6 +1171,32 @@ export class XaGame {
     }
     this.renderPageArrow(w);
     this.renderInfoBar(w);
+    if (this.onlinePick) this.renderOnlineRoster(w);
+  }
+
+  /** Coop: durante la elección de nivel, arriba a la izquierda, quiénes están conectados. */
+  private renderOnlineRoster(w: CanvasRenderingContext2D): void {
+    const room = online.getState().room;
+    if (!room) return;
+    const players = room.players.filter((p) => p.online);
+    if (!players.length) return;
+    const scale = 0.8;
+    const labels = players.map((p) => (p.name || 'Xa').slice(0, 10));
+    const widest = Math.max(...labels.map((l) => lineWidth(l, 'black2') * scale));
+    const rowH = 11;
+    const pw = Math.min(VIEW_W - 8, Math.round(widest) + 24);
+    const ph = players.length * rowH + 6;
+    w.fillStyle = 'rgba(6,10,16,0.88)';
+    w.fillRect(4, 4, pw, ph);
+    w.strokeStyle = 'rgba(255,210,58,0.55)';
+    w.lineWidth = 1;
+    w.strokeRect(4.5, 4.5, pw - 1, ph - 1);
+    players.forEach((p, i) => {
+      const y = 7 + i * rowH;
+      w.fillStyle = online.playerInfo(p.id).hex ?? '#ffffff';
+      w.fillRect(9, y + 1, 6, 6);
+      drawText(w, labels[i], 19, y, 'black2', 'left', scale);
+    });
   }
 
   /** Mod: arrow on the map edge to switch between the original map and map 2 (the original ARROW sprite turned

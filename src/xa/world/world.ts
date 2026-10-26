@@ -789,13 +789,19 @@ export class Scenario implements World {
     if (this.spawned.length) { this.enemies.push(...this.spawned); this.spawned = []; }
 
     const cam = this.camera;
+    // en coop la ventana es la de TODOS los amigos: la cámara del anfitrión puede estar lejos y las balas de un
+    // invitado (o las que viajan entre ambos) tienen que seguir vivas hasta salir de la zona de todos
+    const coopWindow = !!this.coop && wx0 !== Infinity;
     for (const b of this.bullets) {
       if (!b.alive) continue;
       if (b.g) b.vy += b.g * dt;
       if (b.ax) b.vx += b.ax * dt;
       b.x += b.vx * dt;
       b.y += b.vy * dt;
-      if (b.x < cam.x - 32 || b.x > cam.x + cam.w + 32 || b.y < cam.y - 32 || b.y > cam.y + cam.h + 32) {
+      const out = coopWindow
+        ? b.x < wx0 - 96 || b.x > wx1 + 96 || b.y < wy0 - 96 || b.y > wy1 + 96
+        : b.x < cam.x - 32 || b.x > cam.x + cam.w + 32 || b.y < cam.y - 32 || b.y > cam.y + cam.h + 32;
+      if (out) {
         b.alive = false;
         continue;
       }
@@ -851,11 +857,28 @@ export class Scenario implements World {
     this.sendSnapIfDue(dt);
   }
 
-  /** Castigo por jugar solo: sube (y se queda) mientras haya un único amigo vivo. */
+  /** Castigo por jugar solo: sube (y se queda) mientras quede un único amigo vivo o alguien se haya
+   *  adelantado/separado demasiado del resto. */
   private updateSolo(dt: number, alive: number): void {
     if (!this.coop) return;
     const d = this.coop.difficulty;
-    if (alive === 1) {
+    let solo = alive === 1;
+    if (alive > 1) {
+      // ¿alguien quedó lejos de TODOS los demás? (una pantalla de distancia, más margen vertical)
+      for (const pl of this.players) {
+        const h = pl.hero;
+        if (!h.isAlive() || pl.eliminated) continue;
+        let nearOther = false;
+        for (const other of this.players) {
+          if (other === pl) continue;
+          const o = other.hero;
+          if (!o.isAlive() || other.eliminated) continue;
+          if (Math.abs(o.pos.x - h.pos.x) < 700 && Math.abs(o.pos.y - h.pos.y) < 420) { nearOther = true; break; }
+        }
+        if (!nearOther) { solo = true; break; }
+      }
+    }
+    if (solo) {
       this.soloTime += dt;
       if (this.soloTime > d.soloGraceSeconds) {
         const p = Math.min(d.soloCap, 1 + (this.soloTime - d.soloGraceSeconds) * d.soloRampPerSecond);

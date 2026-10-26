@@ -164,8 +164,8 @@ export default function OnlinePanel() {
               </button>
               <p className="xa-online-hint">
                 {host
-                  ? 'Cuando todos estén listos, elegí el nivel y empezá.'
-                  : 'Cuando todos estén listos, el anfitrión puede empezar.'}
+                  ? 'Cuando todos estén listos entrás solo al mapa: elegí el nivel y la partida arranca.'
+                  : 'Cuando todos estén listos, el anfitrión entra al mapa y la partida arranca al elegir el nivel.'}
               </p>
             </div>
 

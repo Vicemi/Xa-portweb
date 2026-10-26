@@ -88,8 +88,8 @@ El port suma un **modo online** para jugar la campaña con hasta **4 amigos** en
 
 - **Salas por código o link:** creás una sala y compartís el código de 5 caracteres o el link (`?sala=ABC12`), que ya deja el código cargado. El que crea la sala es el **anfitrión**.
 - **Nombre y color:** cada jugador elige un nombre de hasta 10 caracteres y recibe un color libre de la paleta (los colores no se repiten y no son los de los power-ups).
-- **Listo para jugar:** cada uno marca **ESTOY LISTO**; el anfitrión puede empezar cuando están todos listos. También puede expulsar a alguien desde la lista.
-- **Nivel:** solo el anfitrión elige el nivel y lo enciende; los demás **votan** y sus votos se ven en la lista. Están los 16 niveles originales y los 12 del mapa 2.
+- **Listo para jugar:** cada uno marca **ESTOY LISTO**; cuando están todos listos, el anfitrión entra solo al mapa de niveles (sin apretar EMPEZAR). También puede expulsar a alguien desde la lista.
+- **Nivel:** solo el anfitrión elige el nivel en el mapa original del juego (mismos nodos, flecha y bloqueos que en un jugador) y, al confirmarlo, **la partida arranca sola**. Los demás **votan** y sus votos se ven en el mapa y en la lista. Están los 16 niveles originales y los 12 del mapa 2.
 - **Power-ups:** en los niveles originales el anfitrión puede prender o apagar los power-ups; contra los jefes del mapa 2 **van siempre**, no se pueden desactivar.
 - **HUD:** arriba aparecen la cabecita de Xa, el nombre y la vida de cada amigo, con una fila propia para no tapar el HUD original. Cada jugador ve su nombre y su vida, y un puntero marca cuál es él en pantalla.
 - **Cámara:** solo se ven los amigos que están dentro del foco visual; el resto sigue jugando igual.

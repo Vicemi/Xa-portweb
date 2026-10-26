@@ -61,6 +61,8 @@ export class OnlineSession {
   private lastQ = new Map<number, number>();
   private lastSnapN = -1;
   private snapSeq = 0;
+  /** el anfitrión ya entró solo al mapa de niveles por esta ronda de "listo" */
+  private autoPicked = false;
   private offNet: (() => void) | null = null;
   private state: OnlineState;
 
@@ -182,6 +184,18 @@ export class OnlineSession {
       room, code: room.code, level: room.level, settings: room.settings,
       you: this.net.you, host: this.net.isHost, canResume: true,
     });
+    this.maybeAutoPick(room);
+  }
+
+  /** Con todos listos, el anfitrión entra solo al mapa de niveles (no hay que apretar EMPEZAR). */
+  private maybeAutoPick(room: RoomView): void {
+    const online = room.players.filter((p) => p.online);
+    // con un solo jugador no se abre solo: el anfitrión puede esperar a que entren sus amigos
+    const allReady = online.length >= 2 && online.every((p) => p.ready);
+    if (!allReady) { this.autoPicked = false; return; }
+    if (this.autoPicked || !this.net.isHost || room.status !== 'lobby' || this.state.phase !== 'lobby') return;
+    this.autoPicked = true;
+    this.hooks.pick?.();
   }
 
   private onMessage(m: ServerMessage): void {

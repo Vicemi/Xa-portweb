@@ -28,3 +28,8 @@ research/
 
 # Art source / reference material (not shipped)
 art-source/
+
+# secretos locales del modo online
+.env.local
+
+.review/

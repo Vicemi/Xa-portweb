@@ -116,6 +116,13 @@ export class HeroState {
       localStorage.setItem('xa-save', JSON.stringify({ highScore: this.highScore, progress: this.progress, lastPlayedLevel: this.lastPlayedLevel }));
     } catch { /* storage unavailable */ }
   }
+  /** Borra todo el progreso guardado (niveles, récords). Lo usa "Borrar progreso" del anfitrión online. */
+  wipe(): void {
+    this.progress = {};
+    this.highScore = 0;
+    this.lastPlayedLevel = 1;
+    this.save();
+  }
   load(): void {
     try {
       const s = JSON.parse(localStorage.getItem('xa-save') ?? 'null');

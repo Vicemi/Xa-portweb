@@ -58,6 +58,8 @@ export class PlayerRuntime {
   /** último paquete de bits recibido (invitado) y secuencia */
   bits = 0;
   q = -1;
+  /** true = sin tinte: el Xa de este jugador se dibuja con sus colores originales (el anfitrión) */
+  plain = false;
   /** héroe de este jugador (lo asigna el escenario) */
   hero!: import('./hero').Hero;
   /** puesto en el HUD/mundo */

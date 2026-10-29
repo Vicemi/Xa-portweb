@@ -222,7 +222,7 @@ export class Enemy {
 
   private randomWait(): number {
     const lo = +(this.p.pMinTime ?? 1.5) || 0, hi = +(this.p.pMaxTime ?? 3) || 0;
-    return lo + Math.random() * Math.max(0, hi - lo);
+    return (lo + Math.random() * Math.max(0, hi - lo)) / (this.world.pace || 1); // coop: más cadencia con el castigo
   }
 
   /** Shooter::shooterUpdate with autoShoot: when the timer runs out the sync anim is rewound and played; the

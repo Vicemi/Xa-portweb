@@ -63,24 +63,49 @@ export function preloadSounds(): Promise<unknown> {
   return Promise.all(Object.values(FX).map((f) => buffer(FX_DIR + f + '.ogg')));
 }
 
-const soundListeners = new Set<(id: string) => void>();
+type SoundListener = (id: string, x?: number, y?: number) => void;
+const soundListeners = new Set<SoundListener>();
 
-/** Suscribe un callback que se dispara con cada `playSound` (usado para replicar audio en coop). */
-export function onSound(fn: (id: string) => void): () => void {
+/** Suscribe un callback que se dispara con cada `playSound` (usado para replicar audio en coop). Recibe la posición
+ *  de origen si se conoce. Se dispara aunque el sonido local esté apagado: los amigos igual lo oyen. */
+export function onSound(fn: SoundListener): () => void {
   soundListeners.add(fn);
   return () => soundListeners.delete(fn);
 }
 
-export function playSound(id: string): void {
+// Audio posicional (solo coop): quien oye (listener) y de dónde viene el sonido (origin). Sin listener todo suena parejo.
+export interface SoundAt { x: number; y: number }
+let listener: SoundAt | null = null;
+let origin: SoundAt | null = null;
+export function setListener(p: SoundAt | null): void { listener = p; }
+/** Origen por defecto de los sonidos que se disparan a continuación (null = global). */
+export function setSoundOrigin(x: number | null, y = 0): void { origin = x === null ? null : { x, y }; }
+const NEAR = 260, FAR = 1100, MIN_GAIN = 0.12;
+
+export function playSound(id: string, at?: SoundAt): void {
+  const src = at ?? origin;
+  for (const fn of soundListeners) fn(id, src?.x, src?.y);
   if (!soundOn) return;
   const f = FX[id];
   if (!f) return;
-  for (const fn of soundListeners) fn(id);
+  let gain = 1, pan = 0;
+  if (src && listener) {
+    const dx = src.x - listener.x, d = Math.hypot(dx, src.y - listener.y);
+    gain = d <= NEAR ? 1 : Math.max(MIN_GAIN, 1 - (d - NEAR) / (FAR - NEAR));
+    pan = Math.max(-0.8, Math.min(0.8, dx / 400));
+  }
   void buffer(FX_DIR + f + '.ogg').then((b) => {
     if (!b) return;
-    const s = ac().createBufferSource();
+    const c = ac();
+    const s = c.createBufferSource();
     s.buffer = b;
-    s.connect(fxGain);
+    if (gain < 1 || pan) {
+      const g = c.createGain();
+      g.gain.value = gain;
+      s.connect(g);
+      if (c.createStereoPanner) { const sp = c.createStereoPanner(); sp.pan.value = pan; g.connect(sp); sp.connect(fxGain); }
+      else g.connect(fxGain);
+    } else s.connect(fxGain);
     s.start();
   });
 }

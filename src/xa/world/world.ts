@@ -454,7 +454,8 @@ export class Scenario implements World {
 
   /** Invitado: crea un objeto que el anfitrión generó en vivo (ítems de los jefes), en el mismo índice. */
   private addNetItem(idx: number, asset: string, x: number, y: number, count: number): void {
-    if (idx < this.things.length) return;
+    // el anfitrión de una sala puede ser cualquiera: un índice absurdo no debe reservar memoria sin límite en los invitados
+    if (!Number.isInteger(idx) || idx < this.things.length || idx > this.things.length + 64) return;
     // índices que el anfitrión ya descartó (ítems recogidos antes de que llegaran): relleno muerto para que los demás coincidan
     while (this.things.length < idx) {
       const dead = new Thing({ type: 'Item', name: '', x: 0, y: 0, w: 32, h: 32, props: {} } as unknown as TmxObject, 0, 0, null);

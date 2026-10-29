@@ -75,6 +75,19 @@ LEVELS = [
     dict(bases=[7], length=280, bg='svnz_dungeon.jpg', boss='SvDracula',
          walkers=['SvNinja', 'SvRedNinja', 'SvBigDemon', 'xa:Jumper2', 'xa:Ultraton'], flyers=['SvBat', 'SvBat'],
          sign='\\!El castillo de Dr\\acula!\\nVencelo para salvar al planeta.'),
+    # ---- tramo 5: otra vuelta (el Ninja Dorado vuelve en el 15) ----
+    dict(bases=[1], length=340, bg='background_1.jpg',
+         walkers=['SvNinja', 'SvNinja', 'SvRedNinja', 'xa:Enemy', 'xa:Jumper'], flyers=['SvBat', 'xa:Bird'],
+         sign='Los ninjas patrullan la rambla.\\nMir\\a arriba: hay bichos voladores.'),
+    dict(bases=[7], length=250, bg='background_7.jpg',
+         walkers=['SvNinja', 'SvRedNinja', 'SvBigDemon', 'xa:Jumper2'], flyers=['SvBat', 'xa:Double'],
+         sign='En las sierras el eco\\ndelata a los demonios.'),
+    dict(bases=[8], length=300, bg='background_8.jpg', boss='SvGoldNinja',
+         walkers=['SvNinja', 'SvRedNinja', 'SvRedNinja', 'xa:Enemy', 'xa:Jumper'], flyers=['SvBat', 'xa:Bird', 'xa:Double'],
+         sign='El Ninja Dorado volvi\\o por la revancha.\\n\\!Esta vez, con m\\as ganas!'),
+    dict(bases=[2], length=340, bg='background_2.jpg',
+         walkers=['SvNinja', 'SvRedNinja', 'xa:Enemy', 'xa:Jumper'], flyers=['SvBat', 'xa:Bird'],
+         sign='Hasta el hip\\odromo lo tomaron.\\n\\!A limpiar la pista!'),
 ]
 
 # ---- Xa movement used by the reachability search (hero.ts: GRAVITY 1800, walk 250, VELOCITY_JUMP[0] = -600 →
@@ -417,6 +430,14 @@ def compose(i, spec, bases, out, arena_at, rnd, tpl):
     # down to the top of the gate (like the gates of the original levels) so it can't be jumped over
     gate = None
     if arena_at is not None:
+        # the arena is one column repeated: whatever is drawn over its floor (grass tufts, pillars, walls) would be
+        # repeated ARENA times in a row, so keep only the floor, plus a light grass tuft every 4th column
+        cover = coverage(b0)
+        for k in range(arena_at, arena_at + ARENA):
+            col = cols[k]
+            ground = next(y for y in range(5, h) if b0.state.get(col[y]) == 'pHard')
+            cols[k] = tuple(0 if y < ground and col[y] and not (cover(col[y]) < 0.35 and k % 4 == 0 and 2 < k - arena_at < ARENA - 3)
+                            else col[y] for y in range(h))
         gate_col = arena_at + ARENA - 1
         acol = cols[gate_col]
         ground = next(y for y in range(5, h) if b0.state.get(acol[y]) == 'pHard')
@@ -502,8 +523,11 @@ def compose(i, spec, bases, out, arena_at, rnd, tpl):
     route = {x: max(ys) for x, ys in by_col.items()}   # main route: the lowest reachable floor of each column
     taken = set()
 
-    def free_spot(x, y, r=1):
-        return all((xx, y) not in taken for xx in range(x - r, x + r + 1))
+    occ = set()   # foot cells (x, row) of everything placed, for objects that float above their floor tile
+
+    def free_spot(x, y, r=1, fy=None):
+        fy = y if fy is None else fy
+        return all((xx, y) not in taken and (xx, fy) not in occ for xx in range(x - r, x + r + 1))
 
     real = set(floors)
     cover = coverage(b0)
@@ -547,6 +571,7 @@ def compose(i, spec, bases, out, arena_at, rnd, tpl):
         if nxt <= x < nw - 30 and x not in no_go and flat(x, route[x]):
             objs.append(at(tpl['SavePoint'][0], x, route[x]))
             taken.add((x, route[x]))
+            occ.add((x, route[x]))
             nxt = x + 100
 
     # ---- coins: rows on floors and small arcs, about 45 ----
@@ -560,12 +585,13 @@ def compose(i, spec, bases, out, arena_at, rnd, tpl):
             continue
         y = rnd.choice(ys)
         n = rnd.randint(3, 5)
-        if all((x + k, y) in real for k in range(n)):
+        if all((x + k, y) in real and free_spot(x + k, y, 1, y - 1) for k in range(n)):
             arc = rnd.random() < 0.35
             for k in range(n):
                 lift = 1 if arc and 0 < k < n - 1 else 0
                 objs.append(at(coin, x + k, y - lift))
                 taken.add((x + k, y))
+                occ.add((x + k, y - lift))
                 coins += 1
 
     # ---- cows: 4-6, preferably on floors off the main route ----
@@ -578,29 +604,32 @@ def compose(i, spec, bases, out, arena_at, rnd, tpl):
     for (x, y) in side + main:
         if len(cows) >= want:
             break
-        if all(abs(x - cx) > 40 for cx, _ in cows) and free_spot(x, y):
+        if all(abs(x - cx) > 40 for cx, _ in cows) and free_spot(x, y, 1, y - 1):
             cows.append((x, y))
     for (x, y) in cows:
         objs.append(at(tpl['Cow'][0], x, y))
         taken.add((x, y))
+        occ.add((x, y))
 
     # ---- power-ups: double jump early, energy and a life later ----
     def put_item(asset, lo, hi):
         tl = tpl.get('item:' + asset)
         if not tl:
             return
-        cand = [(x, y) for (x, y) in floors if lo <= x < hi and x not in no_go and free_spot(x, y)]
+        cand = [(x, y) for (x, y) in floors if lo <= x < hi and x not in no_go and free_spot(x, y, 1, y - 1)]
         if cand:
             x, y = rnd.choice(cand)
             objs.append(at(tl[0], x, y - 1))
             taken.add((x, y))
+            occ.add((x, y - 1))
     # the double jump the layout was checked with: on the route, right after the start
     dj = tpl.get('item:ENERGY_DOUBLE_JUMP')
     if dj:
         for x in range(hx + 5, hx + 30):
-            if x in route and free_spot(x, route[x]):
+            if x in route and free_spot(x, route[x], 1, route[x] - 1):
                 objs.append(at(dj[0], x, route[x] - 1))
                 taken.add((x, route[x]))
+                occ.add((x, route[x] - 1))
                 break
     put_item('ENERGY', nw // 3, nw // 2)
     put_item('ENERGY', 2 * nw // 3, nw - 20)
@@ -628,10 +657,13 @@ def compose(i, spec, bases, out, arena_at, rnd, tpl):
             kind = rnd.choice(spec['flyers'])
             # flyers hover over solid ground Xa walks on (not over pits or water), low enough to be shot and to
             # bother him: Xa's flyers 2 tiles up, bats 3 (they dive)
-            if not g.clear(x, y - 5, y - 1) or not flat(x, y, 3):
+            fy = y - (3 if kind == 'SvBat' else 2)
+            if not g.clear(x, y - 5, y - 1) or not flat(x, y, 3) or not free_spot(x, y, 2, fy):
                 continue
             o = sv(kind) if kind.startswith('Sv') or not tpl.get(kind) else deepcopy(rnd.choice(tpl[kind]))
-            objs.append(at(o, x, y - (3 if kind == 'SvBat' else 2)))
+            objs.append(at(o, x, fy))
+            taken.add((x, y))
+            occ.add((x, fy))
             continue
         kind = rnd.choice(spec['walkers'])
         if kind == 'SvBigDemon':
@@ -644,6 +676,7 @@ def compose(i, spec, bases, out, arena_at, rnd, tpl):
         o = sv(kind) if kind.startswith('Sv') else deepcopy(rnd.choice(tpl[kind]))
         objs.append(at(o, x, y))
         taken.add((x, y))
+        occ.add((x, y))
 
     # ---- boss arena ----
     if arena_at is not None:

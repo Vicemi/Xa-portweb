@@ -5,7 +5,7 @@ import { hasGameFiles, img, listFiles, loadText, pickGameFolder, preloadImages, 
 import { attachInput, isFirstPress, isPressed, keyPressed, pollInput, resetInput } from './core/input';
 import { getMusicVolume, getSoundVolume, isMusicEnabled, isSoundEnabled, loadPrefs, playMusic, playSound, preloadSounds, setMusicEnabled, setMusicVolume, setSoundEnabled, setSoundVolume, stopMusic, unlockAudio } from './core/audio';
 import { drawText, fontPaths, lineWidth } from './core/font';
-import { drawFrame, frameOf } from './core/sprites';
+import { drawFrame, drawTinted, frameOf } from './core/sprites';
 import levelData from './data/levels.json';
 import type { CoopConfig } from './world/world';
 import { VIEW_H, VIEW_W } from './world/camera';
@@ -15,7 +15,7 @@ import { parseTmx } from './world/tmx';
 import { Scenario } from './world/world';
 import { online } from './online/session';
 import { levelTitle } from './online/levels';
-import type { Difficulty } from './online/types';
+import type { Difficulty, MenuState } from './online/types';
 
 export const LEVEL_COUNT = 16;
 // Built-in texts of xa.exe (Lang::mTitles / mDescriptions / level ids), extracted by tools/extract_texts.py.
@@ -43,12 +43,12 @@ const OPT_ROW_MUSIC = 173, OPT_ROW_SFX = 215, OPT_BAR_MUSIC = 197, OPT_BAR_SFX =
 const LINE_H = 18;
 const TEXT_VC = LINE_H / 2;
 
-export type Screen = 'pick' | 'splash' | 'loading' | 'intro' | 'menu' | 'online' | 'levels' | 'help' | 'credits' | 'options' | 'levelIntro' | 'play' | 'paused' | 'gameover' | 'win' | 'error';
+export type Screen = 'pick' | 'splash' | 'loading' | 'intro' | 'menu' | 'online' | 'levels' | 'help' | 'credits' | 'options' | 'levelIntro' | 'play' | 'paused' | 'gameover' | 'win' | 'error' | 'follow';
 
 interface LevelEntry { label: string; path: string; num: number; base?: number; extra?: number }
 
 // ---- Map 2: extra levels (mod) with the enemies of Super Vampire Ninja Zero (tools/gen_extra_levels.py) ----
-// Progress is stored under numbers 101..112; `base` is the original level whose terrain, tiles and moving
+// Progress is stored under numbers 101..116; `base` is the original level whose terrain, tiles and moving
 // platforms the extra level reuses.
 const EXTRA_FIRST = 101;
 // When true the extra levels only open after the 16 original ones are completed. For now they are open.
@@ -70,6 +70,11 @@ const EXTRA = [
   { title: 'Los Muelles Viejos', base: 11, desc: 'En los muelles viejos hay\ndemonios por todos lados.' },
   { title: 'Los Suburbios', base: 9, desc: 'Drácula está muy cerca.\n¡Preparate!' },
   { title: 'El Castillo de Drácula', base: 7, desc: 'El señor de los vampiros te espera.\n¡Vencelo y salvá al planeta!' },
+  // tramo 5 (nuevas rondas: el Ninja Dorado vuelve como jefe del 15)
+  { title: 'La Rambla', base: 1, desc: 'Los ninjas patrullan la rambla.\nMirá arriba: hay bichos voladores.' },
+  { title: 'Las Sierras', base: 7, desc: 'En las sierras el eco delata\na los demonios.' },
+  { title: 'La Revancha', base: 8, desc: 'El Ninja Dorado volvió con ganas\nde revancha. ¡Vencelo otra vez!' },
+  { title: 'El Hipódromo', base: 2, desc: 'Hasta el hipódromo lo tomaron.\n¡A limpiar la pista!' },
 ] as const;
 const PAGE_ARROWS = [[494, 200], [18, 200]] as const; // map 1 -> map 2 (right edge), map 2 -> map 1 (left edge)
 
@@ -143,6 +148,7 @@ const SCREEN_IMAGES = [
   'assets/images/menuElements/info_map.png',
   'assets/lang/images/menu/banner.png',
   'assets/images/menuElements/exit_confirmation.png',
+  'assets/images/menuElements/items_tile.png', // cabecitas tintadas del roster online del mapa
 ];
 
 const INTRO_PAGES = ['page_1', 'page_2', 'page_3', 'page_4', 'page_5'].map(
@@ -203,6 +209,13 @@ export class XaGame {
   private coopConfig: CoopConfig | null = null;
   /** coop online: estamos dentro del selector de niveles del juego (el host elige, los demás votan) */
   private onlinePick = false;
+  /** coop (invitado): nodo del mapa donde está su cursor de voto (-1 = todavía no se movió) */
+  private followVote = -1;
+  /** aviso temporal sobre el menú principal (por ejemplo, por qué se cerró la sala) */
+  private notice: { text: string; until: number } | null = null;
+  /** coop (invitado): segundos que quedan armada la salida con Esc (se pide dos veces) */
+  private leaveArm = 0;
+  private followLevel = -1;
   /** coop: pantalla final mostrada, a la espera de volver al lobby */
   private coopEnd: 'win' | 'over' | null = null;
   private skipIntro(): void {
@@ -220,6 +233,7 @@ export class XaGame {
       case 'menu': return document.fullscreenElement ? '🗗' : '⛶';
       case 'splash': case 'loading': case 'intro': return '⏭';
       case 'online': return '↩';
+      case 'follow': return '↩';
       case 'levelIntro': return '▶';
       default: return '↩';
     }
@@ -236,6 +250,7 @@ export class XaGame {
         break;
       case 'menu': this.toggleFullscreen(); break;
       case 'online': online.backToMenu(); break;
+      case 'follow': this.tryLeave(); break;
       case 'splash': if (this.splashClose < 0) this.splashClose = 0; break; // next logo
       case 'loading': this.clicked = true; break;       // same as tapping the screen (once loaded)
       case 'intro': this.t = INTRO_WAIT; this.clicked = true; break; // same as any key: next page
@@ -273,13 +288,105 @@ export class XaGame {
       pick: () => this.openOnlineLevels(),
       input: (from, b, q) => this.scenario?.setRemoteInput(from, b, q),
       snap: (s) => this.scenario?.applySnap(s),
+      resetProgress: () => { this.state.wipe(); this.cowCache = {}; this.page = 0; this.selectLevel(0); },
     });
+  }
+
+  // ---------------------------------------------------------------- coop: etapa de menús (el anfitrión maneja, los demás miran)
+  /** Hay sala en el lobby y el anfitrión ya dijo "todo listo". */
+  private browseStage(): boolean {
+    const st = online.getState();
+    return st.phase === 'lobby' && !!st.room && st.room.stage === 'browse';
+  }
+
+  /** Mantiene la pantalla de juego alineada con la etapa de la sala (anfitrión: menús; invitados: espectador). */
+  private syncStage(): void {
+    const st = online.getState();
+    if (st.phase !== 'lobby' || !st.room) return;
+    const browse = st.room.stage === 'browse';
+    const s = this.screen;
+    if (st.host) {
+      if (browse && s === 'online') { this.screen = 'menu'; this.menuIndex = -1; this.onlinePick = false; this.t = 0; playMusic('xa_menu'); }
+      else if (!browse && (s === 'menu' || s === 'levels' || s === 'options' || s === 'help' || s === 'credits')) {
+        this.onlinePick = false; this.screen = 'online'; this.t = 0;
+      }
+    } else if (browse && s === 'online') {
+      this.screen = 'follow'; this.t = 0; this.followVote = -1; this.followLevel = -1; this.leaveArm = 0; playMusic('xa_menu');
+    } else if (!browse && s === 'follow') {
+      this.screen = 'online'; this.t = 0;
+    }
+  }
+
+  private doneList(): number[] {
+    return Object.entries(this.state.progress).filter(([, p]) => p?.done).map(([n]) => +n);
+  }
+
+  /** Anfitrión: publica a los demás en qué parte de los menús está y qué niveles tiene abiertos. */
+  private publishMenu(): void {
+    const st = online.getState();
+    if (!st.host || !st.room || st.phase !== 'lobby') return;
+    const s: MenuState['s'] = this.screen === 'levels' ? 'levels' : this.screen === 'online' ? 'lobby' : 'menu';
+    const done = this.doneList();
+    online.publishMenu({
+      s, i: this.hoverIndex >= 0 && s === 'menu' ? this.hoverIndex : this.menuIndex, p: this.page, l: this.levelIndex,
+      d: done, f: done.filter((n) => this.state.isPerfect(n)),
+    });
+  }
+
+  /** Invitado: sigue al anfitrión (pantalla, cursor, mapa) y deja mover su cursor de voto. */
+  private updateFollow(dt: number): void {
+    online.tick();
+    this.hoverIndex = -1;
+    this.leaveArm = Math.max(0, this.leaveArm - dt);
+    const hm = online.getState().menu;
+    if (hm?.s === 'levels') {
+      if (this.page !== hm.p) { this.page = hm.p; this.followVote = -1; this.infoIndex = -1; }
+      if (hm.l !== this.levelIndex) { this.arrowFrom = this.levelIndex; this.levelIndex = hm.l; this.arrowT = 0; }
+      this.arrowT = Math.min(ARROW_GLIDE, this.arrowT + dt);
+      if (this.followVote < 0) this.followVote = this.isUnlocked(hm.l) ? hm.l : 0;
+      const last = this.lastSelectable();
+      if (isFirstPress('right') || isFirstPress('up')) { this.followVote = Math.min(last, this.followVote + 1); playSound('CLICK'); }
+      if (isFirstPress('left') || isFirstPress('down')) { this.followVote = Math.max(0, this.followVote - 1); playSound('CLICK'); }
+      this.hoverIndex = this.levelHoverIndex();
+      let pick = -1;
+      if (this.clicked && this.hoverIndex >= 0 && this.isUnlocked(this.hoverIndex)) { this.followVote = this.hoverIndex; pick = this.hoverIndex; }
+      else if (isFirstPress('confirm') || isFirstPress('jumpHold') || isFirstPress('jumpTap') || isFirstPress('fire')) pick = this.followVote;
+      if (pick >= 0 && this.isUnlocked(pick)) {
+        const e = this.pageLevels[pick];
+        const num = e?.num ? (e.extra ? EXTRA_FIRST + e.extra - 1 : e.num) : 0;
+        if (num) { playSound('CLICK'); online.vote(num); }
+      }
+    } else {
+      this.menuIndex = hm?.i ?? -1;
+      this.followVote = -1;
+    }
+    if (isFirstPress('back')) this.tryLeave();
+  }
+
+  /** Invitado: salir de la sala pide apretar dos veces (un Esc de más no te saca del grupo). */
+  private tryLeave(): void {
+    if (this.leaveArm > 0) { this.leaveArm = 0; online.backToMenu(); return; }
+    this.leaveArm = 3;
+  }
+
+  /** Datos del anfitrión que mandan sobre el progreso propio mientras se mira su mapa. */
+  private remote(): MenuState | null {
+    return this.screen === 'follow' ? (online.getState().menu ?? { s: 'menu', i: -1, p: 0, l: 0, d: [], f: [] }) : null;
+  }
+  private doneOf(n: number): boolean {
+    const r = this.remote();
+    return r ? r.d.includes(n) : !!this.state.progress[n]?.done;
+  }
+  private perfectOf(n: number): boolean {
+    const r = this.remote();
+    return r ? r.f.includes(n) : this.state.isPerfect(n);
   }
 
   /** Arranca una partida coop con el nivel, la dificultad y el roster que fijó el servidor. */
   private async startOnline(level: number, difficulty: Difficulty, settings: { powerups: boolean }, room: {
     code: string; hostId: number | null; players: { id: number; name: string; color: number }[];
   }): Promise<void> {
+    this.onlinePick = false;
     const entry = level >= EXTRA_FIRST ? this.extras[level - EXTRA_FIRST] : this.levels[level - 1];
     if (!entry) {
       this.error = 'El anfitrión eligió un nivel que no existe en este build.';
@@ -291,6 +398,7 @@ export class XaGame {
       role: st.host ? 'host' : 'guest',
       roster: room.players.map((p) => ({
         id: p.id, name: p.name.slice(0, 10), color: p.color, hex: online.playerInfo(p.id).hex,
+        plain: p.id === room.hostId,
       })),
       you: st.you,
       difficulty,
@@ -302,6 +410,7 @@ export class XaGame {
 
   /** La sala volvió al lobby (fin de nivel, derrota o el anfitrión cortó): se muestra el panel otra vez. */
   private finishOnline(): void {
+    this.onlinePick = false;
     this.coopConfig = null;
     this.coopEnd = null;
     this.scenario?.dispose();
@@ -334,16 +443,23 @@ export class XaGame {
     const num = entry?.num ? (entry.extra ? EXTRA_FIRST + entry.extra - 1 : entry.num) : 0;
     if (!num) return;
     const st = online.getState();
-    this.onlinePick = false;
-    this.screen = 'online';
     if (st.host) {
+      // se queda en el mapa: si el servidor no deja empezar (falta alguien) el motivo se ve acá; si empieza, llega `start`
       online.setLevel(num);
       online.start(); // el servidor aplica el nivel y arranca en el mismo orden de mensajes
     } else {
+      this.onlinePick = false;
+      this.screen = 'online';
       online.vote(num);
     }
   }
-  private exitOnline(): void {    this.coopConfig = null;
+  private exitOnline(): void {
+    this.onlinePick = false;
+    this.followVote = -1;
+    // si la sala se cerró (anfitrión se fue, expulsión...) el motivo queda en el menú unos segundos
+    const why = online.getState().error;
+    this.notice = why ? { text: why, until: performance.now() + 7000 } : null;
+    this.coopConfig = null;
     this.coopEnd = null;
     this.scenario?.dispose();
     this.scenario = null;
@@ -514,7 +630,10 @@ export class XaGame {
         levelComplete: () => {
           if (coop) {
             this.coopEnd = 'win';
-            if (coop.role === 'host') online.sendEndSnap('win');
+            if (coop.role === 'host') {
+              if (entry.num) this.state.recordLevel(entry.num);   // el progreso que cuenta es el del anfitrión
+              online.sendEndSnap('win');
+            }
             this.screen = 'win';
             this.t = 0;
             playMusic('xa_win');
@@ -632,6 +751,7 @@ export class XaGame {
     pollInput();
     this.t += dt;
     this.hoverIndex = -1;
+    this.syncStage();
     switch (this.screen) {
       case 'splash': {
         // SplashScreen: each logo is its own state that plays intro_piano once and sends itself "fadeToBlack"
@@ -672,6 +792,7 @@ export class XaGame {
         if (isFirstPress('up')) { if (this.menuIndex < 0) this.menuIndex = 0; else this.menuIndex = (this.menuIndex + n - 1) % n; playSound('CLICK'); }
         if (isFirstPress('down')) { if (this.menuIndex < 0) this.menuIndex = 0; else this.menuIndex = (this.menuIndex + 1) % n; playSound('CLICK'); }
         this.hoverIndex = this.menuHoverIndex();
+        if (this.browseStage() && isFirstPress('back')) { online.setBrowse(false); break; }   // la pantalla vuelve al lobby cuando el servidor lo confirma
         if (this.clicked && this.hoverIndex >= 0) {
           this.menuIndex = this.hoverIndex;
           this.activateMenu(MENU_ITEMS[this.hoverIndex].action);
@@ -687,6 +808,9 @@ export class XaGame {
         if (isFirstPress('back')) online.backToMenu();
         break;
       }
+      case 'follow':
+        this.updateFollow(dt);
+        break;
       case 'levels': {
         // LevelSelectScreen::update: right/up = next level, left/down = previous, along the map path (no wrap),
         // never past the last unlocked one; holding the key keeps stepping once the arrow has glided over
@@ -714,7 +838,13 @@ export class XaGame {
           }
         }
         if (isFirstPress('back')) {
-          if (this.onlinePick) { this.onlinePick = false; this.screen = 'online'; return; }
+          if (this.onlinePick) {
+            this.onlinePick = false;
+            // con los menús abiertos para todos se vuelve al menú principal; si no, al lobby
+            this.screen = this.browseStage() ? 'menu' : 'online';
+            this.menuIndex = -1;
+            return;
+          }
           this.screen = 'menu'; this.menuIndex = -1;
         }
         this.hoverIndex = this.levelHoverIndex();
@@ -790,6 +920,10 @@ export class XaGame {
         // loadMenu: both go back to the MAIN MENU. En coop, después de la pantalla se vuelve al lobby.
         if (this.coopEnd) {
           if (this.t > END_WAIT + 0.5) this.finishCoopMatch();
+          // invitado: si el anfitrión nunca devuelve la sala al lobby, tecla/click a los 6 s o salida sola a los 30 s
+          if (this.coopConfig?.role === 'guest' && ((this.t > END_WAIT + 6 && (this.clicked || isFirstPress('any'))) || this.t > 30)) {
+            online.backToMenu();
+          }
           break;
         }
         if (this.t > END_WAIT && (this.clicked || isFirstPress('any'))) {
@@ -825,6 +959,7 @@ export class XaGame {
         this.hud.update(dt);
         break;
       case 'paused':
+        if (this.coopConfig) { online.tick(); this.scenario?.pauseTick(dt); } // coop: los demás siguen y se enteran de la pausa
         this.updatePause();
         break;
       case 'error':
@@ -833,18 +968,25 @@ export class XaGame {
       default:
         break;
     }
+    this.publishMenu();
     this.clicked = false;
   }
 
   private activateMenu(action: string): void {
     playSound('CLICK');
+    // con los menús abiertos para todos, JUGAR y ONLINE llevan al mapa donde el anfitrión elige el nivel de la sala
+    if (this.browseStage() && (action === 'levels' || action === 'online')) { this.openOnlineLevels(); return; }
     switch (action) {
       case 'levels': this.screen = 'levels'; this.page = 0; this.selectLevel(this.unlockedCount() - 1); this.t = 0; playMusic('xa_menu'); break; // cursor on the newest unlocked level
       case 'online': this.screen = 'online'; this.t = 0; online.enter(); playMusic('xa_menu'); break;
       case 'help': this.screen = 'help'; this.t = 0; break;
       case 'options': this.screen = 'options'; this.t = 0; break;
       case 'credits': this.screen = 'credits'; this.t = 0; break;
-      case 'splash': window.location.reload(); break;
+      case 'splash':
+        // dentro de una sala, recargar tira a todos del grupo: se pide confirmación
+        if (online.getState().room && !window.confirm('Si salís se cierra tu sesión en la sala (si sos el anfitrión, para todos). ¿Salir?')) break;
+        window.location.reload();
+        break;
     }
   }
 
@@ -868,9 +1010,9 @@ export class XaGame {
 
   /** Extra levels open one after another (the first one right away, or after level 16 when required). */
   private extraUnlocked(): number {
-    if (EXTRA_REQUIRES_ORIGINALS && !this.state.progress[LEVEL_COUNT]?.done) return 0;
+    if (EXTRA_REQUIRES_ORIGINALS && !this.doneOf(LEVEL_COUNT)) return 0;
     let u = 1;
-    for (let k = 0; k < EXTRA.length; k++) if (this.state.progress[EXTRA_FIRST + k]?.done) u = k + 2;
+    for (let k = 0; k < EXTRA.length; k++) if (this.doneOf(EXTRA_FIRST + k)) u = k + 2;
     return Math.min(EXTRA.length, u);
   }
 
@@ -892,7 +1034,7 @@ export class XaGame {
   /** Highest level number the player may play (1 + last completed). */
   private unlockedCount(): number {
     let u = 1;
-    for (let i = 1; i <= LEVEL_COUNT; i++) if (this.state.progress[i]?.done) u = i + 1;
+    for (let i = 1; i <= LEVEL_COUNT; i++) if (this.doneOf(i)) u = i + 1;
     return Math.min(LEVEL_COUNT, u);
   }
   private isUnlocked(idx: number): boolean {
@@ -1019,9 +1161,13 @@ export class XaGame {
       case 'splash': this.renderSplash(w); break;
       case 'loading': this.renderLoading(w); break;
       case 'intro': this.renderIntro(w); break;
-      case 'menu': this.renderMenu(w); break;
+      case 'menu': this.renderMenu(w); this.renderBrowseBanner(w); break;
       case 'online': this.renderOnline(w); break;
-      case 'levels': this.renderLevels(w); break;
+      case 'levels': this.renderLevels(w); this.renderBrowseBanner(w); break;
+      case 'follow':
+        if (online.getState().menu?.s === 'levels') this.renderLevels(w); else this.renderMenu(w);
+        this.renderFollowBanner(w);
+        break;
       case 'help': this.renderFull(w, 'assets/lang/images/help/ayuda.jpg'); break;
       case 'credits': this.renderFull(w, 'assets/lang/images/credits/creditos.jpg'); break;
       case 'options': this.renderOptions(w); break;
@@ -1086,6 +1232,14 @@ export class XaGame {
     // AssetsGeneral "MENU": the day art between 10:00 and 18:59 of the player's clock, the night art otherwise
     const hour = new Date().getHours();
     this.coverTop(w, hour - 10 >= 0 && hour - 10 < 9 ? 'assets/images/menuElements/menu.jpg' : 'assets/images/menuElements/menu_night.jpg');
+    if (this.notice && this.screen === 'menu') {
+      if (performance.now() > this.notice.until) this.notice = null;
+      else {
+        w.fillStyle = 'rgba(120,10,10,0.88)';
+        w.fillRect(0, 0, VIEW_W, 16);
+        drawText(w, this.notice.text.slice(0, 70), VIEW_W / 2, 2, 'white', 'center', 0.5);
+      }
+    }
     const bt = img('assets/images/menuElements/buttons_tile.png');
     if (!bt) return;
     MENU_ITEMS.forEach((it, i) => {
@@ -1110,7 +1264,6 @@ export class XaGame {
     this.coverTop(w, hour - 10 >= 0 && hour - 10 < 9 ? 'assets/images/menuElements/menu.jpg' : 'assets/images/menuElements/menu_night.jpg');
     w.fillStyle = 'rgba(3, 7, 12, 0.62)';
     w.fillRect(0, 0, VIEW_W, VIEW_H);
-    drawText(w, 'SALA ONLINE', VIEW_W / 2, 44, 'black2', 'center', 1.0);
     // si el panel no está montado (backend sin configurar) al menos queda el cartel del canvas
     const st = online.getState();
     if (!st.enabled) drawText(w, 'Sin servidor online en este build', VIEW_W / 2, 180, 'white', 'center', 0.7);
@@ -1119,6 +1272,8 @@ export class XaGame {
   private renderLevels(w: CanvasRenderingContext2D): void {
     this.coverTop(w, this.page ? 'assets/images/menuElements/map_2.png' : 'assets/images/menuElements/map.png');
     const list = this.pageLevels;
+    const follow = this.screen === 'follow';
+    const pick = this.onlinePick || follow;
     if (this.onlinePick) {
       const st = online.getState();
       const txt = st.host ? 'ELEGÍ EL NIVEL' : 'VOTÁ EL NIVEL';
@@ -1137,14 +1292,29 @@ export class XaGame {
       if (!entry && this.page) continue; // map 2 only shows the extra levels that exist
       const num = entry?.num ?? 0;
       const locked = !!entry && !this.isUnlocked(i);
-      const perfect = !!num && this.state.isPerfect(num);
+      const perfect = !!num && this.perfectOf(num);
       const current = i === this.levelIndex || i === this.hoverIndex;
-      if (this.onlinePick && online.getState().room) {
-        const votes = new Map<number, number>();
-        for (const v of online.getState().room!.votes ?? []) votes.set(v.level, (votes.get(v.level) ?? 0) + 1);
+      if (pick && online.getState().room) {
+        // votos: un cuadradito con el color y la inicial de cada jugador que votó este nivel
         const lvl = entry?.extra ? EXTRA_FIRST + entry.extra - 1 : entry?.num;
-        const vc = lvl ? (votes.get(lvl) ?? 0) : 0;
-        if (vc > 0) drawText(w, `${vc}`, px + 26, py - 10, 'black', 'center', 0.8);
+        const room = online.getState().room!;
+        const voters = lvl ? (room.votes ?? []).filter((v) => v.level === lvl) : [];
+        voters.forEach((v, k) => {
+          const who = room.players.find((p) => p.id === v.id);
+          const vx = px + 2 + k * 10, vy = py - 12;
+          // ficha con la cola hacia el nodo: color del jugador, borde de tinta y su inicial
+          w.fillStyle = online.playerInfo(v.id).hex;
+          w.strokeStyle = '#1a1818';
+          w.lineWidth = 1.5;
+          w.beginPath(); w.roundRect(vx - 0.5, vy - 1, 10, 11, 3); w.fill(); w.stroke();
+          w.beginPath(); w.moveTo(vx + 1.5, vy + 10); w.lineTo(vx + 4.5, vy + 14); w.lineTo(vx + 7.5, vy + 10); w.fill(); w.stroke();
+          drawText(w, (who?.name ?? '?').slice(0, 1).toUpperCase(), vx + 4.5, vy + 1, 'black', 'center', 0.4);
+        });
+        if (follow && i === this.followVote) {   // mi cursor de voto
+          w.strokeStyle = online.playerInfo(online.getState().you).hex;
+          w.lineWidth = 2;
+          w.strokeRect(px - 3, py - 3, 46, 36);
+        }
       }
       if (i === this.levelIndex) {
         // MAP_ANIMATED_SELECTION: glowing ring under the current node
@@ -1170,8 +1340,44 @@ export class XaGame {
       }
     }
     this.renderPageArrow(w);
-    this.renderInfoBar(w);
-    if (this.onlinePick) this.renderOnlineRoster(w);
+    if (!follow) this.renderInfoBar(w);
+    if (pick) this.renderOnlineRoster(w);
+    if (this.onlinePick) {
+      const err = online.getState().error;
+      if (err) {
+        w.fillStyle = 'rgba(120,10,10,0.85)';
+        w.fillRect(0, 28, VIEW_W, 16);
+        drawText(w, err.slice(0, 64), VIEW_W / 2, 30, 'white', 'center', 0.55);
+      }
+    }
+  }
+
+  /** Cartel inferior para el anfitrión durante la etapa de menús: todos lo están mirando. */
+  private renderBrowseBanner(w: CanvasRenderingContext2D): void {
+    if (!this.browseStage() || !online.getState().host) return;
+    const y = VIEW_H - 14;
+    w.fillStyle = 'rgba(0,0,0,0.7)';
+    w.fillRect(0, y, VIEW_W, 14);
+    drawText(w, 'TODOS TE ESTÁN MIRANDO  -  Esc: volver a la sala', VIEW_W / 2, y + 1, 'white', 'center', 0.5);
+  }
+
+  /** Cartel del invitado: sigue al anfitrión y vota con su propio cursor. */
+  private renderFollowBanner(w: CanvasRenderingContext2D): void {
+    const st = online.getState();
+    const host = st.room?.players.find((p) => p.host);
+    const hm = st.menu;
+    const lost = !!host && !host.online;
+    const lines: string[] = [];
+    if (lost) lines.push('El anfitrión perdió la conexión, esperando...');
+    else if (this.leaveArm > 0) lines.push('Apretá Esc de nuevo para salir de la sala');
+    else if (hm?.s === 'levels') {
+      const e = this.pageLevels[this.followVote];
+      lines.push(`Mirás a ${(host?.name ?? 'el anfitrión').slice(0, 10)}. Votás: ${e ? e.label.slice(0, 18) : '-'} (flechas+Enter)`);
+    } else lines.push(`Mirás a ${(host?.name ?? 'el anfitrión').slice(0, 10)}. Él elige el nivel y empieza.`);
+    const y = VIEW_H - 14;
+    w.fillStyle = lost || this.leaveArm > 0 ? 'rgba(120,10,10,0.85)' : 'rgba(0,0,0,0.7)';
+    w.fillRect(0, y, VIEW_W, 14);
+    drawText(w, lines[0].slice(0, 70), VIEW_W / 2, y + 1, 'white', 'center', 0.5);
   }
 
   /** Coop: durante la elección de nivel, arriba a la izquierda, quiénes están conectados. */
@@ -1180,22 +1386,30 @@ export class XaGame {
     if (!room) return;
     const players = room.players.filter((p) => p.online);
     if (!players.length) return;
-    const scale = 0.8;
+    const scale = 0.5;
     const labels = players.map((p) => (p.name || 'Xa').slice(0, 10));
-    const widest = Math.max(...labels.map((l) => lineWidth(l, 'black2') * scale));
-    const rowH = 11;
-    const pw = Math.min(VIEW_W - 8, Math.round(widest) + 24);
+    const widest = Math.max(...labels.map((l) => lineWidth(l, 'black') * scale));
+    const rowH = 17;
+    const pw = Math.min(VIEW_W - 8, Math.round(widest) + 52);
     const ph = players.length * rowH + 6;
-    w.fillStyle = 'rgba(6,10,16,0.88)';
-    w.fillRect(4, 4, pw, ph);
-    w.strokeStyle = 'rgba(255,210,58,0.55)';
-    w.lineWidth = 1;
-    w.strokeRect(4.5, 4.5, pw - 1, ph - 1);
+    // plaque de papel como las del HUD, con borde de tinta
+    w.fillStyle = 'rgba(0,0,0,0.3)';
+    w.beginPath(); w.roundRect(5, 6, pw, ph, 6); w.fill();
+    w.fillStyle = '#e2d5ae';
+    w.strokeStyle = '#1a1818';
+    w.lineWidth = 2;
+    w.beginPath(); w.roundRect(4, 4, pw, ph, 6); w.fill(); w.stroke();
+    const head = frameOf('AVATAR_HEAD', 0);
     players.forEach((p, i) => {
-      const y = 7 + i * rowH;
-      w.fillStyle = online.playerInfo(p.id).hex ?? '#ffffff';
-      w.fillRect(9, y + 1, 6, 6);
-      drawText(w, labels[i], 19, y, 'black2', 'left', scale);
+      const y = 7 + i * rowH, hex = online.playerInfo(p.id).hex ?? '#ffffff';
+      if (head) drawTinted(w, head, 9, y, 1, hex, 0.8, 0.42);
+      drawText(w, labels[i], 31, y + 1, 'black', 'left', scale);
+      if (p.host) { // corona del anfitrión
+        const cx = 31 + Math.round(lineWidth(labels[i], 'black') * scale) + 5, cy = y + 4;
+        w.fillStyle = '#fff602';
+        w.beginPath(); w.moveTo(cx, cy + 9); w.lineTo(cx - 1, cy + 2); w.lineTo(cx + 3, cy + 5); w.lineTo(cx + 6, cy); w.lineTo(cx + 9, cy + 5); w.lineTo(cx + 13, cy + 2); w.lineTo(cx + 12, cy + 9); w.closePath();
+        w.fill(); w.stroke();
+      }
     });
   }
 

@@ -55,7 +55,7 @@ Si encontrás algún problema, abrí un *issue* contando **en qué nivel**, **qu
 
 ### 🧛 Niveles extra: el mapa 2 (mod)
 
-Además del juego original, el port suma un **segundo mapa con 12 niveles nuevos** que mezclan Xa con los enemigos y jefes de **[Super Vampire Ninja Zero](http://www.supervampireninja.com)**, el prototipo de pelea que Batoví Games Studio hizo en 2009. Se juega siempre con **Xa, sus controles y su física**, también contra los jefes. Los 16 niveles originales no cambian en nada.
+Además del juego original, el port suma un **segundo mapa con 16 niveles nuevos** que mezclan Xa con los enemigos y jefes de **[Super Vampire Ninja Zero](http://www.supervampireninja.com)**, el prototipo de pelea que Batoví Games Studio hizo en 2009. Se juega siempre con **Xa, sus controles y su física**, también contra los jefes. Los 16 niveles originales no cambian en nada.
 
 - **Cómo entrar:** en el mapa de niveles, tocá la **flecha del borde derecho** (o apretá **→** sobre el último nivel abierto). En el mapa 2, la **flecha izquierda** (o **←** sobre el primer nivel) vuelve al mapa original.
 - **Desbloqueo:** el primer nivel extra está abierto desde el principio y cada uno abre el siguiente. Más adelante se van a desbloquear al terminar los 16 originales (`EXTRA_REQUIRES_ORIGINALS` en [`game.ts`](src/xa/game.ts)).
@@ -67,8 +67,8 @@ Además del juego original, el port suma un **segundo mapa con 12 niveles nuevos
   - **Ninja rojo**: salta hacia vos y remata con un golpe.
   - **Murciélago**: revolotea y se lanza en picada.
   - **Gran demonio**: lento y blindado; golpea el piso (la pantalla tiembla y salen ondas de choque) y salta para aplastarte.
-- **Un jefe cada 3 niveles**, los mismos del modo historia de SVNZ y en su orden. Esperan en una arena al final del nivel. Cuando entrás, cambia la música, aparece el cartel de SVNZ y abajo se muestra **su barra de vida**.
-  - Durante la pelea caen en la arena, lejos del jefe, **ítems de energía** y **power-ups** al azar. Cada power-up dura 15 segundos, tiñe a Xa y a sus disparos con su color (al estilo Mega Man) y se pierde si morís o cuando cae el jefe:
+- **Un jefe cada 3 niveles** (3, 6, 9, 12 y 15), los mismos del modo historia de SVNZ y en su orden; el Ninja Dorado vuelve como jefe del 15. Esperan en una arena al final del nivel. Cuando entrás, cambia la música, aparece el cartel de SVNZ y abajo se muestra **su barra de vida**.
+  - Durante la pelea caen en la arena, en un lugar del piso al azar (lejos del jefe y de la puerta, sin amontonarse), **ítems de energía** y **power-ups**. Cada power-up dura 15 segundos, tiñe a Xa y a sus disparos con su color (al estilo Mega Man) y se pierde si morís o cuando cae el jefe:
     - **Cristal** (azul): recibís la mitad de daño y la mitad de las balas rebotan.
     - **Poción** (verde): los disparos salen más grandes y pegan el triple.
     - **Batería** (rojo): disparás el doble de rápido y sin pausas.
@@ -79,6 +79,8 @@ Además del juego original, el port suma un **segundo mapa con 12 niveles nuevos
   2. **Gran Demonio** (nivel 6): golpes al piso y saltos aplastantes. Llega con 3 de apoyo.
   3. **Lucy Poseída** (nivel 9), la hermana de Mina: embestida, combos de puños y patadas, patada en picada y giro especial.
   4. **Drácula** (nivel 12): combo, conjuro de balas en abanico, teletransporte con la capa y patada en picada. Llega con un murciélago.
+  5. **Ninja Dorado, la revancha** (nivel 15): el mismo jefe del 3, en un escenario nuevo.
+- **Los 16 niveles del mapa 2:** La Costa, El Puerto, El Pueblo Solar, La Capital Tomada, Los Bañados, El Bosque Embrujado, La Ciudad de Noche, Los Viñedos, La Isla de Lucy, Los Muelles Viejos, Los Suburbios, El Castillo de Drácula, La Rambla, Las Sierras, La Revancha y El Hipódromo. Se puede verificar el contenido de todas las arenas con `python tools/verify_extra_levels.py --png carpeta`.
 - **Escenarios:** los fondos de SVNZ (arena, dojo, mazmorra y grilla) están recortados y adaptados al parallax de Xa, y suena la música de SVNZ.
 - Para regenerarlos desde tu instalación de SVNZ: `python tools/import_svnz.py "F:/Games/SuperVampireNinjaZero"` y después `python tools/gen_extra_levels.py`.
 
@@ -97,6 +99,10 @@ El port suma un **modo online** para jugar la campaña con hasta **4 amigos** en
 - **Vidas y savepoints:** cada uno tiene sus vidas. Al llegar a un **punto de guardado reviven todos** los que habían quedado sin vidas; si muere uno solo, espera al próximo savepoint. El nivel se pierde únicamente cuando **mueren todos**. Por nivel hay vidas extra equivalentes a la cantidad de conectados, repartidas al azar y separadas entre sí, así no se amontonan.
 - **Dificultad:** con cada amigo suben la vida y la cantidad de enemigos (y la vida de los jefes), y en algunas zonas aparecen más enemigos. Si alguien se queda mucho tiempo solo, la dificultad sube de a poco; si mueren todos, se mantiene como venía.
 - **Niveles separados:** si los jugadores quedan muy lejos en vertical, cada pantalla carga normalmente (el anfitrión simula el mundo y manda el estado).
+#### Arte de la interfaz online
+
+La interfaz online (`src/components/online.css`) tiene ranuras de arte (`--xo-art-*`) para reemplazar piezas por arte final sin tocar el código. La guía de piezas, tamaños y prompts para Gemini está en [`docs/GEMINI_UI_ONLINE.md`](docs/GEMINI_UI_ONLINE.md).
+
 
 #### Cómo levantarlo
 
@@ -244,7 +250,7 @@ Todos se ejecutan desde la raíz del proyecto:
 | URL | Qué hace |
 | :--- | :--- |
 | `/?level=5` | Entra directo al nivel 5 (1 a 16) |
-| `/?extra=3` | Entra directo al nivel extra 3 del mapa 2 (1 a 12) |
+| `/?extra=3` | Entra directo al nivel extra 3 del mapa 2 (1 a 16) |
 | `/?map=assets/data/mi_mapa.tmx` | Carga cualquier mapa TMX |
 | `/?sala=ABC12` | Abre el lobby online con el código de sala ya cargado (si ya hay apodo, entra directo) |
 | `/?touch=1` / `/?touch=0` | Fuerza / desactiva los controles táctiles |

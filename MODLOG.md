@@ -899,3 +899,130 @@ documentado en el descompilado, sin copiar código descompilado al repo.
   sin errores, build OK.
 - Nota de pruebas: tras reiniciar el dev server, Vite re-optimiza dependencias y recarga la página varias veces
   durante ~30 s; esperar a que responda 200 antes de probar.
+
+## Estado 2026-10-28 (flujo online: todo listo, menús espejados, votos, color original del anfitrión, borrar progreso)
+Protocolo final del modo online (el detalle de mensajes está en XA-Backend/README.md; **el backend hay que volver a desplegarlo**).
+- **Pasos**: menú principal -> ONLINE -> CREAR/UNIRSE (pestañas) -> SALA (lobby) -> «ESTOY LISTO» de cada invitado -> **«¡TODO LISTO!»
+  del anfitrión** (`{t:'go',on:true}`, el servidor lo rechaza si falta alguien listo/conectado) -> etapa `browse`: el anfitrión
+  queda en el menú principal del juego y recorre ONLINE/JUGAR -> mapa 1 / mapa 2 y elige el nivel (setLevel + start, un solo
+  gesto); los demás pasan a la pantalla `follow` (game.ts) y **ven en vivo** botón elegido, mapa (1/2), nodo y niveles abiertos
+  del anfitrión -> partida -> pantalla de resultado -> vuelta al lobby (el servidor pone `stage:'lobby'`, listos a cero).
+- **Espejo de menús**: el anfitrión publica `{t:'menu', d:{s,i,p,l,d,f}}` (s = lobby/menu/levels, i = botón, p = mapa, l = nodo,
+  d = niveles completados 1-16 y 101-112, f = perfectos) cada vez que cambia (máx. ~12/s, `online.publishMenu`). El servidor lo
+  guarda en `room.menu` y se lo manda a quien entra/vuelve (reconexión a mitad de etapa). Los invitados NO manejan los menús:
+  `follow` solo dibuja (renderMenu / renderLevels con los datos del anfitrión) y deja mover un cursor de voto propio.
+- **Votos**: en `follow`, flechas + Enter (o clic en un nodo abierto) = `{t:'vote',level}`; en el mapa cada voto es un cuadradito
+  con el color y la inicial del jugador sobre el nodo (renderLevels); solo el anfitrión elige. Los invitados votan sobre el mapa
+  que el anfitrión tiene abierto (siguen su cambio de mapa 1/2).
+- **Color**: el anfitrión siempre es el color 0 «Original» y **no se tiñe** (`PlayerRuntime.plain`, hero.ts y ficha del HUD); su
+  hex dorado solo marca plaquita/ficha/marcadores. Los invitados toman el primer color libre de 1 en adelante (violeta, naranja,
+  azul, turquesa, rosa, blanco, marrón; se quitó magenta por parecerse a rosa).
+- **Progreso**: el que cuenta es el del anfitrión (sus niveles abiertos definen qué se puede elegir; los invitados ven esos
+  nodos abiertos/perfectos gracias a `d`/`f`). Al ganar un nivel en coop el anfitrión llama `state.recordLevel` (antes no se
+  guardaba). «BORRAR PROGRESO» (solo anfitrión, en el lobby, pide confirmación «SÍ, BORRAR/CANCELAR») -> `HeroState.wipe()`:
+  vacía `progress`, `highScore` y `lastPlayedLevel` de `localStorage['xa-save']`. El lobby muestra «PROGRESO n/16 originales ·
+  m/12 extra» (el del anfitrión para todos).
+- **Máximo 4 con el anfitrión**: lo aplica el servidor (`full`) y el cliente (`GET /api/rooms/:code` -> «La sala está llena»);
+  el lobby muestra n/4 y 4 casillas.
+- **Casos límite**: el anfitrión se va o su asiento vence -> `closed host_left` («El anfitrión salió y cerró la sala.»); el
+  anfitrión pierde la conexión en `browse` -> los invitados ven «El anfitrión perdió la conexión, esperando...» (45 s de gracia);
+  un invitado desconectado frena «todo listo»/empezar (error en la barra roja del mapa); expulsado -> «Te sacaron de la sala.»;
+  segunda pestaña -> «Entraste desde otra pestaña.»; reconexión (resume) y `server_restart`/`session_lost` con texto propio;
+  un invitado que cancela su «listo» durante `browse` devuelve la sala al lobby; Esc del invitado en `follow` pide apretar dos
+  veces para salir. El anfitrión sale de `browse` con Esc en el menú principal (`{t:'go',on:false}`).
+- Archivos: XA-Backend/src/{game,protocol,rooms,ws}.ts, README.md; web: src/xa/game.ts (follow, syncStage, publishMenu),
+  src/xa/online/{session,types,config}.ts, src/xa/world/{hero,hud,player,world,state}.ts, src/components/OnlinePanel.tsx,
+  tools/online-check.mjs (prueba de protocolo con 5 clientes WebSocket contra un backend local; 14 comprobaciones).
+- Verificado: `npm test` del backend, `node tools/online-check.mjs`, y en el navegador (build de producción + backend local, dos
+  pestañas): lobby, listo, TODO LISTO, el invitado ve el menú y el mapa del anfitrión moverse, voto, el anfitrión elige y empieza
+  (Xa del anfitrión con sus colores, el invitado teñido), borrar progreso con confirmación.
+- Pendiente de verificar: fin de partida coop -> progreso guardado -> vuelta al lobby; reconexión del anfitrión en `browse`;
+  más de 2 jugadores en el navegador; pantalla táctil (el invitado vota tocando un nodo).
+
+## Estado 2026-10-28 (ronda UI online — panel, HUD coop y roster del mapa con el estilo del juego)
+- Pedido del usuario: la interfaz online "se veía fatal", "detallar las pestañas" y la barra de power-up no combinaba.
+- Panel online (src/components/OnlinePanel.tsx + src/components/online.css, clases `xo-*`; el CSS viejo `xa-online-*` salió de
+  index.astro): estilo de los menús originales (options_win/exit_confirmation): panel verde lima con borde blanco+negro,
+  placas de papel (#E2D5AE de info_map.png), botones amarillos con borde negro, letra cómic. Pestañas CREAR / UNIRSE / SALA
+  (SALA sólo dentro de una sala; flechas del teclado cambian CREAR/UNIRSE), nombre con contador y validación, código con
+  teclado de mayúsculas, aviso "te invitaron a la sala X" con ?sala=, estados de carga (spinner + CANCELAR), error con
+  alerta, sin-servidor. SALA: código grande + copiar código/link, 4 casillas fijas (cabecita de Xa tintada con el color del
+  héroe vía CSS mask sobre items_tile.png, nombre, corona de anfitrión, VOS, LISTO/ESPERANDO/SIN CONEXIÓN, libre con
+  guion, × para sacar), antena de ping de 3 barras (verde/amarillo/rojo, parpadea si se pierde), nivel elegido y votos
+  con los puntos de color de cada votante, interruptor de power-ups (bloqueado con motivo para invitados/jefes).
+  Foco visible, tamaños táctiles >= 44 px, sin movimiento si prefers-reduced-motion; en pantallas táctiles el SALIR de
+  CSS se oculta (ya está el botón redondo `xa-back-btn`).
+- Ranuras de arte: variables `--xo-art-*` (card, header, tab, tab-on, btn, btn-hover, slot, slot-me, slot-free, avatar,
+  spinner) en `:root` de online.css, valen `none`; la imagen se pinta encima del CSS. Ver docs/GEMINI_UI_ONLINE.md
+  (reescrita: la del borrador de opencode usaba tema oscuro, archivos y rutas inexistentes).
+- HUD coop (src/xa/world/hud.ts): fichas de amigos como placas de papel con borde de tinta, cabecita tintada, vidas y
+  nombre con la fuente negra del juego, franja del color del héroe y borde amarillo en la propia. Power-up: placa de papel
+  con el ícono y debajo el tiempo con los cuadros de ENERGY_BAR del propio juego (10 pasos), parpadeo en los últimos 3 s.
+- Roster del mapa (game.ts renderOnlineRoster): placa de papel con cabecita tintada, nombre y corona del anfitrión; fichas
+  de voto con cola y borde de tinta. items_tile.png se precarga (antes no estaba cargada en el menú y no salían cabecitas).
+  El título "SALA ONLINE" del canvas se quitó (ahora lo pone el panel).
+- Verificado en dev (puerto propio con --ignore-lock) + build de producción OK: panel en 1100x700 (CREAR, UNIRSE, SALA) y
+  568x320 apaisado, HUD y roster del mapa renderizados en un canvas de prueba. NO se probó con el backend real ni a 320 px de
+  ancho real (en el juego el celular vertical muestra el aviso de girar).
+
+## Estado 2026-10-28 (online: audio, balas, enemigos y castigo por adelantarse)
+- Audio replicado y posicional: `playSound(id, at?)` en audio.ts acepta una posición (o usa el "origen" que el escenario fija
+  mientras actualiza cada héroe, enemigo, bala y objeto tocado). Con un "oyente" (el héroe de la pestaña, solo coop) baja el
+  volumen con la distancia (pleno hasta 260 px, mínimo 12 % a 1100 px) y panea. Los sonidos viajan en `a` como
+  `secuencia|id|x|y`, cada uno ~0.4 s en varias instantáneas (el canal WebRTC es sin garantías y perdía eventos); el
+  invitado descarta secuencias ya oídas → cada disparo, impacto, muerte, daño, ítem y sonido de jefe suena una vez en todas
+  las pantallas. Antes se cortaba en 16 por instantánea y se perdían si el anfitrión tenía el sonido apagado. CLICK no se replica.
+- Puntos flotantes (`pf`), explosiones de jefe (van como efectos en `f`), plataformas móviles (`pl`) y puertas abiertas (`dr`)
+  ahora llegan al invitado (antes las plataformas no se movían y las puertas no se abrían en su pantalla).
+- p2p.ts/session.ts: las instantáneas directas por WebRTC pasaban sin `acceptSnap` (podían llegar viejas/repetidas); ahora filtran.
+- Simulación: enemigos y balas se activan/eliminan por cercanía a CUALQUIER jugador vivo (antes un rectángulo que abarcaba a todos,
+  activo también en el vacío entre dos lejanos). Los enemigos apuntan al amigo más cercano a ellos (antes al más cercano a
+  la cámara del anfitrión: los enemigos cerca de un invitado perseguían al anfitrión lejano). Extras por jugador: se reparten
+  entre todos los enemigos (antes solo los primeros 24 y con 4 jugadores se amontonaban).
+- Castigo por adelantarse: si el que va primero saca más de 24 columnas al promedio de los demás, el multiplicador (vida efectiva
+  y cadencia de disparo de los tiradores, `World.pace`) sube 0.04 por columna extra hasta `soloCap` (1.6), a 0.12/s, y se relaja
+  a 0.05/s cuando el grupo se junta (antes nunca bajaba; si no queda nadie vivo se mantiene). Además aparecen refuerzos
+  (clones de enemigos comunes delante del líder, máx. 8, cada 5 s; viajan como los ayudantes de jefe). Mensaje a todos y campo
+  `ah` en la instantánea = id del líder (la UI puede mostrar un aviso); `d` sigue siendo el multiplicador.
+- Dificultad 1-4 jugadores (valores del backend): vida enemigos 1.0/1.1/1.2/1.3, cantidad 1/1.75/2.5/3.0 (tope 3), jefes
+  1/1.65/2.4/3.25. Nivel 1: 34/60/85/102 enemigos; nivel 8: 54/95/135/162. Se dejó sin cambios (sin retoques en XA-Backend).
+- Verificación: tools/online-sim.mts (anfitrión + invitado reales, 30 % de pérdida de paquetes; necesita `linkedom` para
+  DOMParser, ver cabecera): disparos 9/9 oídos una vez, bala viva a 2000 px de la cámara del anfitrión y eliminada lejos de todos,
+  castigo 1.25→1.60 y vuelve a 1.00, `ah` y refuerzos llegan al invitado, plataforma móvil igual. Typecheck y build OK.
+
+## Estado 2026-10-28 (ronda 55 — arenas limpias, power-ups por todo el piso, puerta firme y 4 niveles extra nuevos)
+- Puerta del jefe: no se logró reproducir el cruce (fuzz de 4000 pasos con ítems pegados a la puerta en 2 niveles, y los 4 power-ups,
+  sin pasar). Causa más probable hallada leyendo el código: World.update resolvía el choque con la puerta según la VELOCIDAD de Xa
+  (vel.x > 0 lo saca por la izquierda, vel.x < 0 lo saca por la DERECHA, vel.x = 0 no hace nada), así que si Xa quedaba solapado con la
+  puerta y apretaba la otra dirección, lo teletransportaba al otro lado. Ahora se saca siempre por el lado en que está su centro
+  (puerta cerrada). Verificado: solapado 10 px con vel.x < 0 / 0 / > 0 termina siempre pegado a la izquierda. No verificado: que éste
+  sea exactamente el camino del reporte original.
+- Arenas amontonadas: la arena es UNA columna repetida 36 veces y arrastraba lo dibujado sobre el piso (matas de pasto, pilares y
+  paredes enteras de la mazmorra, 36 copias seguidas). gen_extra_levels.py deja sólo el piso (+ una mata ligera cada 4 columnas y las
+  3 primeras/últimas columnas intactas). Medido con tools/verify_extra_levels.py: baldosas decorativas en las 4 arenas 36-106 -> 0-8.
+- Nuevo tools/verify_extra_levels.py: por nivel lista objetos, exige que ninguno comparta celda ni esté a <= 1 baldosa de otro en la
+  misma fila (monedas entre sí sí pueden ser vecinas), que todos estén sobre piso (voladores hasta 5 baldosas arriba) y que la arena sólo
+  tenga jefe, puerta y guardado; `--png DIR` dibuja cada arena con cajas. Antes: 13 choques (guardados con monedas, vaca con murciélago);
+  ahora 0. El generador lleva un set `occ` de celdas ocupadas (incluye lo que flota sobre el piso) y las monedas dejan 1 baldosa libre.
+- Power-ups/energía (svnz.ts healing): ya no caen en los extremos (x0+96 / x1-96, junto a la puerta) sino en una x al azar de
+  [x0+80, x1-144] (el piso de la arena es plano y alcanzable), a >= 160 px del jefe y sin nada vivo a < 64 px (World.thingNear nuevo).
+  Mismas reglas de cadencia (a los 6 s, luego cada 10 s, uno a la vez, 15 s de efecto). spawnItem suma MEGA_POWER al POWER como destello.
+  Medido en la arena del nivel 15 (1152 px, puerta en 1120): 13 caídas entre x=112 y x=944, ninguna a < 200 px del jefe, todas a y=575.
+- Niveles 13-16 (101+12..115): La Rambla (base 1, fondo 1), Las Sierras (base 7, fondo 7), La Revancha (base 8, fondo 8, jefe Ninja Dorado
+  otra vez: no hay jefes SVNZ nuevos importados) y El Hipódromo (base 2, fondo 2). Jefes en 3, 6, 9, 12, 15. Ocupan los 4 puestos
+  libres de NODE_POS del mapa 2 (slots 13-16). Cambios: LEVELS en el generador, EXTRA en game.ts, EXTRA_TITLES en online/levels.ts
+  (num 113..116), OnlinePanel (x/16), manifest regenerado. El guardado/desbloqueo ya iteraba EXTRA.length. Los terrenos de los niveles
+  1-12 no cambian (sólo la arena de los 4 jefes y la colocación de objetos).
+- Verificado: generador con alcanzabilidad (con la puerta cerrada la salida es inalcanzable) para los 16; nivel 13, 15 y 16 corren
+  30-40 s sin errores; el jefe del 15 despierta, suelta ítems y muere, y el mapa 2 muestra los 16 nodos; tsc sin errores.
+
+### Segunda pasada online (revisión cruzada)
+- Toques cortos: el invitado acumula (OR) los bits vistos entre dos envíos a 30 Hz, así un toque de un cuadro de fuego/salto siempre llega.
+- Enlace caído: el anfitrión suelta los controles de un invitado sin paquetes por 0.5 s (el héroe se frena); el siguiente paquete los restaura.
+- Fin de partida: si el anfitrión no devuelve la sala al lobby, el invitado puede salir con tecla/click a los 6 s y sale solo a los 30 s (game.ts).
+- Pausa del anfitrión: `Scenario.pauseTick` sigue mandando instantáneas con `ps`; el invitado ve "PAUSA DEL ANFITRION".
+- Balas con gravedad/aceleración (`g`, `ax`) viajan en `b`; `cereals` y `heros` en la tupla de jugadores (el HUD del invitado muestra el doble salto).
+- Música: `ms` en la instantánea cuando no queda nadie vivo; el invitado la corta y la retoma al reaparecer.
+- `dynItems` se poda al recogerse y el invitado rellena los índices descartados; se borró markEnd/lastEnd (sin uso).
+- tools/online-sim.mts cubre todo lo anterior.
+- Tercera pasada: tras un corte de enlace los controles quedan en cero pero `bits` conserva lo último, así el primer paquete al volver no inventa un flanco de salto/fuego; el jefe SVNZ elige mejor dónde dejar el ítem de curación (arena angosta, sin ítems encima, el más lejos si ninguno cumple 160 px); el líder que se adelantó lleva "!" en su plaquita de nombre (consume `ah`).

@@ -18,9 +18,27 @@ export interface RoomPlayer {
   online: boolean;
 }
 
+/** Estado de los menús del anfitrión que ven los demás (mirror). */
+export interface MenuState {
+  /** pantalla: lobby (panel), menu (menú principal u opciones/ayuda/créditos) o levels (mapa de niveles) */
+  s: 'lobby' | 'menu' | 'levels';
+  /** botón elegido del menú principal (-1 = ninguno) */
+  i: number;
+  /** mapa: 0 = original, 1 = mapa 2 (extra) */
+  p: number;
+  /** nodo elegido en el mapa */
+  l: number;
+  /** niveles completados del anfitrión (1..16 y 101..116): define cuáles se pueden elegir */
+  d: number[];
+  /** niveles perfectos del anfitrión */
+  f: number[];
+}
+
 export interface RoomView {
   code: string;
   status: 'lobby' | 'playing';
+  /** lobby = armando la sala; browse = el anfitrión dijo "todo listo" y recorre los menús */
+  stage?: 'lobby' | 'browse';
   hostId: number | null;
   max: number;
   settings: { powerups: boolean };
@@ -44,6 +62,7 @@ export interface ServerInfo {
 export type ServerMessage =
   | { t: 'joined'; you: number; host: boolean; sid: string; resumed: boolean; claimed: boolean; room: RoomView }
   | { t: 'room'; room: RoomView }
+  | { t: 'menu'; d: MenuState }
   | { t: 'start'; room: RoomView; difficulty: Difficulty; level: number; you: number }
   | { t: 'in'; from: number; d: { b: number; q: number } }
   | { t: 'snap'; d: Snap }
@@ -64,14 +83,14 @@ export interface Snap {
   v: number;
   /** número de secuencia (el invitado descarta repetidas del relé) */
   n: number;
-  /** jugadores: id, x, y, dir, estado, animación, frame, tiempo de animación, energía, power, powerT, vidas, viva, eliminada */
-  p: [number, number, number, number, number, string, number, number, number, string | null, number, number, number, number][];
+  /** jugadores: id, x, y, dir, estado, animación, frame, tiempo de animación, energía, power, powerT, vidas, viva, eliminada, cereales (doble salto), potenciadores de salto */
+  p: [number, number, number, number, number, string, number, number, number, string | null, number, number, number, number, number, number][];
   /** enemigos: id, x, y, dir, vidas, animación, frame, tiempo, flash */
   e: [number, number, number, number, number, string, number, number, number][];
   /** enemigos que murieron hace poco: el invitado los borra */
   k?: number[];
-  /** balas: x, y, vx, vy, equipo, tinte, grande */
-  b: [number, number, number, number, number, string | null, number][];
+  /** balas: x, y, vx, vy, equipo, tinte, grande, gravedad, aceleración en x */
+  b: [number, number, number, number, number, string | null, number, number, number][];
   /** efectos: animación, x, y, dir, tiempo */
   f: [string, number, number, number, number][];
   /** cosas (items, vacas, savepoints): índice, x, y, vivo, rescate, animación, tiempo */
@@ -90,8 +109,21 @@ export interface Snap {
   d: number;
   /** música del nivel, si cambió */
   mu?: string;
-  /** efectos de sonido replicados (solo el anfitrión los arma; los invitados los reproducen) */
+  /** efectos de sonido replicados: "secuencia|id|x|y" (x,y vacíos = global). Cada sonido viaja ~0.4 s en varias
+   *  instantáneas (el canal directo pierde paquetes) y el invitado descarta las secuencias ya oídas. */
   a?: string[];
+  /** puntos flotantes: valor, x, y, tiempo */
+  pf?: [number, number, number, number][];
+  /** plataformas móviles: x, y (mismo orden que en el nivel) */
+  pl?: [number, number][];
+  /** puertas: 1 = abierta (mismo orden que en el nivel) */
+  dr?: number[];
+  /** 1 = el anfitrión está en pausa (el mundo está quieto) */
+  ps?: number;
+  /** 1 = no queda nadie vivo: la música está cortada */
+  ms?: number;
+  /** castigo por ir muy adelantado: id del jugador que lidera la delantera (ausente = ninguno) */
+  ah?: number;
   /** enemigos que aparecieron después de cargar el nivel (ayudantes de los jefes): id, tipo, x, y, props */
   ne?: [number, string, number, number, Record<string, string>][];
   /** objetos que aparecieron después (ítems de curación de los jefes): índice, asset, x, y, cantidad */

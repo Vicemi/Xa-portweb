@@ -18,14 +18,14 @@ export const MAX_PLAYERS = 4;
 
 /** Paleta de respaldo: la misma del servidor (src/game.ts de xa-backend), por si /api/info no responde. */
 export const FALLBACK_COLORS = [
+  { name: 'Original', hex: '#ffd23a' },   // 0: el anfitrión; su Xa va SIN tinte (el hex solo sirve para plaquitas y marcadores)
   { name: 'Violeta', hex: '#a855f7' },
   { name: 'Naranja', hex: '#ff8a2b' },
-  { name: 'Rosa', hex: '#ff5ec4' },
   { name: 'Azul', hex: '#4f7dff' },
+  { name: 'Turquesa', hex: '#20c9a0' },
+  { name: 'Rosa', hex: '#ff5ec4' },
   { name: 'Blanco', hex: '#f4f0e6' },
   { name: 'Marrón', hex: '#c08a4a' },
-  { name: 'Magenta', hex: '#e040a0' },
-  { name: 'Turquesa', hex: '#20c9a0' },
 ] as const;
 
 export const colorHex = (i: number): string => (FALLBACK_COLORS[i] ?? FALLBACK_COLORS[0]).hex;

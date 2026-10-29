@@ -624,7 +624,7 @@ export class Hero {
         return;
       }
     }
-    if (f && this.p.hex && this.state !== HS.Dead) {
+    if (f && this.p.hex && !this.p.plain && this.state !== HS.Dead) {
       // coop: each friend's Xa takes their colour (the palette avoids the power-up colours)
       drawTinted(ctx, f, x, y, this.dir, this.p.hex, 0.62);
       return;

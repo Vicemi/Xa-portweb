@@ -2,7 +2,7 @@
 import { Anim, ANIMS, drawFrame, drawTinted, frameOf, MAPS } from '../core/sprites';
 import { drawLine } from '../core/font';
 import { img } from '../core/assets';
-import { playMusic, playSound, stopMusic, onSound } from '../core/audio';
+import { playMusic, playSound, stopMusic, onSound, setListener, setSoundOrigin } from '../core/audio';
 import { resetInput } from '../core/input';
 import { GameCamera, VIEW_H, VIEW_W } from './camera';
 import { Enemy, createEnemy } from './enemies';
@@ -19,7 +19,7 @@ import type { Difficulty, Snap } from '../online/types';
 export interface CoopConfig {
   role: 'host' | 'guest';
   /** jugadores del lobby, en el orden del servidor (id, apodo, color) */
-  roster: { id: number; name: string; color: number; hex: string }[];
+  roster: { id: number; name: string; color: number; hex: string; plain?: boolean }[];
   /** id del jugador de esta pestaña */
   you: number;
   difficulty: Difficulty;
@@ -51,6 +51,8 @@ export interface World {
   state: HeroState;
   /** héroe más cercano a la cámara (los enemigos lo usan como objetivo) */
   readonly hero: Hero;
+  /** coop: multiplicador de dificultad en vivo (castigo por ir solo / muy adelantado); 1 = normal */
+  readonly pace: number;
   readonly players: PlayerRuntime[];
   readonly coop: CoopConfig | null;
   immortal: boolean;
@@ -71,6 +73,8 @@ export interface World {
   message(text: string, seconds: number): void;
   /** Extra-level bosses: drop an item (e.g. ENERGY) standing at (x, y); returns a handle that tells if it's still there. */
   spawnItem(asset: string, x: number, y: number, count?: number): { alive: boolean };
+  /** Is a pick-up, cow or checkpoint standing within `r` px of x (horizontally)? Used to drop items on a free spot. */
+  thingNear(x: number, r: number): boolean;
   /** The level's own music (pMusic). */
   readonly levelMusic: string | null;
 }
@@ -92,6 +96,11 @@ interface Effect { anim: Anim; x: number; y: number; dir: number }
 /** VolatilePoints: the awarded score in the pixel font, rising 40 px with easeOutQuint over 1.2 s. */
 interface PointsFx { value: number; x: number; y: number; t: number }
 const POINTS_FX_TIME = 1.2;
+/** coop: segundos que un sonido sigue viajando en las instantáneas (el canal directo pierde paquetes; el invitado descarta repetidos) */
+const SFX_KEEP = 0.4;
+/** castigo por adelantarse: columnas de ventaja sobre el promedio de los demás, subida por columna extra, y velocidad de cambio por segundo */
+const AHEAD_COLS = 24, AHEAD_RAMP_PER_COL = 0.04, PENALTY_UP = 0.12, PENALTY_DOWN = 0.05;
+const REINFORCE_EVERY = 5, REINFORCE_MAX = 8;
 const COW_POINTS = 1000; // Cow points (loadObjects: mov [obj+0x394], 0x3e8)
 interface Bullet {
   x: number; y: number; vx: number; vy: number; team: number; alive: boolean; g?: number; ax?: number;
@@ -173,7 +182,6 @@ export class Scenario implements World {
   private snapshotSeq = 0;
   private snapshotT = 0;
   private lastMsg = '';
-  private lastEnd: number | undefined;
   /** mensaje/saving vigentes en el anfitrión (van en la instantánea para el HUD de los invitados) */
   private msgText = '';
   private msgT = 0;
@@ -195,7 +203,24 @@ export class Scenario implements World {
   private dynEnemies: { id: number; type: string; x: number; y: number; props: Record<string, string> }[] = [];
   private dynItems: { idx: number; asset: string; x: number; y: number; count: number }[] = [];
   /** coop: efectos de sonido que el anfitrión generó desde la última instantánea (los invitados los reproducen) */
-  private sfx: string[] = [];
+  private sfx: { q: number; id: string; x?: number; y?: number; t: number }[] = [];
+  private sfxQ = 0;
+  private lastSfxQ = 0;
+  /** objetivo de los enemigos: el amigo más cercano a este punto (si no, a la cámara) */
+  private focus: { x: number; y: number } | null = null;
+  /** castigo por ir muy adelantado: id del que lidera (0 = nadie) y gap en columnas */
+  private aheadId = -1;
+  private aheadWarned = false;
+  private reinforceT = 0;
+  private hostPaused = false;
+  private guestMusicCut = false;
+  /** anfitrión: reloj y último paquete de controles de cada invitado (sin paquetes ~0.5 s = suelta todo) */
+  private clock = 0;
+  private lastIn = new Map<number, number>();
+  private staleIn = new Set<number>();
+  /** invitado: bits vistos entre dos envíos (un toque más corto que el intervalo igual llega) */
+  private inputAcc = 0;
+  private reinforcements: Enemy[] = [];
   private offSfx: (() => void) | null = null;
 
   constructor(readonly level: TmxLevel, readonly levelNum: number, public state: HeroState, private events: WorldEvents, coop?: CoopConfig) {
@@ -209,31 +234,37 @@ export class Scenario implements World {
     const lives = coop ? Math.max(START_LIVES, roster.length) : Math.max(1, state.lives);
     for (const r of roster) {
       const p = new PlayerRuntime(r.id, r.name, coop ? r.hex : null, coop ? r.id === coop.you : true);
+      p.plain = !!r.plain;   // el anfitrión conserva los colores originales de Xa (sin tinte); el hex solo marca plaquitas
       p.resetForLevel(lives);
       p.hero = new Hero(this, p);
       p.hero.limit = { w: this.map.widthPx, h: this.map.heightPx };
       this.players.push(p);
     }
+    setListener(null); setSoundOrigin(null);
     this.loadObjects();
     this.music = level.props.pMusic ?? null;
     if (this.music) playMusic(this.music);
     // coop (anfitrión): cada playSound que ocurra durante el nivel se replica a los invitados en la siguiente instantánea
     if (this.coop?.role === 'host') {
-      this.offSfx = onSound((id) => {
-        if (this.sfx.length < 16) this.sfx.push(id);
+      this.offSfx = onSound((id, x, y) => {
+        if (id === 'CLICK') return;
+        this.sfx.push({ q: ++this.sfxQ, id, x, y, t: 0 });
+        if (this.sfx.length > 40) this.sfx.shift();
       });
     }
   }
 
   /** Libera la suscripción de audio (llamar antes de descartar el escenario). */
   dispose(): void {
+    setListener(null); setSoundOrigin(null);
     if (this.offSfx) { this.offSfx(); this.offSfx = null; }
   }
+  get pace(): number { return this.soloPenalty; }
   get hero(): Hero {
     const alive = this.players.filter((p) => p.hero.isAlive() && !p.eliminated);
     const list = alive.length ? alive : this.players;
     if (list.length <= 1) return list[0].hero;
-    const cx = this.camera.x + this.camera.w / 2, cy = this.camera.y + this.camera.h / 2;
+    const cx = this.focus?.x ?? this.camera.x + this.camera.w / 2, cy = this.focus?.y ?? this.camera.y + this.camera.h / 2;
     let best = list[0], bd = Infinity;
     for (const p of list) {
       const d = Math.abs(p.hero.pos.x - cx) + Math.abs(p.hero.pos.y - cy);
@@ -327,7 +358,7 @@ export class Scenario implements World {
 
   /** Duplica algunos enemigos normales (nunca jefes) para que el coop tenga más movimiento. */
   private spawnExtraEnemies(count: number): void {
-    const base = this.enemies.filter((e) => !e.isBoss).slice(0, 24);
+    const base = this.enemies.filter((e) => !e.isBoss && !e.isIndestructible); // repartidos por todo el nivel (antes solo los primeros 24 juntaban todos los extras)
     if (!base.length) return;
     const ts = this.map.ts;
     for (let i = 0; i < count; i++) {
@@ -396,6 +427,9 @@ export class Scenario implements World {
     }
     return e;
   }
+  thingNear(x: number, r: number): boolean {
+    return this.things.some((t) => t.alive && Math.abs(t.x - x) < r);
+  }
   spawnItem(asset: string, x: number, y: number, count = 3): { alive: boolean } {
     const ts = this.map.ts;
     const o = { type: 'Item', name: asset, x: Math.round(x - ts / 2), y: Math.round(y - ts), w: 32, h: 32,
@@ -404,6 +438,7 @@ export class Scenario implements World {
     const t = new Thing(o, f.x, f.y, asset);
     this.things.push(t);
     this.addEffect('POWER', f.x, f.y - 16, 1);
+    this.addEffect('MEGA_POWER', f.x, f.y - 16, 1); // short spawn flash so the drop is noticed
     if (this.coop?.role === 'host') {
       this.dynItems.push({ idx: this.things.length - 1, asset, x: f.x, y: f.y, count });
     }
@@ -419,7 +454,13 @@ export class Scenario implements World {
 
   /** Invitado: crea un objeto que el anfitrión generó en vivo (ítems de los jefes), en el mismo índice. */
   private addNetItem(idx: number, asset: string, x: number, y: number, count: number): void {
-    if (idx < this.things.length || idx > this.things.length) return; // se reintenta en la próxima instantánea
+    if (idx < this.things.length) return;
+    // índices que el anfitrión ya descartó (ítems recogidos antes de que llegaran): relleno muerto para que los demás coincidan
+    while (this.things.length < idx) {
+      const dead = new Thing({ type: 'Item', name: '', x: 0, y: 0, w: 32, h: 32, props: {} } as unknown as TmxObject, 0, 0, null);
+      dead.alive = false;
+      this.things.push(dead);
+    }
     const o = { type: 'Item', name: asset, x: Math.round(x - 16), y: Math.round(y - 32), w: 32, h: 32,
       props: { pAsset: asset, pCount: String(count), pIsKey: 'true', pRequiredItem: asset } } as unknown as TmxObject;
     this.things.push(new Thing(o, x, y, asset));
@@ -532,7 +573,6 @@ export class Scenario implements World {
       h.state = HS.Dead;
       if (this.players.every((x) => x.eliminated)) {
         for (const x of this.players) x.lives = Math.max(START_LIVES, this.players.length);
-        this.markEnd(2);
         this.events.gameOver();
       }
       return;
@@ -609,33 +649,59 @@ export class Scenario implements World {
     p.bits = bits;
     p.q = q;
     p.input = inputFromBits(bits, prev);
+    this.lastIn.set(id, this.clock);
+    this.staleIn.delete(id);
   }
 
-  /** Indica a la instantánea que el nivel terminó (1) o se perdió (2). */
-  markEnd(kind: 1 | 2): void { this.lastEnd = kind; }
+  /** coop: el oído de esta pestaña está en su propio héroe (el volumen y el paneo de los demás salen de ahí). */
+  private syncListener(): void {
+    if (!this.coop) return;
+    const h = this.localPlayer.hero;
+    setListener({ x: h.pos.x, y: h.pos.y });
+  }
+
+  /** coop (anfitrión): en pausa el mundo no corre pero sigue mandando instantáneas con la bandera de pausa. */
+  pauseTick(dt: number): void {
+    if (this.coop?.role !== 'host') return;
+    this.hostPaused = true;
+    this.sendSnapIfDue(dt);
+  }
 
   update(dt: number): void {
     if (this.coop?.role === 'guest') {
       // invitado: lee sus controles (los manda ~30 veces por segundo) y dibuja lo que llega del anfitrión
       this.localPlayer.input = readLocalInput();
+      this.syncListener();
+      this.inputAcc |= bitsOf(this.localPlayer.input);
       this.inputT += dt;
       if (this.inputT >= 1 / 30 && this.events.input) {
         this.inputT = 0;
         this.inputQ = (this.inputQ + 1) & 0xffff;
-        this.events.input(bitsOf(this.localPlayer.input), this.inputQ);
+        this.events.input(this.inputAcc, this.inputQ);
+        this.inputAcc = bitsOf(this.localPlayer.input);
       }
       this.updateGuest(dt);
       return;
     }
     this.localPlayer.input = readLocalInput();
+    this.syncListener();
+    this.hostPaused = false;
+    this.clock += dt;
+    for (const [id, at] of this.lastIn) {
+      const rp = this.players.find((x) => x.id === id);
+      // se cortó el enlace: el héroe se frena. `bits` queda como estaba, así el primer paquete al volver no inventa un flanco
+      if (rp && rp.bits && !this.staleIn.has(id) && this.clock - at > 0.5) { this.staleIn.add(id); rp.input = inputFromBits(0, rp.bits); }
+    }
     const anyAlive = (): boolean => this.players.some((p) => p.hero.isAlive() && !p.eliminated);
 
     for (const p of this.players) {
       if (p.eliminated) continue;
+      setSoundOrigin(p.hero.pos.x, p.hero.pos.y);
       p.hero.update(dt);
       // los controles remotos llegan a 30 Hz: el flanco se consume una sola vez
       if (!p.local) { p.input.firePressed = false; p.input.jumpPressed = false; }
     }
+    setSoundOrigin(null);
     if (!anyAlive()) {
       // mientras nadie esté vivo solo corren las animaciones (y el invitado espera la instantánea)
       this.updateAnimations(dt);
@@ -701,8 +767,10 @@ export class Scenario implements World {
         if (!overlaps(h.rect, db)) continue;
         if (!d.open && d.tryOpen(this.state.keys)) continue;
         if (d.open) continue;
-        if (h.vel.x > 0) h.pushX(db.x - (h.rect.x + h.rect.w));
-        else if (h.vel.x < 0) h.pushX(db.x + db.w - h.rect.x);
+        // out through the side the hero is on (not the one his speed points to: a hero overlapping the door while
+        // moving away or standing still used to be pushed across it)
+        if (h.rect.x + h.rect.w / 2 < db.x + db.w / 2) h.pushX(db.x - (h.rect.x + h.rect.w));
+        else h.pushX(db.x + db.w - h.rect.x);
         h.vel.x = 0;
       }
     }
@@ -716,7 +784,6 @@ export class Scenario implements World {
       this.winTime -= dt;
       if (this.winTime <= 0) {
         this.winTime = 6;
-        this.markEnd(1);
         this.events.levelComplete();
       }
     }
@@ -738,7 +805,7 @@ export class Scenario implements World {
         if (!h.isAlive() || pl.eliminated) continue;
         if (!overlaps(h.rect, t.bounds())) continue;
         now.add(pl.id);
-        if (!t.touching.has(pl.id)) this.touch(t, pl);
+        if (!t.touching.has(pl.id)) { setSoundOrigin(t.x, t.y); this.touch(t, pl); setSoundOrigin(null); }
         if (!t.alive) break;
       }
       t.touching = now;
@@ -746,18 +813,15 @@ export class Scenario implements World {
 
     // enemies: update + hero contact (stomp vs. damage). Se despiertan los que están cerca de CUALQUIER amigo, así
     // dos jugadores muy separados (sobre todo en vertical) ven su parte del nivel funcionando.
-    let wx0 = Infinity, wx1 = -Infinity, wy0 = Infinity, wy1 = -Infinity;
-    for (const pl of this.players) {
-      const h = pl.hero;
-      if (!h.isAlive() || pl.eliminated) continue;
-      wx0 = Math.min(wx0, h.pos.x - VIEW_W / 2 - 400);
-      wx1 = Math.max(wx1, h.pos.x + VIEW_W / 2 + 400);
-      wy0 = Math.min(wy0, h.pos.y - h.height - 100);
-      wy1 = Math.max(wy1, h.pos.y + 100);
-    }
+    const alivePl = this.players.filter((p) => p.hero.isAlive() && !p.eliminated);
+    // ¿está (x, y) cerca de ALGÚN amigo vivo? (no del recuadro que los abarca a todos: entre dos amigos lejanos no hay nada)
+    const nearAny = (x: number, y: number, h: number, mx: number, my: number): boolean =>
+      alivePl.some((p) => Math.abs(p.hero.pos.x - x) < mx && y >= p.hero.pos.y - p.hero.height - my && y - h <= p.hero.pos.y + my);
     for (const e of this.enemies) {
       if (!e.alive) continue;
-      if (e.x < wx0 || e.x > wx1 || e.y < wy0 || e.y - e.h > wy1) continue;
+      if (!nearAny(e.x, e.y, e.h, VIEW_W / 2 + 400, 100)) continue;
+      this.focus = { x: e.x, y: e.y };
+      setSoundOrigin(e.x, e.y);
       e.update(dt);
       for (const pl of this.players) {
         const h = pl.hero;
@@ -785,21 +849,24 @@ export class Scenario implements World {
         }
       }
     }
+    this.focus = null;
+    setSoundOrigin(null);
     this.enemies = this.enemies.filter((e) => e.alive);
     if (this.spawned.length) { this.enemies.push(...this.spawned); this.spawned = []; }
 
     const cam = this.camera;
     // en coop la ventana es la de TODOS los amigos: la cámara del anfitrión puede estar lejos y las balas de un
     // invitado (o las que viajan entre ambos) tienen que seguir vivas hasta salir de la zona de todos
-    const coopWindow = !!this.coop && wx0 !== Infinity;
+    const coopWindow = !!this.coop && alivePl.length > 0;
     for (const b of this.bullets) {
       if (!b.alive) continue;
+      setSoundOrigin(b.x, b.y);
       if (b.g) b.vy += b.g * dt;
       if (b.ax) b.vx += b.ax * dt;
       b.x += b.vx * dt;
       b.y += b.vy * dt;
       const out = coopWindow
-        ? b.x < wx0 - 96 || b.x > wx1 + 96 || b.y < wy0 - 96 || b.y > wy1 + 96
+        ? !nearAny(b.x, b.y, 0, VIEW_W / 2 + 496, 196)
         : b.x < cam.x - 32 || b.x > cam.x + cam.w + 32 || b.y < cam.y - 32 || b.y > cam.y + cam.h + 32;
       if (out) {
         b.alive = false;
@@ -851,46 +918,82 @@ export class Scenario implements World {
         }
       }
     }
+    setSoundOrigin(null);
     this.bullets = this.bullets.filter((b) => b.alive);
 
     this.updateAnimations(dt);
     this.sendSnapIfDue(dt);
   }
 
-  /** Castigo por jugar solo: sube (y se queda) mientras quede un único amigo vivo o alguien se haya
-   *  adelantado/separado demasiado del resto. */
+  /** Castigo de dificultad en vivo (multiplicador de vida, cadencia de disparo y refuerzos). Sube si queda un único
+   *  amigo vivo, si alguien se separó de todos, o si el que va primero se adelanta más de AHEAD_COLS columnas del
+   *  promedio de los demás (proporcional a cuánto se adelanta, con tope). Se relaja de a poco cuando el grupo se junta;
+   *  si no queda nadie vivo se mantiene como venía. */
   private updateSolo(dt: number, alive: number): void {
-    if (!this.coop) return;
+    if (!this.coop || alive === 0) return;
     const d = this.coop.difficulty;
+    const live = this.players.filter((p) => p.hero.isAlive() && !p.eliminated);
     let solo = alive === 1;
     if (alive > 1) {
       // ¿alguien quedó lejos de TODOS los demás? (una pantalla de distancia, más margen vertical)
-      for (const pl of this.players) {
+      for (const pl of live) {
         const h = pl.hero;
-        if (!h.isAlive() || pl.eliminated) continue;
-        let nearOther = false;
-        for (const other of this.players) {
-          if (other === pl) continue;
-          const o = other.hero;
-          if (!o.isAlive() || other.eliminated) continue;
-          if (Math.abs(o.pos.x - h.pos.x) < 700 && Math.abs(o.pos.y - h.pos.y) < 420) { nearOther = true; break; }
-        }
-        if (!nearOther) { solo = true; break; }
+        const near = live.some((o) => o !== pl && Math.abs(o.hero.pos.x - h.pos.x) < 700 && Math.abs(o.hero.pos.y - h.pos.y) < 420);
+        if (!near) { solo = true; break; }
       }
     }
+    let target = 1;
     if (solo) {
       this.soloTime += dt;
       if (this.soloTime > d.soloGraceSeconds) {
-        const p = Math.min(d.soloCap, 1 + (this.soloTime - d.soloGraceSeconds) * d.soloRampPerSecond);
-        if (p > this.soloPenalty) this.soloPenalty = p;
+        target = Math.min(d.soloCap, 1 + (this.soloTime - d.soloGraceSeconds) * d.soloRampPerSecond);
         if (!this.soloWarned) {
           this.soloWarned = true;
-          this.events.message('¡Estás solo! La dificultad sube: busquen a sus amigos.', 4);
+          this.message('¡Estás solo! La dificultad sube: busquen a sus amigos.', 4);
         }
       }
     } else {
       this.soloTime = 0;
     }
+    // el que va primero se adelantó demasiado del promedio de los demás
+    this.aheadId = -1;
+    if (alive > 1) {
+      const lead = live.reduce((a, b) => (b.hero.pos.x > a.hero.pos.x ? b : a));
+      const others = live.filter((p) => p !== lead);
+      const avg = others.reduce((t, p) => t + p.hero.pos.x, 0) / others.length;
+      const cols = (lead.hero.pos.x - avg) / this.map.ts;
+      if (cols > AHEAD_COLS) {
+        this.aheadId = lead.id;
+        target = Math.max(target, Math.min(d.soloCap, 1 + (cols - AHEAD_COLS) * AHEAD_RAMP_PER_COL));
+        if (!this.aheadWarned) {
+          this.aheadWarned = true;
+          this.message(`¡${lead.name.slice(0, 10) || 'Alguien'} se adelantó! La dificultad sube: esperen al grupo.`, 4);
+        }
+      } else if (cols < AHEAD_COLS * 0.6) this.aheadWarned = false;
+    }
+    this.soloPenalty = target > this.soloPenalty
+      ? Math.min(target, this.soloPenalty + PENALTY_UP * dt)
+      : Math.max(target, this.soloPenalty - PENALTY_DOWN * dt);
+    // refuerzos: mientras alguien va muy adelantado aparecen más enemigos delante de él
+    this.reinforcements = this.reinforcements.filter((e) => e.alive);
+    if (this.aheadId >= 0 && this.soloPenalty > 1.05) {
+      this.reinforceT -= dt;
+      if (this.reinforceT <= 0) {
+        this.reinforceT = REINFORCE_EVERY;
+        if (this.reinforcements.length < REINFORCE_MAX) this.reinforceAhead(live.find((p) => p.id === this.aheadId)!);
+      }
+    } else this.reinforceT = 2;
+  }
+
+  /** Clona un enemigo común que esté un poco más adelante del que lidera (viaja a los invitados como los ayudantes de jefe). */
+  private reinforceAhead(lead: PlayerRuntime): void {
+    const h = lead.hero;
+    const pool = this.enemies.filter((e) => e.alive && !e.isBoss && !e.isIndestructible && e.x > h.pos.x + 220 && e.x < h.pos.x + 700 && Math.abs(e.y - h.pos.y) < 200);
+    if (!pool.length) return;
+    const src = pool[Math.floor(Math.random() * pool.length)];
+    const f = feetOf(src.x + (Math.random() < 0.5 ? -1 : 1) * (48 + Math.random() * 40), src.y - 1, this.map.ts);
+    const e = this.spawnEnemy(src.o.type, f.x, f.y, src.o.props);
+    if (e) this.reinforcements.push(e);
   }
 
   /** Anfitrión: manda el mundo ~15 veces por segundo (por WebRTC y, si hace falta, por el relé). */
@@ -911,7 +1014,7 @@ export class Scenario implements World {
       return [
         pl.id, r1(h.pos.x), r1(h.pos.y), h.dir, h.state, h.anim.name || h.animName,
         h.anim.frameNum(), r1(h.anim.time), pl.energy, pl.power, r1(pl.powerT), pl.lives,
-        h.isAlive() && !pl.eliminated ? 1 : 0, pl.eliminated ? 1 : 0,
+        h.isAlive() && !pl.eliminated ? 1 : 0, pl.eliminated ? 1 : 0, pl.cereals, pl.heros,
       ];
     });
     // ventana: lo que está cerca de algún amigo (los invitados ven poco más que su cámara)
@@ -925,8 +1028,9 @@ export class Scenario implements World {
     const e = this.enemies.filter((x) => x.alive && near(x.x, x.y)).map((x): Snap['e'][number] =>
       [x.netId, r1(x.x), r1(x.y), x.dir, x.lives, x.netAnim, x.netFrame, r1(x.netTime), r1(x.netFlash)]);
     const b = this.bullets.map((x): Snap['b'][number] =>
-      [r1(x.x), r1(x.y), Math.round(x.vx), Math.round(x.vy), x.team, x.tint ?? null, x.big ? 1 : 0]);
-    const f = this.effects.map((x): Snap['f'][number] => [x.anim.name, r1(x.x), r1(x.y), x.dir, r1(x.anim.time)]);
+      [r1(x.x), r1(x.y), Math.round(x.vx), Math.round(x.vy), x.team, x.tint ?? null, x.big ? 1 : 0, x.g ?? 0, x.ax ?? 0]);
+    // las explosiones de jefe viajan como efectos comunes (el invitado solo las dibuja)
+    const f = [...this.explosions, ...this.effects].map((x): Snap['f'][number] => [x.anim.name, r1(x.x), r1(x.y), x.dir, r1(x.anim.time)]);
     // las cosas viajan por índice: el invitado armó el mismo mundo, así que los índices coinciden
     const i: Snap['i'] = [];
     this.things.forEach((t, idx) => {
@@ -940,7 +1044,13 @@ export class Scenario implements World {
       s: [s.score, s.coins, s.cows, s.totalCows, s.keysHud ? 1 : 0, [...s.keys]],
       d: Math.round(this.soloPenalty * 100) / 100,
     };
-    if (this.sfx.length) { snap.a = this.sfx; this.sfx = []; }
+    if (this.sfx.length) snap.a = this.sfx.map((f) => `${f.q}|${f.id}|${f.x === undefined ? '' : Math.round(f.x)}|${f.y === undefined ? '' : Math.round(f.y)}`);
+    if (this.pointsFx.length) snap.pf = this.pointsFx.map((p) => [p.value, Math.round(p.x), Math.round(p.y), r1(p.t)]);
+    if (this.platforms.length) snap.pl = this.platforms.map((p) => [r1(p.x), r1(p.y)]);
+    if (this.doors.some((d) => d.open)) snap.dr = this.doors.map((d) => (d.open ? 1 : 0));
+    if (this.aheadId >= 0) snap.ah = this.aheadId;
+    if (this.hostPaused) snap.ps = 1;
+    if (!this.players.some((p) => p.hero.isAlive() && !p.eliminated)) snap.ms = 1;
     if (this.deadIds.length) snap.k = this.deadIds.map((d) => d.id);
     if (this.msgT > 0 && this.msgText) snap.m = [this.msgText, Math.round(this.msgT * 10) / 10];
     if (this.savingT > 0) snap.g = Math.round(this.savingT * 10) / 10;
@@ -952,6 +1062,7 @@ export class Scenario implements World {
       for (const e of this.spawned) alive.add(e.netId);
       this.dynEnemies = this.dynEnemies.filter((d) => alive.has(d.id));
       if (this.dynEnemies.length) snap.ne = this.dynEnemies.map((d) => [d.id, d.type, d.x, d.y, d.props]);
+      this.dynItems = this.dynItems.filter((d) => this.things[d.idx]?.alive);
       if (this.dynItems.length) snap.ni = this.dynItems.map((d) => [d.idx, d.asset, d.x, d.y, d.count]);
     }
     return snap;
@@ -972,6 +1083,8 @@ export class Scenario implements World {
         pl.powerT = r[10];
         pl.lives = r[11];
         pl.eliminated = !!r[13];
+        pl.cereals = r[14] ?? 0;
+        pl.heros = r[15] ?? 0;
         pl.hero.applyNet(r[1], r[2], r[3], r[4] as HS, r[5], r[7], !!r[12], pl.eliminated);
       }
     }
@@ -993,8 +1106,8 @@ export class Scenario implements World {
     }
 
     if (s.b) {
-      this.bullets = s.b.map(([x, y, vx, vy, team, tint, big]) =>
-        ({ x, y, vx, vy, team, alive: true, tint: tint ?? undefined, big: !!big }));
+      this.bullets = s.b.map(([x, y, vx, vy, team, tint, big, g, ax]) =>
+        ({ x, y, vx, vy, team, alive: true, tint: tint ?? undefined, big: !!big, g: g || undefined, ax: ax || undefined }));
     }
     if (s.f) {
       this.effects = s.f.flatMap(([name, x, y, dir, time]) => {
@@ -1034,7 +1147,22 @@ export class Scenario implements World {
     if (s.g && this.prevG <= 0) this.events.saving();
     this.prevG = s.g ?? 0;
     if (s.mu && s.mu !== this.music) { this.music = s.mu; playMusic(s.mu); }
-    if (s.a?.length) for (const id of s.a) playSound(id);
+    if (s.a?.length) {
+      for (const e of s.a) {
+        const [q, id, x, y] = e.split('|');
+        if (+q <= this.lastSfxQ) continue; // ya sonó (llegó repetido en otra instantánea)
+        this.lastSfxQ = +q;
+        playSound(id, x !== '' && y !== '' ? { x: +x, y: +y } : undefined);
+      }
+    }
+    this.pointsFx = (s.pf ?? []).map(([value, x, y, t]) => ({ value, x, y, t }));
+    if (s.pl) s.pl.forEach(([x, y], i) => { const p = this.platforms[i]; if (p) { p.prevX = p.x; p.prevY = p.y; p.x = x; p.y = y; } });
+    if (s.dr) s.dr.forEach((o, i) => { if (o && this.doors[i]) this.doors[i].open = true; });
+    this.aheadId = s.ah ?? -1;
+    this.hostPaused = !!s.ps;
+    // nadie vivo: el anfitrión corta la música; al reaparecer el primero vuelve
+    if (s.ms && !this.guestMusicCut) { this.guestMusicCut = true; stopMusic(); }
+    else if (!s.ms && this.guestMusicCut) { this.guestMusicCut = false; if (this.music) playMusic(this.music); }
   }
 
   /** Invitado: entre instantáneas deja correr animaciones, suaviza el mundo y sigue a su propio héroe. */
@@ -1053,6 +1181,7 @@ export class Scenario implements World {
       t.anim?.update(dt);
       if (t.rescueTime >= 0) { t.rescueTime -= dt; if (t.rescueTime < 0) t.alive = false; }
     }
+    for (const d of this.doors) d.update(dt);
     this.updateAnimations(dt);
     const h = this.localPlayer.hero;
     this.camera.update(dt, h.pos.x, h.pos.y, h.height, h.dir, 0, 0, this.winner);
@@ -1066,6 +1195,10 @@ export class Scenario implements World {
   private updateAnimations(dt: number): void {
     if (this.msgT > 0) this.msgT -= dt;
     if (this.savingT > 0) this.savingT -= dt;
+    if (this.sfx.length) {
+      for (const f of this.sfx) f.t += dt;
+      this.sfx = this.sfx.filter((f) => f.t < SFX_KEEP);
+    }
     if (this.deadIds.length) {
       for (const d of this.deadIds) d.t -= dt;
       this.deadIds = this.deadIds.filter((d) => d.t > 0);
@@ -1084,7 +1217,7 @@ export class Scenario implements World {
       }
     }
     for (const x of this.explosions) {
-      if (x.puff !== undefined && x.anim.isOver()) { playSound('ENEMY_DEATH'); this.addEffect('ENEMY_DEATH', x.x, x.y - x.puff, 1); }
+      if (x.puff !== undefined && x.anim.isOver()) { playSound('ENEMY_DEATH', { x: x.x, y: x.y }); this.addEffect('ENEMY_DEATH', x.x, x.y - x.puff, 1); }
     }
     this.explosions = this.explosions.filter((x) => !x.anim.isOver());
     for (const p of this.pointsFx) p.t += dt;
@@ -1287,6 +1420,11 @@ export class Scenario implements World {
       drawLine(ctx, String(p.value), Math.round(p.x - cx), Math.round(p.y - cy - rise - 9), 'pixel', 'center', 1);
     }
 
+    if (this.hostPaused && this.coop?.role === 'guest') {
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+      drawLine(ctx, 'PAUSA DEL ANFITRION', VIEW_W / 2, VIEW_H / 2 - 8, 'white', 'center', 1);
+    }
     if (this.fade > 0) {
       ctx.fillStyle = `rgba(0,0,0,${this.fade})`;
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);
@@ -1309,7 +1447,7 @@ export class Scenario implements World {
       const h = pl.hero;
       const x = Math.round(h.pos.x) - cx;
       const top = Math.round(h.pos.y) - cy - 64;
-      const label = pl.name.slice(0, 10) || 'Xa';
+      const label = (pl.id === this.aheadId ? '!' : '') + (pl.name.slice(0, 10) || 'Xa'); // '!' = el que se adelantó (castigo de dificultad)
       const tint = pl.hex ?? '#ffffff';
       const pw = Math.max(18, Math.min(54, label.length * 5 + 6));
       const x0 = x - Math.round(pw / 2), x1 = x0 + pw;

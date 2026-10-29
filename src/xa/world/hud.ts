@@ -97,19 +97,7 @@ export class Hud {
       this.doubleT = -1;
       this.blit(ctx, 'DOUBLE_JUMP_NONE', djX, djY);
     }
-    if (power) {
-      // mod power-up: its icon next to the double-jump slot, with the time it has left as a shrinking bar
-      const f = frameOf(power, 0);
-      if (f) {
-        const k = 0.7, x = coop ? 76 : 160, y = coop ? 286 : 8;
-        ctx.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, x, y, Math.round(f.sw * k), Math.round(f.sh * k));
-        const w = Math.round(40 * Math.max(0, Math.min(1, powerT / 15)));
-        ctx.fillStyle = '#000';
-        ctx.fillRect(x - 6, y + 36, 42, 6);
-        ctx.fillStyle = powerT > 3 ? '#7cf05a' : '#ff5a3c';
-        ctx.fillRect(x - 5, y + 37, w, 4);
-      }
-    }
+    if (power) this.renderPower(ctx, power, powerT, coop ? 72 : 162, coop ? 282 : 8);
     this.blit(ctx, 'BACK_POINTS', 226, 7);
     drawLine(ctx, 'Puntos', 271, 10, 'black', 'center', 1);
     drawLine(ctx, pad(s.score, 6), 271, 25, 'black', 'center', 1);
@@ -159,6 +147,31 @@ export class Hud {
   }
   private bossShown = 2;
 
+  /** Mod power-up: paper plaque (like the score one) with the item icon and, under it, the time left drawn with the
+   *  game's own ENERGY_BAR frames (10 steps, green to red). The whole plaque blinks during the last 3 s. */
+  private renderPower(ctx: CanvasRenderingContext2D, power: string, powerT: number, x: number, y: number): void {
+    const f = frameOf(power, 0), bar = frameOf('ENERGY_BAR', Math.max(0, Math.min(9, Math.ceil((powerT / 15) * 10) - 1)));
+    if (!f || !bar) return;
+    ctx.save();
+    if (powerT <= 3 && Math.floor(powerT * 4) % 2) ctx.globalAlpha = 0.4;
+    this.plaque(ctx, x, y, 62, 50, '#fff602');
+    const k = 0.72, w = Math.round(f.sw * k), h = Math.round(f.sh * k);
+    ctx.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, x + Math.round((62 - w) / 2), y + 4, w, h);
+    ctx.drawImage(bar.image, bar.sx, bar.sy, bar.sw, bar.sh, x + 9, y + 36, bar.sw, bar.sh);
+    ctx.restore();
+  }
+
+  /** Cream paper plaque with the game's ink outline (colours of info_map.png / hud_message_back.png). */
+  private plaque(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, edge?: string): void {
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.roundRect(x + 1, y + 2, w, h, 6); ctx.fill();
+    ctx.fillStyle = '#e2d5ae';
+    ctx.strokeStyle = '#1a1818';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, 6); ctx.fill(); ctx.stroke();
+    if (edge) { ctx.strokeStyle = edge; ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(x + 2.5, y + 2.5, w - 5, h - 5, 4); ctx.stroke(); }
+  }
+
   /** Coop: x de la barra de energía, debajo de la cabecita del jugador de esta pestaña. */
   private coopEnergyX(coop?: HudCoop): number {
     if (!coop) return 8;
@@ -170,19 +183,14 @@ export class Hud {
     coop.players.forEach((p, i) => {
       const x = CHIP_X + i * CHIP_W;
       const me = p === coop.local;
-      ctx.fillStyle = 'rgba(8,12,18,0.62)';
-      ctx.fillRect(x, CHIP_Y, CHIP_W - 3, CHIP_H);
-      ctx.fillStyle = p.hex ?? '#ffffff';
-      ctx.fillRect(x, CHIP_Y, 2, CHIP_H);
-      if (me) { // el que juega en esta pestaña queda marcado
-        ctx.strokeStyle = '#ffe27a';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x - 0.5, CHIP_Y - 0.5, CHIP_W - 2, CHIP_H + 1);
-      }
+      this.plaque(ctx, x, CHIP_Y, CHIP_W - 4, CHIP_H, me ? '#fff602' : undefined);
+      ctx.fillStyle = p.hex ?? '#ffffff'; // the hero colour as a rounded stripe along the bottom edge
+      ctx.beginPath(); ctx.roundRect(x + 4, CHIP_Y + CHIP_H - 6, CHIP_W - 12, 3, 1.5); ctx.fill();
+      ctx.strokeStyle = '#1a1818'; ctx.lineWidth = 1; ctx.stroke();
       const head = frameOf('AVATAR_HEAD', 0);
-      if (head) drawTinted(ctx, head, x + 3, CHIP_Y + 1, 1, p.hex ?? '#ffffff', 0.7, 0.5);
-      drawLine(ctx, 'x' + Math.max(0, p.lives), x + 26, CHIP_Y + 3, 'white', 'left', 0.5);
-      drawLine(ctx, p.name.slice(0, 10) || 'Xa', x + 4, CHIP_Y + 19, 'white', 'left', 0.42);
+      if (head) drawTinted(ctx, head, x + 4, CHIP_Y + 2, 1, p.hex ?? '#ffffff', 0.7, 0.5);
+      drawLine(ctx, 'x' + Math.max(0, p.lives), x + 27, CHIP_Y + 3, 'black', 'left', 0.5);
+      drawLine(ctx, p.name.slice(0, 10) || 'Xa', x + 5, CHIP_Y + 16, 'black', 'left', 0.4);
     });
   }
 

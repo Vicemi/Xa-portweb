@@ -1,233 +1,416 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { online } from '../xa/online/session';
-import { ONLINE_LEVELS, isBossLevel, levelTitle } from '../xa/online/levels';
+import { isBossLevel, levelTitle } from '../xa/online/levels';
+import './online.css';
 
-/** Panel del modo online: crear/unirse a una sala, roster con colores y listo, votos de nivel y arranque. */
+type Tab = 'crear' | 'unirse';
+
+/** El ?sala= se usa una sola vez por carga de página: tras SALIR el panel no vuelve a entrar solo. */
+let linkConsumed = false;
+
+const Crown = () => (
+  <svg className="xo-crown" viewBox="0 0 24 16" aria-label="Anfitrión" role="img">
+    <path d="M2 14 1 4l6 5 5-8 5 8 6-5-1 10z" />
+  </svg>
+);
+
+/** Cabecita de Xa del color del jugador (items_tile.png + tinte por CSS: ver .xo-avatar). */
+const Avatar = ({ hex, dim }: { hex: string; dim?: boolean }) => (
+  <span className={`xo-avatar ${dim ? 'is-dim' : ''}`} style={{ '--hero': hex } as CSSProperties} aria-hidden="true" />
+);
+
+/** Antena de conexión: 3 barras según el ping; roja y parpadeando si se perdió. */
+function Signal({ rtt, lost, direct }: { rtt: number; lost: boolean; direct: boolean }) {
+  const q = lost ? 0 : !rtt ? 1 : rtt < 90 ? 3 : rtt < 180 ? 2 : 1;
+  const label = lost ? 'Reconectando…' : `${rtt || '—'} ms · ${direct ? 'directo' : 'relay'}`;
+  return (
+    <span className={`xo-signal q${q} ${lost ? 'is-lost' : ''}`} title={label} role="img" aria-label={`Conexión: ${label}`}>
+      <i /><i /><i />
+      <b>{label}</b>
+    </span>
+  );
+}
+
+/** Panel del modo online: pestañas CREAR / UNIRSE antes de entrar y SALA (lobby) adentro. */
 export default function OnlinePanel() {
   const s = useSyncExternalStore(online.subscribe, online.getState, online.getState);
-  const linkCode = (new URLSearchParams(location.search).get('sala') ?? '').trim().toUpperCase();
+  const linkCode = (new URLSearchParams(location.search).get('sala') ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
   const [code, setCode] = useState(linkCode);
-  const [copied, setCopied] = useState(false);
+  const [tab, setTab] = useState<Tab>(linkCode ? 'unirse' : 'crear');
+  const [copied, setCopied] = useState<'' | 'link' | 'code'>('');
   const autoJoin = useRef(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
+  // el foco entra al panel al abrirse y vuelve a donde estaba al cerrarse
+  useEffect(() => {
+    const before = document.activeElement as HTMLElement | null;
+    cardRef.current?.focus();
+    return () => { before?.focus?.(); };
+  }, []);
+  useEffect(() => { if (confirmReset) cancelRef.current?.focus(); }, [confirmReset]);
 
   // ?sala=CODE: si ya hay un apodo guardado, entra directo
   useEffect(() => {
-    if (autoJoin.current || !linkCode || s.phase !== 'menu') return;
+    if (autoJoin.current || linkConsumed || !linkCode || s.phase !== 'menu') return;
     autoJoin.current = true;
+    linkConsumed = true;
     if (s.name) void online.join(linkCode);
   }, [linkCode, s.phase, s.name]);
 
   // el código que confirma el servidor manda sobre lo que se escribió
   useEffect(() => { if (s.code) setCode(s.code); }, [s.code]);
 
-  const copyLink = async () => {
+  const copy = async (what: 'link' | 'code') => {
     const url = `${location.origin}${location.pathname}?sala=${s.code}`;
     try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
+      await navigator.clipboard.writeText(what === 'link' ? url : s.code);
+      setCopied(what);
+      window.setTimeout(() => setCopied(''), 1800);
     } catch {
-      window.prompt('Copiá el link para invitar a tus amigos:', url);
+      window.prompt('Copiá esto para invitar a tus amigos:', what === 'link' ? url : s.code);
     }
   };
 
+  const inRoom = s.phase === 'lobby' || s.phase === 'playing';
+  const connecting = s.phase === 'connecting';
   const me = s.room?.players.find((p) => p.id === s.you);
   const ready = !!me?.ready;
   const host = s.host;
   const selected = s.room?.level ?? 0;
-  const votes = new Map<number, number>();
-  for (const v of s.room?.votes ?? []) votes.set(v.level, (votes.get(v.level) ?? 0) + 1);
-  const allReady = !!s.room && s.room.players.filter((p) => p.online).every((p) => p.ready);
+  const players = s.room?.players ?? [];
+  const connected = players.filter((p) => p.online);
+  const readyCount = connected.filter((p) => p.ready).length;
+  // todos listos Y conectados (alguien sin conexión frena el arranque, igual que en el servidor)
+  const allReady = !!s.room && players.length > 0 && players.every((p) => p.online && p.ready);
   const canStart = host && allReady && selected > 0 && s.room?.status === 'lobby';
+  const slots = Math.max(s.max || 4, players.length);
+  const lost = s.link === 'lost';
+
+  // votos por nivel, con quién votó cada uno
+  const byLevel = new Map<number, number[]>();
+  for (const v of s.room?.votes ?? []) byLevel.set(v.level, [...(byLevel.get(v.level) ?? []), v.id]);
+
+  const nameOk = s.name.trim().length > 0;
+  const codeOk = code.length === 5;
+  const goJoin = () => { if (nameOk && codeOk) void online.join(code); };
+
+  const tabs: { id: Tab | 'sala'; label: string; n: number; enabled: boolean }[] = [
+    { id: 'crear', label: 'CREAR', n: 1, enabled: !inRoom && !connecting },
+    { id: 'unirse', label: 'UNIRSE', n: 2, enabled: !inRoom && !connecting },
+    { id: 'sala', label: 'SALA', n: 3, enabled: inRoom },
+  ];
+  const active: Tab | 'sala' = inRoom ? 'sala' : tab;
 
   return (
-    <div className="xa-online" onPointerDown={(e) => e.stopPropagation()}>
-      <div className="xa-online-card">
-        <header className="xa-online-head">
-          <div className="xa-online-head-text">
-            <strong>SALA ONLINE</strong>
-            <small>Hasta {s.max} amigos · el anfitrión manda</small>
+    <div className="xo" onPointerDown={(e) => e.stopPropagation()}>
+      <div className="xo-card" ref={cardRef} role="dialog" aria-modal="true" aria-labelledby="xo-title" tabIndex={-1}>
+        <header className="xo-head">
+          <div className="xo-title">
+            <strong id="xo-title">SALA ONLINE</strong>
+            <small>Hasta {s.max || 4} jugadores (con vos) · el anfitrión manda</small>
           </div>
-          <span className={`xa-online-signal ${s.link === 'lost' ? 'is-lost' : s.direct ? 'is-direct' : ''}`} title={s.link === 'lost' ? 'reconectando…' : `${s.rtt || '—'} ms`} />
-          <button className="xa-online-x" onClick={() => online.backToMenu()} title="Volver al menú">SALIR</button>
+          {inRoom && <Signal rtt={s.rtt} lost={lost} direct={s.direct} />}
+          <button className="xo-btn xo-btn-exit" onClick={() => online.backToMenu()} title="Volver al menú principal">
+            SALIR
+          </button>
         </header>
 
-        {!s.enabled && (
-          <p className="xa-online-error">
-            Este build no tiene servidor online configurado. Definí <code>PUBLIC_XA_BACKEND_URL</code> y{' '}
-            <code>PUBLIC_XA_BACKEND_TOKEN</code> para habilitarlo.
-          </p>
-        )}
+        <nav className="xo-tabs" role="tablist" aria-label="Pasos del modo online">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              id={`xo-tab-${t.id}`}
+              aria-selected={active === t.id}
+              aria-controls="xo-panel"
+              disabled={!t.enabled}
+              tabIndex={active === t.id ? 0 : -1}
+              className={`xo-tab ${active === t.id ? 'is-active' : ''}`}
+              onClick={() => t.id !== 'sala' && setTab(t.id)}
+              onKeyDown={(e) => {
+                if (inRoom || connecting) return;
+                if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                  e.preventDefault();
+                  const next = tab === 'crear' ? 'unirse' : 'crear';
+                  setTab(next);
+                  document.getElementById(`xo-tab-${next}`)?.focus();
+                }
+              }}
+            >
+              <span className="xo-tab-n">{t.n}</span>
+              {t.label}
+            </button>
+          ))}
+        </nav>
 
-        {s.error && <p className="xa-online-error">{s.error}</p>}
-
-        {s.enabled && (s.phase === 'menu' || s.phase === 'error') && (
-          <section className="xa-online-menu">
-            <label className="xa-online-label">
-              Tu nombre
-              <input
-                className="xa-online-input"
-                value={s.name}
-                maxLength={10}
-                placeholder="Máximo 10 caracteres"
-                onChange={(e) => online.setName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && code.length === 5) void online.join(code); }}
-              />
-              <span className="xa-online-count">{s.name.length}/10</span>
-            </label>
-
-            <div className="xa-online-actions">
-              <button className="xa-online-primary" disabled={!s.name} onClick={() => void online.create()}>
-                CREAR SALA
-              </button>
-              {s.canResume && (
-                <button className="xa-online-ghost" onClick={() => void online.resume()}>
-                  RECUPERAR SESIÓN
-                </button>
-              )}
-            </div>
-
-            <div className="xa-online-or"><span>o unite con un código</span></div>
-
-            <div className="xa-online-join">
-              <input
-                className="xa-online-input xa-online-code"
-                value={code}
-                maxLength={5}
-                placeholder="ABC12"
-                autoCapitalize="characters"
-                autoComplete="off"
-                onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5))}
-                onKeyDown={(e) => { if (e.key === 'Enter' && code.length === 5) void online.join(code); }}
-              />
-              <button className="xa-online-primary" disabled={!s.name || code.length !== 5} onClick={() => void online.join(code)}>
-                UNIRSE
-              </button>
-            </div>
-            <p className="xa-online-hint">
-              Compartí el link de la sala: el código queda cargado solo. El anfitrión elige el nivel; los demás votan.
+        <div className="xo-body" id="xo-panel" role="tabpanel" aria-labelledby={`xo-tab-${active}`}>
+          {!s.enabled && (
+            <p className="xo-note is-error" role="alert">
+              <b>Sin servidor.</b> Este build no tiene servidor online configurado. Definí <code>PUBLIC_XA_BACKEND_URL</code> y{' '}
+              <code>PUBLIC_XA_BACKEND_TOKEN</code> para habilitarlo.
             </p>
-          </section>
-        )}
+          )}
+          {s.error && (
+            <p className="xo-note is-error" role="alert">
+              <b>¡Ups!</b> {s.error}
+            </p>
+          )}
 
-        {s.enabled && s.phase === 'connecting' && (
-          <section className="xa-online-wait">
-            <span className="xa-online-spinner" aria-hidden="true" />
-            <p>Conectando con la sala…</p>
-          </section>
-        )}
+          {/* ---------------------------------------------------------- conectando */}
+          {s.enabled && connecting && (
+            <section className="xo-wait" aria-live="polite">
+              <span className="xo-spinner" aria-hidden="true" />
+              <p>{code ? <>Entrando a la sala <b>{code}</b>…</> : 'Conectando con la sala…'}</p>
+              <button className="xo-btn" onClick={() => online.backToMenu()}>CANCELAR</button>
+            </section>
+          )}
 
-        {s.enabled && s.phase === 'playing' && (
-          <section className="xa-online-wait">
-            <p>La partida está en curso.</p>
-            <button className="xa-online-ghost" onClick={() => online.backToMenu()}>SALIR DE LA PARTIDA</button>
-          </section>
-        )}
+          {/* ---------------------------------------------------------- CREAR / UNIRSE */}
+          {s.enabled && !inRoom && !connecting && (
+            <section className="xo-menu">
+              <label className="xo-field">
+                <span className="xo-label">
+                  TU NOMBRE <em>{s.name.length}/10</em>
+                </span>
+                <input
+                  className="xo-input"
+                  value={s.name}
+                  maxLength={10}
+                  placeholder="Tu apodo"
+                  autoComplete="off"
+                  aria-invalid={!nameOk}
+                  onChange={(e) => online.setName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { if (tab === 'unirse') goJoin(); else if (nameOk) void online.create(); } }}
+                />
+                {!nameOk && <span className="xo-help">Escribí un apodo para poder seguir.</span>}
+              </label>
 
-        {s.enabled && s.phase === 'lobby' && s.room && (
-          <section className="xa-online-lobby">
-            <div className="xa-online-room">
-              <div>
-                <span className="xa-online-kicker">CÓDIGO DE SALA</span>
-                <strong className="xa-online-room-code">{s.room.code}</strong>
-              </div>
-              <button className="xa-online-ghost" onClick={() => void copyLink()}>
-                {copied ? '¡COPIADO!' : 'COPIAR LINK'}
-              </button>
-              <span className={`xa-online-net ${s.link === 'lost' ? 'is-lost' : s.direct ? 'is-direct' : ''}`}>
-                {s.link === 'lost' ? 'reconectando…' : `${s.rtt || '—'} ms · ${s.direct ? 'directo' : 'relay'}`}
-              </span>
-            </div>
-
-            <div className="xa-online-players">
-              {s.room.players.map((p) => {
-                const hex = s.colors[p.color] ?? '#f4f0e6';
-                return (
-                  <div key={p.id} className={`xa-online-player ${p.id === s.you ? 'is-me' : ''}`}>
-                    <span className="xa-online-dot" style={{ background: hex }} />
-                    <span className="xa-online-name">{p.name.slice(0, 10) || 'Xa'}</span>
-                    {p.host && <span className="xa-online-badge">HOST</span>}
-                    {p.id === s.you && <span className="xa-online-badge is-you">VOS</span>}
-                    <span className={`xa-online-ready ${p.ready ? 'is-on' : ''}`}>{p.ready ? 'LISTO' : 'ESPERA'}</span>
-                    {!p.online && <span className="xa-online-off">sin conexión</span>}
-                    {host && p.id !== s.you && (
-                      <button className="xa-online-kick" title={`Sacar a ${p.name}`} onClick={() => online.kick(p.id)}>×</button>
+              {tab === 'crear' ? (
+                <div className="xo-pane">
+                  <p className="xo-lead">
+                    Creás la sala y sos el <b>anfitrión</b>: elegís el nivel en el mapa y la partida arranca cuando todos estén listos.
+                  </p>
+                  <ul className="xo-steps">
+                    <li><b>1</b> Creá la sala</li>
+                    <li><b>2</b> Pasá el código o el link</li>
+                    <li><b>3</b> Todos listos, ¡a jugar!</li>
+                  </ul>
+                  <div className="xo-row">
+                    <button className="xo-btn xo-btn-primary" disabled={!nameOk} onClick={() => void online.create()}>
+                      CREAR SALA
+                    </button>
+                    {s.canResume && (
+                      <button className="xo-btn" onClick={() => void online.resume()}>RECUPERAR SESIÓN</button>
                     )}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              ) : (
+                <div className="xo-pane">
+                  {linkCode && (
+                    <p className="xo-note is-info">Te invitaron a la sala <b>{linkCode}</b>.{!nameOk && ' Poné tu nombre para entrar.'}</p>
+                  )}
+                  <label className="xo-field">
+                    <span className="xo-label">CÓDIGO DE SALA</span>
+                    <input
+                      className="xo-input xo-code"
+                      value={code}
+                      maxLength={5}
+                      placeholder="ABC12"
+                      inputMode="text"
+                      autoCapitalize="characters"
+                      autoComplete="off"
+                      spellCheck={false}
+                      onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5))}
+                      onKeyDown={(e) => { if (e.key === 'Enter') goJoin(); }}
+                    />
+                    <span className="xo-help">5 letras o números. También sirve abrir el link que te pasaron.</span>
+                  </label>
+                  <div className="xo-row">
+                    <button className="xo-btn xo-btn-primary" disabled={!nameOk || !codeOk} onClick={goJoin}>
+                      UNIRSE
+                    </button>
+                    {s.canResume && (
+                      <button className="xo-btn" onClick={() => void online.resume()}>RECUPERAR SESIÓN</button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
 
-            <div className="xa-online-mid">
-              <button className={`xa-online-readybtn ${ready ? 'is-on' : ''}`} onClick={() => online.setReady(!ready)}>
-                {ready ? 'CANCELAR LISTO' : 'ESTOY LISTO'}
-              </button>
-              <p className="xa-online-hint">
-                {host
-                  ? 'Cuando todos estén listos entrás solo al mapa: elegí el nivel y la partida arranca.'
-                  : 'Cuando todos estén listos, el anfitrión entra al mapa y la partida arranca al elegir el nivel.'}
-              </p>
-            </div>
+          {/* ---------------------------------------------------------- SALA: partida en curso */}
+          {s.enabled && s.phase === 'playing' && (
+            <section className="xo-wait">
+              <p>La partida está en curso.</p>
+              <button className="xo-btn" onClick={() => online.backToMenu()}>SALIR DE LA PARTIDA</button>
+            </section>
+          )}
 
-            <div className="xa-online-levels-head">
-              <span className="xa-online-kicker">{host ? 'NIVEL ELEGIDO' : 'NIVEL ELEGIDO'}</span>
-              <span className="xa-online-selected">
-                {selected ? <>Nivel elegido: <b>{levelTitle(selected)}</b></> : 'Todavía no hay nivel elegido'}
-              </span>
-            </div>
+          {/* ---------------------------------------------------------- SALA: lobby */}
+          {s.enabled && s.phase === 'lobby' && s.room && (
+            <section className="xo-lobby">
+              <div className="xo-room">
+                <div className="xo-room-code">
+                  <span className="xo-label">CÓDIGO DE SALA</span>
+                  <strong aria-live="polite">{s.room.code}</strong>
+                </div>
+                <div className="xo-room-actions">
+                  <button className="xo-btn xo-btn-small" onClick={() => void copy('code')}>{copied === 'code' ? '¡COPIADO!' : 'COPIAR CÓDIGO'}</button>
+                  <button className="xo-btn xo-btn-small" onClick={() => void copy('link')}>{copied === 'link' ? '¡COPIADO!' : 'COPIAR LINK'}</button>
+                </div>
+              </div>
 
-            <div className="xa-online-levels">
-              <div className="xa-online-levels-summary">
+              <div>
+                <div className="xo-sub">
+                  <span className="xo-label">JUGADORES</span>
+                  <span className="xo-count">{connected.length}/{slots} · {readyCount} listos</span>
+                </div>
+                <ul className="xo-slots">
+                  {Array.from({ length: slots }, (_, i) => {
+                    const p = players[i];
+                    if (!p) {
+                      return (
+                        <li key={`free${i}`} className="xo-slot is-free">
+                          <span className="xo-avatar is-empty" aria-hidden="true">?</span>
+                          <span className="xo-slot-main">
+                            <span className="xo-name">LIBRE</span>
+                            <span className="xo-state">Esperando a un amigo…</span>
+                          </span>
+                        </li>
+                      );
+                    }
+                    const hex = s.colors[p.color] ?? '#f4f0e6';
+                    const you = p.id === s.you;
+                    return (
+                      <li key={p.id} className={`xo-slot ${you ? 'is-me' : ''} ${!p.online ? 'is-off' : ''} ${p.ready ? 'is-ready' : ''}`} style={{ '--hero': hex } as CSSProperties}>
+                        <Avatar hex={hex} dim={!p.online} />
+                        <span className="xo-slot-main">
+                          <span className="xo-name">
+                            {p.host && <Crown />}
+                            <span className="xo-name-text">{p.name.slice(0, 10) || 'Xa'}</span>
+                            {you && <span className="xo-tag">VOS</span>}
+                          </span>
+                          <span className={`xo-state ${p.ready ? 'is-on' : ''}`}>
+                            {!p.online ? 'SIN CONEXIÓN' : p.ready ? '✔ LISTO' : 'ESPERANDO…'}
+                          </span>
+                        </span>
+                        {host && !you && (
+                          <button className="xo-kick" aria-label={`Sacar a ${p.name}`} title={`Sacar a ${p.name}`} onClick={() => online.kick(p.id)}>×</button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+
+              <div className="xo-ready">
+                {!host && (
+                  <button className={`xo-btn xo-btn-big ${ready ? 'is-on' : 'xo-btn-primary'}`} aria-pressed={ready} onClick={() => online.setReady(!ready)}>
+                    {ready ? '✔ LISTO · CANCELAR' : 'ESTOY LISTO'}
+                  </button>
+                )}
+                <p className="xo-help">
+                  {host
+                    ? 'Cuando todos estén listos, tocá TODO LISTO: pasás a los menús del juego y los demás te ven moverte.'
+                    : 'Cuando todos estén listos, el anfitrión toca TODO LISTO: vas a ver sus menús en tu pantalla y podés votar el nivel.'}
+                </p>
+              </div>
+
+              <div className="xo-level">
+                <div className="xo-sub">
+                  <span className="xo-label">NIVEL</span>
+                  {isBossLevel(selected) && <span className="xo-tag is-boss">JEFE</span>}
+                </div>
                 {selected ? (
-                  <div className="xa-online-level-card">
-                    <span className="xa-online-level-num">{isBossLevel(selected) ? `E${selected - 100}` : selected}</span>
-                    <span className="xa-online-level-title">{levelTitle(selected)}</span>
-                    {isBossLevel(selected) && <span className="xa-online-boss">JEFE</span>}
+                  <div className="xo-level-card">
+                    <span className="xo-level-num">{isBossLevel(selected) ? `E${selected - 100}` : selected}</span>
+                    <span className="xo-level-title">{levelTitle(selected)}</span>
                   </div>
                 ) : (
-                  <span className="xa-online-hint">El anfitrión todavía no eligió nivel.</span>
-                )}
-                {votes.size > 0 && (
-                  <div className="xa-online-votes-list">
-                    <span className="xa-online-kicker">VOTOS</span>
-                    {Array.from(votes.entries()).map(([lvl, n]) => (
-                      <span key={lvl} className="xa-online-vote-chip">{levelTitle(lvl)} · {n}</span>
-                    ))}
+                  <div className="xo-level-card is-empty">
+                    <span className="xo-level-title">Todavía no hay nivel elegido</span>
                   </div>
                 )}
+                {byLevel.size > 0 ? (
+                  <ul className="xo-votes" aria-label="Votos">
+                    {Array.from(byLevel.entries()).map(([lvl, ids]) => (
+                      <li key={lvl} className="xo-vote">
+                        <span className="xo-vote-dots">
+                          {ids.map((id) => <i key={id} style={{ background: s.colors[players.find((p) => p.id === id)?.color ?? 0] }} title={players.find((p) => p.id === id)?.name} />)}
+                        </span>
+                        {isBossLevel(lvl) ? `E${lvl - 100}` : lvl} · {levelTitle(lvl)}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="xo-help">{host ? 'Nadie votó todavía.' : 'Votá el nivel en el mapa para que el anfitrión lo vea.'}</p>
+                )}
+                {host ? (
+                  <button
+                    className="xo-btn xo-btn-primary"
+                    disabled={!allReady || lost}
+                    title={allReady ? 'Pasar a los menús: los demás te miran y votan, vos elegís el nivel' : 'Primero todos deben estar listos'}
+                    onClick={() => online.setBrowse(true)}
+                  >
+                    {allReady ? '¡TODO LISTO!' : 'FALTAN LISTOS'}
+                  </button>
+                ) : (
+                  <p className="xo-help">El anfitrión elige el nivel en el mapa; vos votás cuando él lo abra.</p>
+                )}
               </div>
-              <button
-                className="xa-online-primary"
-                disabled={host ? (!allReady) : false}
-                title={host ? (allReady ? 'Elegir el nivel en el mapa del juego' : 'Primero todos deben estar listos') : 'Votá el nivel en el mapa del juego'}
-                onClick={() => online.pickLevel()}
-              >
-                {host ? (allReady ? 'ELEGIR NIVEL EN EL MAPA' : 'FALTAN LISTOS') : 'VOTAR NIVEL EN EL MAPA'}
-              </button>
-              {!host && <p className="xa-online-hint">El anfitrión es quien inicia la partida; vos podés votar el nivel que más te guste.</p>}
-            </div>
 
-            <div className="xa-online-foot">
-              <label className={`xa-online-toggle ${!host ? 'is-readonly' : ''}`}>
-                <input
-                  type="checkbox"
-                  checked={isBossLevel(selected) ? true : s.settings.powerups}
-                  disabled={!host || !selected || isBossLevel(selected)}
-                  onChange={(e) => online.setPowerups(e.target.checked)}
-                />
-                Power-ups en los niveles originales
-                {isBossLevel(selected) && <small> (contra los jefes van siempre)</small>}
-              </label>
-              {host ? (
-                <button className="xa-online-start" disabled={!canStart} onClick={() => online.start()}>
-                  {canStart ? 'EMPEZAR' : !selected ? 'ELEGÍ UN NIVEL' : !allReady ? 'FALTAN LISTOS' : 'EMPEZAR'}
-                </button>
-              ) : (
-                <span className="xa-online-hint">El anfitrión inicia la partida.</span>
-              )}
-            </div>
-          </section>
-        )}
+              <div className="xo-level">
+                <div className="xo-sub">
+                  <span className="xo-label">PROGRESO</span>
+                  <span className="xo-count">
+                    {s.menu ? `${s.menu.d.filter((n) => n <= 16).length}/16 originales · ${s.menu.d.filter((n) => n > 100).length}/16 extra` : '…'}
+                  </span>
+                </div>
+                <p className="xo-help">Se juega con el progreso del anfitrión: sus niveles abiertos son los que se pueden elegir.</p>
+                {host && !confirmReset && (
+                  <button className="xo-btn xo-btn-small" onClick={() => setConfirmReset(true)}>BORRAR PROGRESO</button>
+                )}
+                {host && confirmReset && (
+                  <p className="xo-note is-error" role="alertdialog" aria-labelledby="xo-reset-title" aria-describedby="xo-reset-desc">
+                    <b id="xo-reset-title">¿Borrar todo tu progreso?</b><span id="xo-reset-desc" hidden> Se pierden los niveles abiertos y los récords. </span> Se pierden los niveles abiertos y los récords de este navegador. No se puede deshacer.
+                    <span className="xo-row">
+                      <button className="xo-btn xo-btn-small is-on" onClick={() => { online.resetProgress(); setConfirmReset(false); }}>SÍ, BORRAR</button>
+                      <button ref={cancelRef} className="xo-btn xo-btn-small" onClick={() => setConfirmReset(false)}>CANCELAR</button>
+                    </span>
+                  </p>
+                )}
+              </div>
+
+              <div className="xo-foot">
+                <label className={`xo-switch ${!host || isBossLevel(selected) ? 'is-locked' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={isBossLevel(selected) ? true : s.settings.powerups}
+                    disabled={!host || !selected || isBossLevel(selected)}
+                    onChange={(e) => online.setPowerups(e.target.checked)}
+                  />
+                  <span className="xo-switch-box" aria-hidden="true" />
+                  <span className="xo-switch-text">
+                    Power-ups en los niveles originales
+                    <small>
+                      {isBossLevel(selected)
+                        ? 'Contra los jefes van siempre'
+                        : !host ? 'Lo decide el anfitrión' : !selected ? 'Elegí un nivel primero' : s.settings.powerups ? 'Activados' : 'Apagados'}
+                    </small>
+                  </span>
+                </label>
+                {host ? (
+                  canStart ? <button className="xo-btn xo-btn-go" onClick={() => online.start()}>¡EMPEZAR!</button>
+                    : <span className="xo-help">{!allReady ? 'Faltan jugadores por marcar listo.' : 'Tocá TODO LISTO para elegir el nivel.'}</span>
+                ) : (
+                  <span className="xo-help">El anfitrión inicia la partida.</span>
+                )}
+              </div>
+            </section>
+          )}
+        </div>
       </div>
     </div>
   );

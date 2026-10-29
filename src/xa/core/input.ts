@@ -24,13 +24,21 @@ let anyQueued = false;
 // is still seen for exactly one update instead of being lost between two polls.
 const tapped = new Set<string>();
 
+/** Teclas escritas en un campo de texto (apodo, código de sala): no son controles del juego. */
+const editable = (e: KeyboardEvent): boolean => {
+  const t = e.target as HTMLElement | null;
+  return !!t && (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT');
+};
+
 export function attachInput(target: Window = window): () => void {
   const kd = (e: KeyboardEvent) => {
+    if (editable(e)) return;
     if (!down.has(e.code)) { anyQueued = true; tapped.add(e.code); }
     down.add(e.code);
     if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
   };
   const ku = (e: KeyboardEvent) => {
+    if (editable(e)) return;
     down.delete(e.code);
     // a focused page button must not be "clicked" by the jump key when it is released
     if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();

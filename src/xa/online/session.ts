@@ -4,7 +4,7 @@
 import { MAX_PLAYERS, backend, colorHex } from './config';
 import { NetClient, NetError, checkRoom, createRoom, forgetSession, getHostKey, serverInfo, setHostKey, storedSession, type StoredSession } from './net';
 import { P2P, fetchIceServers } from './p2p';
-import type { Difficulty, RoomView, ServerMessage, Snap } from './types';
+import type { Difficulty, MenuState, RoomView, ServerMessage, Snap } from './types';
 
 export type Phase = 'menu' | 'connecting' | 'lobby' | 'playing' | 'error';
 
@@ -29,6 +29,8 @@ export interface OnlineState {
   settings: { powerups: boolean };
   max: number;
   colors: string[];
+  /** estado de los menús del anfitrión (el anfitrión: el suyo; los invitados: el último que recibieron) */
+  menu: MenuState | null;
 }
 
 export interface GameHooks {
@@ -44,6 +46,8 @@ export interface GameHooks {
   input?: (from: number, b: number, q: number) => void;
   /** instantánea del mundo (solo invitados) */
   snap?: (s: Snap) => void;
+  /** el anfitrión confirmó "borrar progreso": el juego borra el guardado local */
+  resetProgress?: () => void;
 }
 
 const NAME_KEY = 'xa-online-name';
@@ -61,8 +65,8 @@ export class OnlineSession {
   private lastQ = new Map<number, number>();
   private lastSnapN = -1;
   private snapSeq = 0;
-  /** el anfitrión ya entró solo al mapa de niveles por esta ronda de "listo" */
-  private autoPicked = false;
+  private lastMenuJson = '';
+  private lastMenuAt = 0;
   private offNet: (() => void) | null = null;
   private state: OnlineState;
 
@@ -85,6 +89,7 @@ export class OnlineSession {
       settings: { powerups: true },
       max: MAX_PLAYERS,
       colors: Array.from({ length: 8 }, (_, i) => colorHex(i)),
+      menu: null,
     };
   }
 
@@ -184,18 +189,6 @@ export class OnlineSession {
       room, code: room.code, level: room.level, settings: room.settings,
       you: this.net.you, host: this.net.isHost, canResume: true,
     });
-    this.maybeAutoPick(room);
-  }
-
-  /** Con todos listos, el anfitrión entra solo al mapa de niveles (no hay que apretar EMPEZAR). */
-  private maybeAutoPick(room: RoomView): void {
-    const online = room.players.filter((p) => p.online);
-    // con un solo jugador no se abre solo: el anfitrión puede esperar a que entren sus amigos
-    const allReady = online.length >= 2 && online.every((p) => p.ready);
-    if (!allReady) { this.autoPicked = false; return; }
-    if (this.autoPicked || !this.net.isHost || room.status !== 'lobby' || this.state.phase !== 'lobby') return;
-    this.autoPicked = true;
-    this.hooks.pick?.();
   }
 
   private onMessage(m: ServerMessage): void {
@@ -221,6 +214,9 @@ export class OnlineSession {
         this.startFromRoom(m.room);
         break;
       }
+      case 'menu':
+        if (m.d && typeof m.d === 'object' && !this.state.host) this.set({ menu: m.d });
+        break;
       case 'in':
         if (m.d && typeof m.d.b === 'number') {
           const prev = this.lastQ.get(m.from) ?? -1;
@@ -252,7 +248,13 @@ export class OnlineSession {
         this.closeLocal('Entraste desde otra pestaña.');
         break;
       case 'closed':
-        this.closeLocal(m.reason === 'host_left' ? 'El anfitrión cerró la sala.' : m.reason === 'idle' ? 'La sala se cerró por inactividad.' : 'Se perdió la conexión con la sala.');
+        this.closeLocal(
+          m.reason === 'host_left' ? 'El anfitrión salió y cerró la sala.'
+            : m.reason === 'idle' ? 'La sala se cerró por inactividad.'
+              : m.reason === 'server_restart' ? 'El servidor se está reiniciando. Volvé a crear la sala en un momento.'
+                : m.reason === 'session_lost' ? 'No se pudo reconectar a la sala (pasó demasiado tiempo).'
+                  : 'Se perdió la conexión con la sala.',
+        );
         break;
       case 'error':
         this.set({ error: m.msg, phase: this.state.phase === 'playing' ? 'playing' : 'lobby' });
@@ -285,7 +287,7 @@ export class OnlineSession {
         const q = d.q & 0xffff;
         if (prev < 0 || ((q - prev) & 0xffff) < 0x8000) { this.lastQ.set(from, q); this.hooks.input?.(from, d.b, q); }
       },
-      onSnap: (d) => this.hooks.snap?.(d as Snap),
+      onSnap: (d) => { if (this.acceptSnap(d as Snap)) this.hooks.snap?.(d as Snap); },
     });
     this.hooks.start?.(room.level, room.difficulty, room.settings, room);
   }
@@ -312,29 +314,48 @@ export class OnlineSession {
     this.offNet = null;
     this.net.close(true);
     setHostKey(undefined);
-    this.set({ phase: 'menu', room: null, code: '', you: -1, host: false, canResume: false, error: message, difficulty: null });
+    this.set({ phase: 'menu', room: null, code: '', you: -1, host: false, canResume: false, error: message, difficulty: null, menu: null, link: 'ok', rtt: 0, direct: false });
+    this.lastMenuJson = '';
     this.hooks.exit?.();
   }
 
   // ---------------------------------------------------------------- acciones del lobby
   setReady(ready: boolean): void { this.net.send({ t: 'ready', ready }); }
   vote(level: number): void { this.net.send({ t: 'vote', level }); }
-  setLevel(level: number): void { this.net.send({ t: 'level', level }); }
-  setPowerups(on: boolean): void { this.net.send({ t: 'settings', powerups: on }); }
-  kick(id: number): void { this.net.send({ t: 'kick', id }); }
-  start(): void { this.net.send({ t: 'start' }); }
+  // las acciones del anfitrión también se frenan acá (el servidor es quien decide; esto es defensa en profundidad)
+  setLevel(level: number): void { if (this.state.host) this.net.send({ t: 'level', level }); }
+  setPowerups(on: boolean): void { if (this.state.host) this.net.send({ t: 'settings', powerups: on }); }
+  kick(id: number): void { if (this.state.host) this.net.send({ t: 'kick', id }); }
+  start(): void { if (!this.state.host) return; this.set({ error: '' }); this.net.send({ t: 'start' }); }
+  /** Anfitrión: "todo listo" (pasa a los menús, los demás miran) o volver al lobby. */
+  setBrowse(on: boolean): void { if (!this.state.host) return; this.set({ error: '' }); this.net.send({ t: 'go', on }); }
+  /** Anfitrión: borra el progreso guardado en este navegador (la confirmación la pide la interfaz). */
+  resetProgress(): void { if (this.state.host) this.hooks.resetProgress?.(); }
+  /** Anfitrión: publica en qué parte de los menús está (solo manda si cambió; máx. ~12 por segundo). */
+  publishMenu(m: MenuState): void {
+    if (!this.state.host || !this.state.room) return;
+    const json = JSON.stringify(m);
+    if (json === this.lastMenuJson) return;
+    const now = performance.now();
+    if (now - this.lastMenuAt < 80) return;
+    this.lastMenuJson = json;
+    this.lastMenuAt = now;
+    this.set({ menu: m });
+    this.net.send({ t: 'menu', d: m });
+  }
 
   /** Abre el selector de niveles del juego (anfitrión elige, invitados votan). */
   pickLevel(): void { this.hooks.pick?.(); }
   backToMenu(): void {
-    if (this.state.phase === 'playing') this.net.send({ t: 'end', d: { manual: true } });
+    if (this.state.phase === 'playing' && this.state.host) this.net.send({ t: 'end', d: { manual: true } });
     if (this.state.room) this.net.send({ t: 'leave' });
     this.teardownP2P();
     this.offNet?.();
     this.offNet = null;
     this.net.close(true);
     setHostKey(undefined);
-    this.set({ phase: 'menu', room: null, code: '', you: -1, host: false, error: '', difficulty: null, canResume: false });
+    this.set({ phase: 'menu', room: null, code: '', you: -1, host: false, error: '', difficulty: null, canResume: false, menu: null, link: 'ok', rtt: 0, direct: false });
+    this.lastMenuJson = '';
     this.hooks.exit?.();
   }
 
@@ -381,7 +402,7 @@ export class OnlineSession {
   canStart(): boolean {
     const r = this.state.room;
     if (!r || !this.state.host) return false;
-    return r.players.every((p) => p.ready && p.online) && r.level > 0 && r.status === 'lobby';
+    return r.players.length > 0 && r.players.every((p) => p.ready && p.online) && r.level > 0 && r.status === 'lobby';
   }
 
   /** Nombre y color del jugador `id` (para el HUD y el mundo). */

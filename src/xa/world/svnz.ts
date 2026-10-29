@@ -134,7 +134,7 @@ class SvEnemy extends Enemy {
     this.setSt('walk', 'WALK');
   }
 
-  /** Drops during the fight, at the arena spot farthest from the boss, one at a time: energy when Xa is hurt, or one
+  /** Drops during the fight, at a random free floor spot of the arena away from the boss, one at a time: energy when Xa is hurt, or one
    *  of the timed power-ups (mod items of items_tile.png). */
   private healing(dt: number): void {
     if (this.heal?.alive) return;
@@ -143,8 +143,18 @@ class SvEnemy extends Enemy {
     this.healT = HEAL_EVERY;
     const hurt = this.world.state.energy < 10;
     const asset = hurt && Math.random() < 0.45 ? 'ENERGY' : POWER_UPS[Math.floor(Math.random() * POWER_UPS.length)];
+    // anywhere on the flat arena floor (the whole of it is reachable): off the walls and the gate, away from the boss
+    // and from anything already lying there
     const [x0, x1] = this.arena;
-    const x = this.x - x0 > x1 - this.x ? x0 + 96 : x1 - 96;
+    const lo = x0 + 80, hi = Math.max(lo, x1 - 144); // arena angosta: un solo punto posible
+    let x = lo, best = -1;
+    for (let i = 0; i < 12; i++) {
+      const c = lo + Math.random() * (hi - lo);
+      if (this.world.thingNear(c, 64)) continue;
+      const d = Math.abs(c - this.x);
+      if (d >= 160) { x = c; best = Infinity; break; }
+      if (d > best) { x = c; best = d; } // si ninguno cumple, el más lejos del jefe y sin ítems encima
+    }
     this.heal = this.world.spawnItem(asset, x, this.hy, asset === 'ENERGY' ? 3 : 1);
   }
 

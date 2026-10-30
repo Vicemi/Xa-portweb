@@ -1295,6 +1295,7 @@ export class XaGame {
         }
       }
     }
+    const late: (() => void)[] = [];
     for (let i = 0; i < NODE_POS.length; i++) {
       const [px, py] = NODE_POS[i];
       const entry = list[i];
@@ -1303,18 +1304,19 @@ export class XaGame {
       const locked = !!entry && !this.isUnlocked(i);
       const perfect = !!num && this.perfectOf(num);
       const current = i === this.levelIndex || i === this.hoverIndex;
-      if (pick && online.getState().room) {
-        // votos: un cuadradito con el color y la inicial de cada jugador que votó este nivel
+      // (se dibujan después de todos los nodos: si no, el botón del nodo las tapa)
+      if (pick && online.getState().room) late.push(() => {
+        // votos: una ficha con el color y la inicial de cada jugador que votó este nivel
         const lvl = entry?.extra ? EXTRA_FIRST + entry.extra - 1 : entry?.num;
         const room = online.getState().room!;
         const voters = lvl ? (room.votes ?? []).filter((v) => v.level === lvl) : [];
         voters.forEach((v, k) => {
           const who = room.players.find((p) => p.id === v.id);
-          const vx = px + 2 + k * 10, vy = py - 12;
+          const vx = px + k * 15, vy = py - 17;
           const chip = uiArt('vote_chip');
           if (chip) { // ficha final teñida con el color del jugador y su inicial
-            drawIconTinted(w, chip, vx - 1, vy - 2, { h: 13 }, online.playerInfo(v.id).hex);
-            drawText(w, (who?.name ?? '?').slice(0, 1).toUpperCase(), vx + 6, vy, 'black', 'center', 0.4);
+            drawIconTinted(w, chip, vx - 1, vy - 2, { h: 18 }, online.playerInfo(v.id).hex);
+            drawText(w, (who?.name ?? '?').slice(0, 1).toUpperCase(), vx + 8, vy + 1, 'black', 'center', 0.55);
             return;
           }
           // ficha con la cola hacia el nodo: color del jugador, borde de tinta y su inicial
@@ -1326,7 +1328,7 @@ export class XaGame {
           drawText(w, (who?.name ?? '?').slice(0, 1).toUpperCase(), vx + 4.5, vy + 1, 'black', 'center', 0.4);
         });
         const flag = uiArt('vote_flag'), guestCur = uiArt('cursor_guest'), hostCur = uiArt('cursor_host');
-        if (flag && lvl && lvl === room.level) drawIconTinted(w, flag, px + 27, py - 12, { h: 15 }, '#fff602'); // nivel elegido
+        if (flag && lvl && lvl === room.level) drawIconTinted(w, flag, px + 30, py - 20, { h: 22 }, '#fff602'); // nivel elegido
         if (follow && i === this.levelIndex && hostCur) drawIcon(w, hostCur, px + 26, py + 18, { h: 20 }); // cursor del anfitrión
         if (follow && i === this.followVote && guestCur) { // mi cursor de voto, con mi color
           drawIconTinted(w, guestCur, px + 6, py + 20, { h: 18 }, online.playerInfo(online.getState().you).hex);
@@ -1336,7 +1338,7 @@ export class XaGame {
           w.lineWidth = 2;
           w.strokeRect(px - 3, py - 3, 46, 36);
         }
-      }
+      });
       if (i === this.levelIndex) {
         // MAP_ANIMATED_SELECTION: glowing ring under the current node
         const ring = frameOf('MAP_ANIMATED_SELECTION', Math.floor(this.t * 6) % 3);
@@ -1362,6 +1364,7 @@ export class XaGame {
         if (a) w.drawImage(a.image, a.sx, a.sy, a.sw, a.sh, ax + 20 - 20, ay + 10 - 30 - bob, a.sw, a.sh);
       }
     }
+    for (const f of late) f();
     this.renderPageArrow(w);
     if (!follow) this.renderInfoBar(w);
     if (pick) this.renderOnlineRoster(w);

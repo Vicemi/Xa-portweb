@@ -38,6 +38,9 @@ export default function OnlinePanel() {
   const [copied, setCopied] = useState<'' | 'link' | 'code'>('');
   const autoJoin = useRef(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [, setTick] = useState(0);
+  const awayDeadline = useRef(0);
   const cardRef = useRef<HTMLDivElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
 
@@ -56,6 +59,17 @@ export default function OnlinePanel() {
     linkConsumed = true;
     if (s.name) void online.join(linkCode);
   }, [linkCode, s.phase, s.name]);
+
+  // cuenta regresiva para volver al nivel: el servidor manda los segundos que quedan con cada cambio de la sala
+  const meAway = s.room?.players.find((p) => p.id === s.you)?.away;
+  const seenRoom = useRef<unknown>(null);
+  if (seenRoom.current !== s.room) { seenRoom.current = s.room; if (meAway !== undefined) awayDeadline.current = Date.now() + meAway * 1000; }
+  useEffect(() => {
+    if (meAway === undefined) return;
+    const id = window.setInterval(() => setTick((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [meAway]);
+  useEffect(() => { if (!s.room) setConfirmLeave(false); }, [s.room]);
 
   // el código que confirma el servidor manda sobre lo que se escribió
   useEffect(() => { if (s.code) setCode(s.code); }, [s.code]);
@@ -84,6 +98,9 @@ export default function OnlinePanel() {
   const allReady = !!s.room && players.length > 0 && players.every((p) => p.online && p.ready);
   const canStart = host && allReady && selected > 0 && s.room?.status === 'lobby';
   const slots = Math.max(s.max || 4, players.length);
+  // fuera del nivel con la partida en curso: volver a jugar o mirar (con cuenta regresiva si salió del nivel)
+  const outside = s.phase === 'lobby' && s.room?.status === 'playing';
+  const awayLeft = me?.away === undefined ? null : Math.max(0, Math.ceil((awayDeadline.current - Date.now()) / 1000));
   const lost = s.link === 'lost';
 
   // votos por nivel, con quién votó cada uno
@@ -110,10 +127,28 @@ export default function OnlinePanel() {
             <small>Hasta {s.max || 4} jugadores (con vos) · el anfitrión manda</small>
           </div>
           {inRoom && <Signal rtt={s.rtt} lost={lost} direct={s.direct} />}
-          <button className="xo-btn xo-btn-exit" onClick={() => online.backToMenu()} title="Volver al menú principal">
-            <GameText text="SALIR" font="white" />
-          </button>
+          {inRoom ? (
+            <button className="xo-btn xo-btn-exit is-room" onClick={() => setConfirmLeave(true)} title={host ? 'Cerrar la sala para todos' : 'Salir de la sala'}>
+              <GameText text={host ? 'CERRAR SALA' : 'SALIR DE LA SALA'} font="white" />
+            </button>
+          ) : (
+            <button className="xo-btn xo-btn-exit" onClick={() => online.backToMenu()} title="Volver al menú principal">
+              <GameText text="SALIR" font="white" />
+            </button>
+          )}
         </header>
+        {inRoom && confirmLeave && (
+          <p className="xo-note is-error" role="alertdialog" aria-labelledby="xo-leave-title">
+            <b id="xo-leave-title">{host ? '¿Cerrar la sala?' : '¿Salir de la sala?'}</b>{' '}
+            {host ? 'Todos vuelven al menú principal.' : 'Volvés al menú principal; para volver tenés que entrar de nuevo con el código.'}
+            <span className="xo-row">
+              <button className="xo-btn xo-btn-small is-on" onClick={() => { setConfirmLeave(false); online.backToMenu(); }}>
+                <GameText text={host ? 'SÍ, CERRAR' : 'SÍ, SALIR'} />
+              </button>
+              <button className="xo-btn xo-btn-small" autoFocus onClick={() => setConfirmLeave(false)}><GameText text="CANCELAR" /></button>
+            </span>
+          </p>
+        )}
 
         <nav className="xo-tabs" role="tablist" aria-label="Pasos del modo online">
           {tabs.map((t) => (
@@ -246,8 +281,21 @@ export default function OnlinePanel() {
             </section>
           )}
 
+          {/* ---------------------------------------------------------- SALA: fuera del nivel, la partida sigue */}
+          {s.enabled && outside && s.room && (
+            <section className="xo-wait" aria-live="polite">
+              <p>La partida sigue en curso: <b>{isBossLevel(s.room.level) ? `E${s.room.level - 100}` : s.room.level} · {levelTitle(s.room.level)}</b>.</p>
+              {awayLeft !== null && <p className="xo-note is-error">Si no volvés en {awayLeft} s, la partida termina para todos.</p>}
+              <span className="xo-row">
+                <button className="xo-btn xo-btn-primary" onClick={() => online.rejoin(false)}><GameText text="VOLVER A JUGAR" /></button>
+                <button className="xo-btn" onClick={() => online.rejoin(true)}><GameText text="MIRAR" /></button>
+              </span>
+              <p className="xo-help">Mirando, elegís a quién seguir con las flechas o tocando la pantalla; Enter para entrar a jugar.</p>
+            </section>
+          )}
+
           {/* ---------------------------------------------------------- SALA: lobby */}
-          {s.enabled && s.phase === 'lobby' && s.room && (
+          {s.enabled && s.phase === 'lobby' && s.room && !outside && (
             <section className="xo-lobby">
               <div className="xo-room">
                 <div className="xo-room-code">

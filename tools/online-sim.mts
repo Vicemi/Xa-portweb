@@ -256,5 +256,45 @@ for (let n = 1; n <= 16; n++) {
   h2.players[0].lives = 0; h2.players[0].hero.setState(9 as any); H2.onHeroDeathFinished(h2.players[0].hero);
   check(over === 1, 'si todos quedan afuera: game over');
 }
+
+// ---- salir del nivel / volver / mirar / entrar con la partida en curso
+{
+  const ss: Snap[] = [];
+  const h = make('level1', 1, 2, 'host', 0, (s) => ss.push(JSON.parse(JSON.stringify(s))));
+  const g = make('level1', 1, 2, 'guest', 1);
+  const pump = (n: number) => { for (let i = 0; i < n; i++) { h.update(1 / 60); for (const s of ss.splice(0)) g.applySnap(s); } };
+  const [A, B] = h.players;
+  pump(4);
+  h.setAway(1, true);
+  pump(4);
+  check(B.away && B.eliminated && !B.hero.visible && g.players[1].away && !g.players[1].hero.visible, 'un invitado sale del nivel: su héroe desaparece (también en los demás)');
+  const bx = B.hero.pos.x;
+  h.setRemoteInput(1, 2, 1); pump(20);
+  check(B.hero.pos.x === bx, 'afuera no juega aunque lleguen controles');
+  h.setAway(1, false); pump(4);
+  check(!B.away && !B.eliminated && B.hero.visible && !g.players[1].away, 'vuelve a jugar: reaparece');
+  // si sale eliminado vuelve eliminado (no "revive" saliendo y entrando)
+  B.lives = 0; B.hero.setState(9 as any); (h as any).onHeroDeathFinished(B.hero);
+  h.setAway(1, true); h.setAway(1, false);
+  check(B.eliminated && !B.away, 'salir y volver no revive a un eliminado');
+  // con el anfitrión eliminado, que el último invitado salga es game over
+  let over = 0; (h as any).events.gameOver = () => over++;
+  B.eliminated = false;
+  A.lives = 0; A.hero.setState(9 as any); (h as any).onHeroDeathFinished(A.hero);
+  h.setAway(1, true);
+  check(over === 1, 'si el único que quedaba jugando sale del nivel: game over');
+  // alguien entra con la partida en curso
+  const h3 = make('level1', 1, 2, 'host', 0, (s) => ss.push(JSON.parse(JSON.stringify(s))));
+  const g3 = make('level1', 1, 2, 'guest', 1);
+  h3.addPlayer({ id: 2, name: 'Tres', hex: '#0f0' });
+  g3.addPlayer({ id: 2, name: 'Tres', hex: '#0f0' });
+  ss.length = 0;
+  const x0 = h3.players[2].hero.pos.x;
+  for (let i = 0; i < 120; i++) { if (i % 2 === 0) h3.setRemoteInput(2, 2, i / 2 + 1); h3.update(1 / 60); for (const s of ss.splice(0)) g3.applySnap(s); g3.update(1 / 60); }
+  check(h3.players.length === 3 && h3.players[2].hero.pos.x > x0 + 20 && g3.players[2].hero.pos.x > x0 + 20, `el que entra tarde juega y los demás lo ven (${x0} -> ${Math.round(h3.players[2].hero.pos.x)}, invitado ${Math.round(g3.players[2].hero.pos.x)})`);
+  // espectador: la cámara sigue a quien elige
+  g3.watch(2);
+  check(g3.localPlayer.id === 2 && g3.players.filter((p) => p.local).length === 1, 'el espectador sigue al jugador elegido');
+}
 console.log(fails ? `\n${fails} fallos` : '\ntodo OK');
 process.exit(fails ? 1 : 0);

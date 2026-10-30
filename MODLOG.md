@@ -1106,3 +1106,58 @@ Protocolo final del modo online (el detalle de mensajes está en XA-Backend/READ
   juego de las 5 arenas (puerta firme), menú a 1280x960 y 812x375 con ONLINE normal y hover, panel UNIRSE y SALA (estado
   forzado por consola en dev) a 1280x960 y 800x360, carteles del modo menús y cartel de error.
   NO verificado: con backend real; Safari (ctx.filter para el rojo: si no lo soporta el cartel queda crema con letra negra).
+
+## Estado 2026-10-30 (online: invitado congelado, salir/cerrar sala, volver al nivel o mirar, regla de 3 minutos)
+Reporte del usuario: no había cómo terminar/cerrar la sala; el invitado no se podía mover; salir del nivel dejaba estados
+mezclados («desconectado» y «mirando» a la vez) y el anfitrión quedaba trabado en «la partida ya empezó». Protocolo en
+XA-Backend/README.md (**hay que volver a desplegar el backend**).
+- **Invitado congelado (causas encontradas y reproducidas con el backend local y dos navegadores)**:
+  1) al reconectarse el socket solo (corte de red, pestaña en segundo plano, túnel) llegaba `joined` y la sesión pasaba a
+  fase `lobby` en plena partida: `sendInput` dejaba de mandar controles (el invitado veía todo pero no se movía). Ahora
+  `joined` conserva la fase `playing`.
+  2) al recargar la página / volver al asiento, el invitado empieza la secuencia de controles en 1 pero el anfitrión
+  recordaba la última (p. ej. 5000) y descartaba todo como «viejo» (~18 min). Reproducido: posición fija tras `resume`.
+  Ahora el anfitrión olvida la secuencia con `peer online`, al volver a `play`, y q = 1 siempre reinicia.
+  3) el relé solo se usaba si había MENOS enlaces directos que invitados: un enlace de alguien que ya salió podía tapar a
+  otro sin enlace. Ahora va por el relé si algún invitado dentro del nivel no recibió por WebRTC.
+- **«La partida ya empezó» al elegir otro nivel**: la pausa SALIR en coop solo cambiaba de pantalla y la sala seguía en
+  `playing`. Ahora, en coop: anfitrión SALIR = `end` (termina para todos) y todos vuelven a la selección de nivel
+  (`stage:browse`, todos listos; el anfitrión cae directo en el mapa). Invitado SALIR = `{t:'at',at:'lobby'}`: vuelve a
+  la pantalla ONLINE sin dejar la sala. El cartel de confirmación aclara qué pasa en cada caso.
+- **Cerrar / salir de la sala**: tercer botón en la pausa coop (anfitrión «CERRAR SALA», invitado «SALIR DE LA SALA», con
+  SÍ/NO) y en el panel (reemplaza a SALIR dentro de una sala, con confirmación; también visible en táctil). Cerrar →
+  `closed host_closed` y todos al menú principal con «El anfitrión cerró la sala.». Si se van todos los invitados la sala
+  se cierra y el anfitrión vuelve al menú («Se fueron todos los invitados...»). Esc en la pantalla online dentro de una
+  sala pide apretar dos veces.
+- **Estado de cada jugador** (servidor manda, clientes lo siguen): `players[].at` = `play` / `watch` / `lobby` (fuera
+  del nivel) + `online` (desconectado = gracia) + fuera de la sala. `away` = segundos que le quedan al que salió.
+- **Aviso al anfitrión**: si un invitado sale del nivel (o de la sala) en plena partida, el anfitrión ve «X abandonó el
+  nivel» con VOLVER AL MAPA (termina para todos) / SEGUIR JUGANDO; el mundo queda en pausa mientras decide y el aviso se
+  va solo si el invitado vuelve.
+- **Volver**: la pantalla ONLINE del que salió muestra «La partida sigue en curso» con VOLVER A JUGAR / MIRAR y la cuenta
+  regresiva. Al volver a jugar su héroe reaparece en el último punto de guardado (si salió eliminado sigue eliminado).
+  **Espectador**: no manda controles; la cámara y el HUD siguen a un jugador (empieza por el anfitrión), flechas o tocar
+  la pantalla cambian, Enter entra a jugar, cartel «MIRANDO A X». Fuera del nivel no recibe instantáneas.
+- **Regla de 3 minutos** (servidor, `AWAY_LIMIT_SECONDS`, 180 por defecto): si el que salió no vuelve (a jugar o a mirar),
+  la partida termina para todos (`ended away_timeout`) y vuelven al mapa; aviso «X no volvió a tiempo».
+- **Entrar con la partida en curso**: ahora se puede (si hay lugar): queda en la pantalla online y elige jugar o mirar;
+  el anfitrión lo agrega al mundo (`Scenario.addPlayer`). Quien no viene en la instantánea queda oculto en los invitados.
+- **Recarga del anfitrión en partida**: al volver manda `end` (el mundo vivía en esa página) y todos vuelven al mapa.
+- Mundo (world.ts): `PlayerRuntime.away`; `setAway` (anfitrión: afuera = no juega, no se dibuja, no revive ni frena el
+  game over; si el único que jugaba sale es game over), `addPlayer`, `watch`; índice 17 de la tupla de jugadores = afuera.
+  HUD sin los de afuera. Un jugador solo nunca toca nada de esto.
+- Archivos: XA-Backend/src/{rooms,ws,protocol,config,api}.ts, scripts/smoke.ts, README.md, .env.example; web:
+  src/xa/online/{session,types,p2p}.ts, src/xa/game.ts, src/xa/world/{world,player}.ts, src/components/OnlinePanel.tsx,
+  online.css, tools/online-sim.mts.
+- Verificado: tsc de los dos repos, build del backend, `npm test` (smoke ampliado: salir del nivel, controles/instantáneas
+  fuera del nivel, volver a mirar/jugar, 3 minutos con `AWAY_LIMIT_SECONDS=2`, etapa `browse` tras terminar, otro nivel
+  sin error, último invitado se va → sala cerrada, anfitrión cierra → `host_closed`, entrar tarde y mirar), build de
+  producción, tools/online-sim.mts (nuevos: afuera/volver/eliminado/game over/entrar tarde/espectador), boss-door-check,
+  y de punta a punta con el backend local y 3 navegadores (playwright-cli): el invitado se mueve (80 → 788 px), sigue
+  moviéndose tras reconectar el socket y tras recargar la página (859 → 1457 px; antes quedaba fijo), sale del nivel →
+  aviso al anfitrión, un tercero entra con la partida en curso y juega, el invitado vuelve a mirar y cambia de Anfi a
+  Tres, el anfitrión sale del nivel → todos al mapa y elige el nivel 2 sin error, la regla de los 3 minutos devolvió a
+  todos al mapa, el anfitrión cierra la sala desde la pausa → invitados al menú con el aviso, el último invitado sale →
+  sala cerrada y anfitrión al menú, el anfitrión recarga en plena partida → todos al mapa. Panel a 1024, 640x360 y 320 px.
+  NO verificado: celular real / pantalla táctil (toque para cambiar de jugador, botón redondo), enlace WebRTC con NAT real
+  (en local siempre abre directo), más de 3 jugadores.

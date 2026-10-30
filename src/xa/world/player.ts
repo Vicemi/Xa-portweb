@@ -54,6 +54,10 @@ export class PlayerRuntime {
   lives = START_LIVES;
   /** se quedó sin vidas: espera al próximo SavePoint (o al final del nivel si estamos todos así) */
   eliminated = false;
+  /** coop: salió del nivel (a la pantalla online) o mira como espectador: no juega ni se dibuja; al volver recupera
+   *  si estaba eliminado (awayElim) */
+  away = false;
+  awayElim = false;
   /** puntos de este jugador en el nivel (coop: cada uno suma los suyos) */
   score = 0;
   input: PlayerInput = emptyInput();

@@ -254,6 +254,9 @@
   .xo-room-actions { width: 100%; }
   .xo-room-actions .xo-btn { flex: 1; }
   .xo-code { font-size: 1.7rem; }
+  /* CERRAR SALA / SALIR DE LA SALA no entra al lado del título: baja a su propio renglón */
+  .xo-head { flex-wrap: wrap; }
+  .xo-head .xo-btn-exit.is-room { order: 3; width: 100%; }
 }
 @media (max-width: 360px) {
   .xo-tab-n { display: none; }
@@ -273,7 +276,8 @@
 }
 
 /* touch screens have their own round back button (top right, .xa-back-btn): keep the header clear of it */
-@media (pointer: coarse) { .xo-head { padding-right: 3.4rem; } .xo-btn-exit { display: none; } }
+/* táctil: SALIR fuera de una sala lo hace el botón redondo; dentro de la sala, cerrar/salir sigue a la vista */
+@media (pointer: coarse) { .xo-head { padding-right: 3.4rem; } .xo-btn-exit:not(.is-room) { display: none; } }
 @media (max-height: 480px) {
   .xo-title { padding: 0.25rem 0.5rem 0.2rem; }
   .xo-title strong { font-size: 1.5rem; }

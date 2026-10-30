@@ -16,6 +16,10 @@ export interface RoomPlayer {
   ready: boolean;
   host: boolean;
   online: boolean;
+  /** con la partida en curso: lobby = fuera del nivel (pantalla online), play = jugando, watch = mirando */
+  at?: 'lobby' | 'play' | 'watch';
+  /** salió del nivel: segundos que le quedan para volver antes de que la partida termine */
+  away?: number;
 }
 
 /** Estado de los menús del anfitrión que ven los demás (mirror). */
@@ -63,7 +67,7 @@ export type ServerMessage =
   | { t: 'joined'; you: number; host: boolean; sid: string; resumed: boolean; claimed: boolean; room: RoomView }
   | { t: 'room'; room: RoomView }
   | { t: 'menu'; d: MenuState }
-  | { t: 'start'; room: RoomView; difficulty: Difficulty; level: number; you: number }
+  | { t: 'start'; room: RoomView; difficulty: Difficulty; level: number; you: number; watch?: boolean }
   | { t: 'in'; from: number; d: { b: number; q: number } }
   | { t: 'snap'; d: Snap }
   | { t: 'ended'; d: unknown }
@@ -83,8 +87,8 @@ export interface Snap {
   v: number;
   /** número de secuencia (el invitado descarta repetidas del relé) */
   n: number;
-  /** jugadores: id, x, y, dir, estado, animación, frame, tiempo de animación, energía, power, powerT, vidas, viva, eliminada, cereales (doble salto), potenciadores de salto, puntos propios */
-  p: [number, number, number, number, number, string, number, number, number, string | null, number, number, number, number, number, number, number?][];
+  /** jugadores: id, x, y, dir, estado, animación, frame, tiempo de animación, energía, power, powerT, vidas, viva, eliminada, cereales (doble salto), potenciadores de salto, puntos propios, fuera del nivel */
+  p: [number, number, number, number, number, string, number, number, number, string | null, number, number, number, number, number, number, number?, number?][];
   /** enemigos: id, x, y, dir, vidas, animación, frame, tiempo, flash */
   e: [number, number, number, number, number, string, number, number, number][];
   /** enemigos que murieron hace poco: el invitado los borra */

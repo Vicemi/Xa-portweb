@@ -6,6 +6,7 @@ import { attachInput, isFirstPress, isPressed, keyPressed, pollInput, resetInput
 import { getMusicVolume, getSoundVolume, isMusicEnabled, isSoundEnabled, loadPrefs, playMusic, playSound, preloadSounds, setMusicEnabled, setMusicVolume, setSoundEnabled, setSoundVolume, stopMusic, unlockAudio } from './core/audio';
 import { drawText, fontPaths, lineWidth } from './core/font';
 import { drawFrame, drawTinted, frameOf } from './core/sprites';
+import { draw9, drawIcon, drawIconTinted, preloadUiArt, uiArt } from './core/nineslice';
 import levelData from './data/levels.json';
 import type { CoopConfig } from './world/world';
 import { VIEW_H, VIEW_W } from './world/camera';
@@ -148,8 +149,11 @@ const SCREEN_IMAGES = [
   'assets/images/menuElements/info_map.png',
   'assets/lang/images/menu/banner.png',
   'assets/images/menuElements/exit_confirmation.png',
+  'assets/images/menuElements/online_bg.jpg',
   'assets/images/menuElements/items_tile.png', // cabecitas tintadas del roster online del mapa
 ];
+
+preloadUiArt(); // arte de la interfaz online (public/online/*.png)
 
 const INTRO_PAGES = ['page_1', 'page_2', 'page_3', 'page_4', 'page_5'].map(
   (p, i) => `assets/lang/images/intros/${p}.jpg`,
@@ -1261,8 +1265,9 @@ export class XaGame {
   /** Pantalla ONLINE: el arte del menú atenuado detrás del panel de React (src/components/OnlinePanel.tsx). */
   private renderOnline(w: CanvasRenderingContext2D): void {
     const hour = new Date().getHours();
-    this.coverTop(w, hour - 10 >= 0 && hour - 10 < 9 ? 'assets/images/menuElements/menu.jpg' : 'assets/images/menuElements/menu_night.jpg');
-    w.fillStyle = 'rgba(3, 7, 12, 0.62)';
+    const bg = img('assets/images/menuElements/online_bg.jpg'); // arte final del lobby (si falta, el menú atenuado de antes)
+    this.coverTop(w, bg ? 'assets/images/menuElements/online_bg.jpg' : hour - 10 >= 0 && hour - 10 < 9 ? 'assets/images/menuElements/menu.jpg' : 'assets/images/menuElements/menu_night.jpg');
+    w.fillStyle = bg ? 'rgba(3, 7, 12, 0.32)' : 'rgba(3, 7, 12, 0.62)';
     w.fillRect(0, 0, VIEW_W, VIEW_H);
     // si el panel no está montado (backend sin configurar) al menos queda el cartel del canvas
     const st = online.getState();
@@ -1277,13 +1282,17 @@ export class XaGame {
     if (this.onlinePick) {
       const st = online.getState();
       const txt = st.host ? 'ELEGÍ EL NIVEL' : 'VOTÁ EL NIVEL';
-      drawText(w, txt, VIEW_W - 6, 6, 'black2', 'right', 1.0);
+      if (uiArt('pick_banner')) this.banner(w, VIEW_W - 154, 4, 150, 24, txt, 0.6);
+      else drawText(w, txt, VIEW_W - 6, 6, 'black2', 'right', 1.0);
       const chosen = st.room?.level ?? 0;
       if (chosen) {
         const label = `${chosen >= 101 ? 'E' + (chosen - 100) : chosen} - ${levelTitle(chosen)}`;
-        w.fillStyle = 'rgba(0,0,0,0.68)';
-        w.fillRect(0, VIEW_H - 24, VIEW_W, 20);
-        drawText(w, label, VIEW_W / 2, VIEW_H - 22, 'white', 'center', 0.8);
+        if (uiArt('pick_banner')) this.banner(w, 60, VIEW_H - 28, VIEW_W - 120, 24, label, 0.6);
+        else {
+          w.fillStyle = 'rgba(0,0,0,0.68)';
+          w.fillRect(0, VIEW_H - 24, VIEW_W, 20);
+          drawText(w, label, VIEW_W / 2, VIEW_H - 22, 'white', 'center', 0.8);
+        }
       }
     }
     for (let i = 0; i < NODE_POS.length; i++) {
@@ -1302,6 +1311,12 @@ export class XaGame {
         voters.forEach((v, k) => {
           const who = room.players.find((p) => p.id === v.id);
           const vx = px + 2 + k * 10, vy = py - 12;
+          const chip = uiArt('vote_chip');
+          if (chip) { // ficha final teñida con el color del jugador y su inicial
+            drawIconTinted(w, chip, vx - 1, vy - 2, { h: 13 }, online.playerInfo(v.id).hex);
+            drawText(w, (who?.name ?? '?').slice(0, 1).toUpperCase(), vx + 6, vy, 'black', 'center', 0.4);
+            return;
+          }
           // ficha con la cola hacia el nodo: color del jugador, borde de tinta y su inicial
           w.fillStyle = online.playerInfo(v.id).hex;
           w.strokeStyle = '#1a1818';
@@ -1310,6 +1325,12 @@ export class XaGame {
           w.beginPath(); w.moveTo(vx + 1.5, vy + 10); w.lineTo(vx + 4.5, vy + 14); w.lineTo(vx + 7.5, vy + 10); w.fill(); w.stroke();
           drawText(w, (who?.name ?? '?').slice(0, 1).toUpperCase(), vx + 4.5, vy + 1, 'black', 'center', 0.4);
         });
+        const flag = uiArt('vote_flag'), guestCur = uiArt('cursor_guest'), hostCur = uiArt('cursor_host');
+        if (flag && lvl && lvl === room.level) drawIconTinted(w, flag, px + 27, py - 12, { h: 15 }, '#fff602'); // nivel elegido
+        if (follow && i === this.levelIndex && hostCur) drawIcon(w, hostCur, px + 26, py + 18, { h: 20 }); // cursor del anfitrión
+        if (follow && i === this.followVote && guestCur) { // mi cursor de voto, con mi color
+          drawIconTinted(w, guestCur, px + 6, py + 20, { h: 18 }, online.playerInfo(online.getState().you).hex);
+        } else
         if (follow && i === this.followVote) {   // mi cursor de voto
           w.strokeStyle = online.playerInfo(online.getState().you).hex;
           w.lineWidth = 2;
@@ -1327,6 +1348,8 @@ export class XaGame {
       const f = frameOf(name, frame);
       if (!f) continue;
       w.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, px, py, f.sw, f.sh); // anchor (0,0): NODE_POS is the top-left
+      const lockArt = locked && pick ? uiArt('level_lock') : null;
+      if (lockArt) drawIcon(w, lockArt, px + f.sw / 2 - 6, py + f.sh / 2 - 9, { h: 16 });
       if (i === this.levelIndex) {
         // ARROW (anchor 20,30) at node + (20,10), bobbing up to 6 px, gliding from the previous node
         const a = frameOf('ARROW', 0);
@@ -1356,6 +1379,7 @@ export class XaGame {
   private renderBrowseBanner(w: CanvasRenderingContext2D): void {
     if (!this.browseStage() || !online.getState().host) return;
     const y = VIEW_H - 14;
+    if (uiArt('pick_banner')) { this.banner(w, 40, VIEW_H - 24, VIEW_W - 80, 20, 'TODOS TE ESTÁN MIRANDO  -  Esc: volver a la sala', 0.42); return; }
     w.fillStyle = 'rgba(0,0,0,0.7)';
     w.fillRect(0, y, VIEW_W, 14);
     drawText(w, 'TODOS TE ESTÁN MIRANDO  -  Esc: volver a la sala', VIEW_W / 2, y + 1, 'white', 'center', 0.5);
@@ -1375,6 +1399,7 @@ export class XaGame {
       lines.push(`Mirás a ${(host?.name ?? 'el anfitrión').slice(0, 10)}. Votás: ${e ? e.label.slice(0, 18) : '-'} (flechas+Enter)`);
     } else lines.push(`Mirás a ${(host?.name ?? 'el anfitrión').slice(0, 10)}. Él elige el nivel y empieza.`);
     const y = VIEW_H - 14;
+    if (!lost && this.leaveArm <= 0 && uiArt('pick_banner')) { this.banner(w, 40, VIEW_H - 24, VIEW_W - 80, 20, lines[0].slice(0, 70), 0.42); return; }
     w.fillStyle = lost || this.leaveArm > 0 ? 'rgba(120,10,10,0.85)' : 'rgba(0,0,0,0.7)';
     w.fillRect(0, y, VIEW_W, 14);
     drawText(w, lines[0].slice(0, 70), VIEW_W / 2, y + 1, 'white', 'center', 0.5);
@@ -1388,6 +1413,21 @@ export class XaGame {
     if (!players.length) return;
     const scale = 0.5;
     const labels = players.map((p) => (p.name || 'Xa').slice(0, 10));
+    const head = frameOf('AVATAR_HEAD', 0), plate = uiArt('roster_plate'), flag = uiArt('host_flag');
+    if (plate) {
+      // arte final: una placa 9 cortes por jugador (el círculo de la cabecita queda en el corte izquierdo)
+      const h = 26, k = h / plate.naturalHeight, pitch = h + 2;
+      players.forEach((p, i) => {
+        const y = 4 + i * pitch, nw = Math.round(lineWidth(labels[i], 'black') * scale);
+        const pw = Math.max(86, 33 + nw + (p.host ? 22 : 8));
+        draw9(w, plate, 4, y, pw, h, [50, 50, 50, 135], k);
+        const hex = online.playerInfo(p.id).hex ?? '#ffffff';
+        if (head) drawTinted(w, head, 4 + 13.5 - 7.5, y + 13 - 5.5, 1, hex, 0.8, 0.34);
+        drawText(w, labels[i], 4 + 31, y + 6, 'black', 'left', scale);
+        if (p.host && flag) drawIcon(w, flag, 4 + 33 + nw + 3, y + 5, { h: 15 });
+      });
+      return;
+    }
     const widest = Math.max(...labels.map((l) => lineWidth(l, 'black') * scale));
     const rowH = 17;
     const pw = Math.min(VIEW_W - 8, Math.round(widest) + 52);
@@ -1399,7 +1439,6 @@ export class XaGame {
     w.strokeStyle = '#1a1818';
     w.lineWidth = 2;
     w.beginPath(); w.roundRect(4, 4, pw, ph, 6); w.fill(); w.stroke();
-    const head = frameOf('AVATAR_HEAD', 0);
     players.forEach((p, i) => {
       const y = 7 + i * rowH, hex = online.playerInfo(p.id).hex ?? '#ffffff';
       if (head) drawTinted(w, head, 9, y, 1, hex, 0.8, 0.42);
@@ -1411,6 +1450,14 @@ export class XaGame {
         w.fill(); w.stroke();
       }
     });
+  }
+
+  /** Cartel de papel con marco dorado (pick_banner, 9 cortes) y texto centrado. */
+  private banner(w: CanvasRenderingContext2D, x: number, y: number, bw: number, bh: number, text: string, scale: number): void {
+    const im = uiArt('pick_banner');
+    if (!im) return;
+    draw9(w, im, x, y, bw, bh, [70, 70, 70, 70], bh / im.naturalHeight);
+    drawText(w, text, x + bw / 2, y + bh / 2 - 7, 'black', 'center', scale);
   }
 
   /** Mod: arrow on the map edge to switch between the original map and map 2 (the original ARROW sprite turned

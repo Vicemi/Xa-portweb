@@ -604,6 +604,8 @@ export class Scenario implements World {
     return false;
   }
   startDeathTransition(seconds: number): void {
+    // coop: the world keeps running and the respawn never fades back, so any death (even a guest's) left the host black
+    if (this.coop) return;
     this.fade = 0;
     this.fadeDir = 1 / (seconds / 2);
   }
@@ -703,10 +705,13 @@ export class Scenario implements World {
   setRemoteInput(id: number, bits: number, q: number): void {
     const p = this.players.find((x) => x.id === id);
     if (!p || p.local) return;
-    const prev = p.bits;
+    const prev = p.bits, pending = p.input;
     p.bits = bits;
     p.q = q;
     p.input = inputFromBits(bits, prev);
+    // two packets in one host frame (jitter, relay + WebRTC): the second must not erase a jump/shot not yet consumed
+    p.input.jumpPressed ||= pending.jumpPressed;
+    p.input.firePressed ||= pending.firePressed;
     this.lastIn.set(id, this.clock);
     this.staleIn.delete(id);
   }
@@ -1549,6 +1554,34 @@ export class Scenario implements World {
         ctx.moveTo(x - 4, apex - 7); ctx.lineTo(x + 4, apex - 7); ctx.lineTo(x, apex - 2);
         ctx.closePath(); ctx.fill();
       }
+    }
+    // amigos fuera de cámara (cada cámara sigue a su propio héroe): flecha y nombre en el borde, hacia donde están
+    for (const pl of this.players) {
+      const h = pl.hero;
+      if (pl === local || inView(pl) || !h.visible || pl.eliminated || pl.away || !h.isAlive()) continue;
+      const dx = h.pos.x - cx, dy = h.pos.y - 32 - cy;
+      const side = dx < 0 ? -1 : dx > VIEW_W ? 1 : 0;
+      const x = side < 0 ? 12 : side > 0 ? VIEW_W - 12 : Math.min(VIEW_W - 40, Math.max(40, dx));
+      const y = side ? Math.min(VIEW_H - 40, Math.max(56, dy)) : dy < 0 ? 12 : VIEW_H - 12;
+      const ax = side, ay = side ? 0 : dy < 0 ? -1 : 1; // hacia dónde apunta la flecha
+      const tint = pl.hex ?? '#ffffff';
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.moveTo(x + ax * 9, y + ay * 9); ctx.lineTo(x - ay * 8 - ax * 3, y + ax * 8 - ay * 3); ctx.lineTo(x + ay * 8 - ax * 3, y - ax * 8 - ay * 3);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = tint;
+      ctx.beginPath();
+      ctx.moveTo(x + ax * 6, y + ay * 6); ctx.lineTo(x - ay * 5 - ax * 1, y + ax * 5 - ay * 1); ctx.lineTo(x + ay * 5 - ax * 1, y - ax * 5 - ay * 1);
+      ctx.closePath(); ctx.fill();
+      const label = pl.name.slice(0, 10) || 'Xa';
+      const pw = Math.max(18, Math.min(54, label.length * 5 + 6));
+      const lx = Math.min(VIEW_W - pw / 2 - 2, Math.max(pw / 2 + 2, x - ax * (pw / 2 + 6)));
+      const ly = y - ay * 20 - 6;
+      ctx.fillStyle = 'rgba(0,0,0,0.62)';
+      ctx.fillRect(Math.round(lx - pw / 2), Math.round(ly), pw, PLATE_H);
+      ctx.fillStyle = tint;
+      ctx.fillRect(Math.round(lx - pw / 2), Math.round(ly) + PLATE_H - 2, pw, 2);
+      drawLine(ctx, label, Math.round(lx), Math.round(ly) + 1, 'white', 'center', 0.5);
     }
   }
 

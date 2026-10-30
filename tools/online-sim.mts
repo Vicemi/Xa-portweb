@@ -296,5 +296,32 @@ for (let n = 1; n <= 16; n++) {
   g3.watch(2);
   check(g3.localPlayer.id === 2 && g3.players.filter((p) => p.local).length === 1, 'el espectador sigue al jugador elegido');
 }
+{
+  // un invitado muere con vidas de repuesto: la pantalla del anfitrión no se queda negra y el invitado vuelve a moverse
+  const ss: Snap[] = [];
+  const h = make('level1', 1, 2, 'host', 0, (s) => ss.push(JSON.parse(JSON.stringify(s))));
+  const g = make('level1', 1, 2, 'guest', 1);
+  const B = h.players[1];
+  let q = 0;
+  const run = (frames: number, bits: number) => { for (let i = 0; i < frames; i++) { if (i % 2 === 0) h.setRemoteInput(1, bits, ++q); h.update(1 / 60); for (const s of ss.splice(0)) g.applySnap(s); g.update(1 / 60); } };
+  run(60, 0);
+  B.lives = 2;
+  B.hero.setState(9 as any);
+  let maxFade = 0;
+  for (let i = 0; i < 400 && !(B.hero.isAlive() && B.hero.visible); i++) { run(1, 0); maxFade = Math.max(maxFade, (h as any).fade); }
+  run(30, 0);
+  check(maxFade === 0 && (h as any).fade === 0, `la muerte de un invitado no oscurece al anfitrión (fade máx ${maxFade})`);
+  const x0 = B.hero.pos.x;
+  run(120, 2);
+  check(B.hero.isAlive() && B.hero.pos.x > x0 + 20 && Math.abs(g.players[1].hero.pos.x - B.hero.pos.x) < 30,
+    `tras reaparecer el invitado se mueve (${Math.round(x0)} -> ${Math.round(B.hero.pos.x)}, en su pantalla ${Math.round(g.players[1].hero.pos.x)})`);
+  // jitter / WebRTC + relé: dos paquetes del salto llegan en el mismo cuadro del anfitrión y el salto no se pierde
+  run(30, 0);
+  const y0 = B.hero.pos.y;
+  h.setRemoteInput(1, 32, ++q); h.setRemoteInput(1, 32, ++q);
+  let top = y0;
+  for (let i = 0; i < 30; i++) { h.update(1 / 60); top = Math.min(top, B.hero.pos.y); }
+  check(y0 - top > 40, `dos paquetes en un cuadro no se comen el salto (subió ${Math.round(y0 - top)} px)`);
+}
 console.log(fails ? `\n${fails} fallos` : '\ntodo OK');
 process.exit(fails ? 1 : 0);

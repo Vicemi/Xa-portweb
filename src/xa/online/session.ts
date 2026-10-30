@@ -31,11 +31,16 @@ export interface OnlineState {
   colors: string[];
   /** estado de los menús del anfitrión (el anfitrión: el suyo; los invitados: el último que recibieron) */
   menu: MenuState | null;
+  /** en la partida en curso: true = esta pestaña mira como espectador (no maneja un héroe) */
+  watch: boolean;
+  /** anfitrión: un invitado acaba de abandonar el nivel (se le pregunta si volver al mapa o seguir) */
+  away: { id: number; name: string } | null;
 }
 
 export interface GameHooks {
-  /** empezó una partida: cargar el nivel y arrancar (o esperar instantáneas si somos invitados) */
-  start?: (level: number, difficulty: Difficulty, settings: { powerups: boolean }, room: RoomView) => void;
+  /** empezó una partida (o volvemos a la que sigue): cargar el nivel y arrancar (invitados: esperar instantáneas;
+   *  watch = como espectador) */
+  start?: (level: number, difficulty: Difficulty, settings: { powerups: boolean }, room: RoomView, watch: boolean) => void;
   /** la partida terminó (el anfitrión la cerró o se perdió) */
   ended?: (why: unknown) => void;
   /** volver al menú principal */
@@ -48,6 +53,8 @@ export interface GameHooks {
   snap?: (s: Snap) => void;
   /** el anfitrión confirmó "borrar progreso": el juego borra el guardado local */
   resetProgress?: () => void;
+  /** aviso para mostrar en pantalla (por qué terminó la partida, etc.) */
+  notice?: (text: string) => void;
 }
 
 const NAME_KEY = 'xa-online-name';
@@ -90,6 +97,8 @@ export class OnlineSession {
       max: MAX_PLAYERS,
       colors: Array.from({ length: 8 }, (_, i) => colorHex(i)),
       menu: null,
+      watch: false,
+      away: null,
     };
   }
 
@@ -162,8 +171,7 @@ export class OnlineSession {
       const room = await this.net.resume(s);
       this.attach();
       this.applyRoom(room);
-      this.set({ phase: room.status === 'playing' ? 'playing' : 'lobby', you: this.net.you, host: this.net.isHost });
-      if (room.status === 'playing') this.startFromRoom(room);
+      this.enterRoom(room);
     } catch (e) {
       forgetSession();
       this.fail(e);
@@ -174,9 +182,23 @@ export class OnlineSession {
     const room = await this.net.connect(code, this.state.name, key);
     this.attach();
     this.applyRoom(room);
-    this.set({ phase: room.status === 'playing' ? 'playing' : 'lobby', error: '', you: this.net.you, host: this.net.isHost });
-    // si ya estaba en partida (reconexión), el servidor no reenvía `start`: lo reconstruimos del lobby
-    if (room.status === 'playing') this.startFromRoom(room);
+    this.set({ error: '' });
+    this.enterRoom(room);
+  }
+
+  /** Al entrar o volver a una sala: si la partida corre y nuestro asiento está adentro (jugando o mirando), el servidor
+   *  no reenvía `start` y se reconstruye de la sala; si no (recién llegado, salió del nivel) queda en la pantalla online. */
+  private enterRoom(room: RoomView): void {
+    const at = room.players.find((p) => p.id === this.net.you)?.at;
+    if (room.status === 'playing' && this.net.isHost) {
+      // el mundo vivía en la página que se recargó: la partida termina para todos y se vuelve a elegir nivel
+      this.net.send({ t: 'end', d: { aborted: true, reason: 'host_reload' } });
+      this.set({ phase: 'lobby', you: this.net.you, host: true, watch: false });
+      return;
+    }
+    const inside = room.status === 'playing' && (at === 'play' || at === 'watch');
+    this.set({ phase: inside ? 'playing' : 'lobby', you: this.net.you, host: this.net.isHost, watch: at === 'watch' });
+    if (inside) this.startFromRoom(room, at === 'watch');
   }
 
   private attach(): void {
@@ -185,7 +207,21 @@ export class OnlineSession {
   }
 
   private applyRoom(room: RoomView): void {
-    this.set({
+    const prev = this.state.room;
+    let away = this.state.away;
+    if (this.state.host && prev && room.status === 'playing') {
+      for (const p of prev.players) {
+        const now = room.players.find((x) => x.id === p.id);
+        // un invitado dejó el nivel (o la sala): el anfitrión decide si sigue o vuelve al mapa
+        if (p.at === 'play' && !p.host && (!now || now.at === 'lobby') && this.state.phase === 'playing') away = { id: p.id, name: p.name };
+        // volvió a jugar: su secuencia de controles empieza de nuevo
+        if (now?.at === 'play' && p.at !== 'play') this.lastQ.delete(p.id);
+      }
+    }
+    // el aviso se va solo si ya no aplica (terminó la partida o volvió a jugar/mirar)
+    const back = away && room.players.find((x) => x.id === away!.id);
+    if (room.status !== 'playing' || (back && back.at !== 'lobby')) away = null;
+    this.set({ away,
       room, code: room.code, level: room.level, settings: room.settings,
       you: this.net.you, host: this.net.isHost, canResume: true,
     });
@@ -194,10 +230,13 @@ export class OnlineSession {
   private onMessage(m: ServerMessage): void {
     switch (m.t) {
       case 'joined': {
+        // solo llega acá al reconectarse solo (corte de red, pestaña en segundo plano): si estábamos jugando se sigue
+        // jugando (antes pasaba a 'lobby' y el invitado dejaba de mandar sus controles: quedaba congelado)
         this.net.you = m.you;
         this.net.isHost = m.host;
         this.applyRoom(m.room);
-        this.set({ phase: 'lobby', error: '', canResume: true });
+        this.set({ phase: this.state.phase === 'playing' ? 'playing' : 'lobby', error: '', canResume: true });
+        if (m.room.status === 'lobby' && this.state.phase === 'playing') this.finishMatch({ aborted: true });
         break;
       }
       case 'room': {
@@ -210,33 +249,34 @@ export class OnlineSession {
       case 'start': {
         this.net.you = m.you;
         this.applyRoom(m.room);
-        this.set({ phase: 'playing', level: m.level, difficulty: m.difficulty, settings: m.room.settings });
-        this.startFromRoom(m.room);
+        this.set({ phase: 'playing', level: m.level, difficulty: m.difficulty, settings: m.room.settings, watch: !!m.watch, error: '' });
+        this.startFromRoom(m.room, !!m.watch, m.difficulty);
         break;
       }
       case 'menu':
         if (m.d && typeof m.d === 'object' && !this.state.host) this.set({ menu: m.d });
         break;
       case 'in':
-        if (m.d && typeof m.d.b === 'number') {
-          const prev = this.lastQ.get(m.from) ?? -1;
-          const q = m.d.q & 0xffff;
-          // secuencia circular: aceptar si avanzó (más de la mitad del rango = mensaje viejo)
-          if (prev < 0 || ((q - prev) & 0xffff) < 0x8000) {
-            this.lastQ.set(m.from, q);
-            this.hooks.input?.(m.from, m.d.b, q);
-          }
-        }
+        if (m.d && typeof m.d.b === 'number') this.acceptInput(m.from, m.d);
         break;
       case 'snap':
         if (m.d && this.acceptSnap(m.d)) this.hooks.snap?.(m.d);
         break;
-      case 'ended':
+      case 'ended': {
+        const d = (m.d ?? {}) as { reason?: string; name?: string };
+        const text = d.reason === 'away_timeout' ? `${(d.name ?? 'Alguien').slice(0, 10)} no volvió a tiempo: la partida terminó.`
+          : d.reason === 'host_lost' ? 'El anfitrión perdió la conexión: la partida terminó.'
+            : d.reason === 'host_reload' ? 'El anfitrión recargó la página: la partida terminó.' : '';
+        if (text && !(d.reason === 'host_reload' && this.state.host)) this.hooks.notice?.(text);
+        this.set({ away: null, watch: false });
         this.finishMatch(m.d);
         break;
+      }
       case 'left':
         break;
-      case 'peer':
+      case 'peer':   // un invitado volvió (recarga, reconexión): su página empieza la secuencia de controles de cero
+        if (m.online) this.lastQ.delete(m.id);
+        break;
       case 'pong':
         break;
       case 'rtc':
@@ -249,7 +289,9 @@ export class OnlineSession {
         break;
       case 'closed':
         this.closeLocal(
-          m.reason === 'host_left' ? 'El anfitrión salió y cerró la sala.'
+          m.reason === 'host_closed' ? 'El anfitrión cerró la sala.'
+          : m.reason === 'host_left' ? 'El anfitrión se fue y la sala se cerró.'
+          : m.reason === 'alone' ? 'Se fueron todos los invitados: la sala se cerró.'
             : m.reason === 'idle' ? 'La sala se cerró por inactividad.'
               : m.reason === 'server_restart' ? 'El servidor se está reiniciando. Volvé a crear la sala en un momento.'
                 : m.reason === 'session_lost' ? 'No se pudo reconectar a la sala (pasó demasiado tiempo).'
@@ -265,6 +307,17 @@ export class OnlineSession {
     }
   }
 
+  /** Controles de un invitado (relé o WebRTC). La secuencia es circular: se acepta si avanzó (más de la mitad del rango
+   *  = viejo). q = 1 es siempre el primer paquete de una página nueva del invitado (recargó o volvió al nivel): reinicia. */
+  private acceptInput(from: number, d: { b: number; q: number }): void {
+    const prev = this.lastQ.get(from) ?? -1;
+    const q = d.q & 0xffff;
+    if (prev < 0 || q === 1 || ((q - prev) & 0xffff) < 0x8000) {
+      this.lastQ.set(from, q);
+      this.hooks.input?.(from, d.b, q);
+    }
+  }
+
   /** Descarta instantáneas repetidas o viejas (pueden llegar por WebRTC y por el relé a la vez). */
   private acceptSnap(s: Snap): boolean {
     if (typeof s.n !== 'number') return true;
@@ -273,7 +326,7 @@ export class OnlineSession {
     return true;
   }
 
-  private startFromRoom(room: RoomView): void {
+  private startFromRoom(room: RoomView, watch = false, difficulty: Difficulty = room.difficulty): void {
     this.lastQ.clear();
     this.lastSnapN = -1;
     this.snapSeq = 0;
@@ -282,21 +335,17 @@ export class OnlineSession {
     const guests = room.players.filter((p) => p.id !== this.net.you && p.online).map((p) => p.id);
     this.p2p = new P2P({
       net: this.net, me: this.net.you, hostId: room.hostId, guests, iceServers: this.ice,
-      onInput: (from, d) => {
-        const prev = this.lastQ.get(from) ?? -1;
-        const q = d.q & 0xffff;
-        if (prev < 0 || ((q - prev) & 0xffff) < 0x8000) { this.lastQ.set(from, q); this.hooks.input?.(from, d.b, q); }
-      },
+      onInput: (from, d) => this.acceptInput(from, d),
       onSnap: (d) => { if (this.acceptSnap(d as Snap)) this.hooks.snap?.(d as Snap); },
     });
-    this.hooks.start?.(room.level, room.difficulty, room.settings, room);
+    this.hooks.start?.(room.level, difficulty, room.settings, room, watch);
   }
 
   private finishMatch(why: unknown): void {
     if (this.state.phase !== 'playing') return;
     this.teardownP2P();
     this.lastQ.clear();
-    this.set({ phase: 'lobby', difficulty: null });
+    this.set({ phase: 'lobby', difficulty: null, watch: false, away: null });
     this.hooks.ended?.(why);
   }
 
@@ -314,7 +363,7 @@ export class OnlineSession {
     this.offNet = null;
     this.net.close(true);
     setHostKey(undefined);
-    this.set({ phase: 'menu', room: null, code: '', you: -1, host: false, canResume: false, error: message, difficulty: null, menu: null, link: 'ok', rtt: 0, direct: false });
+    this.set({ phase: 'menu', room: null, code: '', you: -1, host: false, canResume: false, error: message, difficulty: null, menu: null, link: 'ok', rtt: 0, direct: false, watch: false, away: null });
     this.lastMenuJson = '';
     this.hooks.exit?.();
   }
@@ -354,15 +403,35 @@ export class OnlineSession {
     this.offNet = null;
     this.net.close(true);
     setHostKey(undefined);
-    this.set({ phase: 'menu', room: null, code: '', you: -1, host: false, error: '', difficulty: null, canResume: false, menu: null, link: 'ok', rtt: 0, direct: false });
+    this.set({ phase: 'menu', room: null, code: '', you: -1, host: false, error: '', difficulty: null, canResume: false, menu: null, link: 'ok', rtt: 0, direct: false, watch: false, away: null });
     this.lastMenuJson = '';
     this.hooks.exit?.();
   }
 
+  /** Salir del nivel sin dejar la sala. Anfitrión: la partida termina para todos (vuelven a elegir nivel). Invitado: va a
+   *  la pantalla online; puede volver a jugar o mirar (si no vuelve a tiempo, el servidor termina la partida). */
+  leaveLevel(): void {
+    if (this.state.phase !== 'playing') return;
+    if (this.state.host) { this.net.send({ t: 'end', d: { quit: true } }); return; }
+    this.net.send({ t: 'at', at: 'lobby' });
+    this.teardownP2P();
+    this.set({ phase: 'lobby', watch: false });
+  }
+  /** Invitado fuera del nivel con la partida en curso: volver a jugar o entrar a mirar (el servidor contesta `start`). */
+  rejoin(watch: boolean): void {
+    if (this.state.host || !this.state.room || this.state.room.status !== 'playing') return;
+    this.set({ error: '' });
+    this.net.send({ t: 'at', at: watch ? 'watch' : 'play' });
+  }
+  /** El anfitrión respondió al aviso de que alguien abandonó el nivel. */
+  dismissAway(): void { this.set({ away: null }); }
+  /** Mensaje en la barra del panel (por ejemplo, "Esc otra vez para salir"). */
+  hint(text: string): void { this.set({ error: text }); }
+
   // ---------------------------------------------------------------- partida
   /** Invitado: manda sus controles (bits + secuencia). */
   sendInput(b: number, q: number): void {
-    if (this.state.phase !== 'playing' || this.state.host) return;
+    if (this.state.phase !== 'playing' || this.state.host || this.state.watch) return;
     if (!this.p2p?.sendInput({ b, q })) this.net.send({ t: 'in', d: { b, q } });
   }
 
@@ -371,9 +440,10 @@ export class OnlineSession {
     if (!this.state.host) return;
     s.n = ++this.snapSeq;
     const json = JSON.stringify({ t: 'snap', d: s });
-    const direct = this.p2p?.sendSnap(json) ?? 0;
-    const guests = this.state.room?.players.filter((p) => p.id !== this.state.you && p.online).length ?? 0;
-    if (direct < guests) this.net.send({ t: 'snap', d: s });
+    const direct = this.p2p?.sendSnap(json) ?? [];
+    // por el relé si algún invitado dentro del nivel no tiene enlace directo (los de afuera no reciben el mundo)
+    const relay = this.state.room?.players.some((p) => p.id !== this.state.you && p.online && p.at !== 'lobby' && !direct.includes(p.id)) ?? false;
+    if (relay) this.net.send({ t: 'snap', d: s });
   }
 
   /** Anfitrión: última instantánea con el cartel de fin de nivel / derrota (los invitados muestran su pantalla). */

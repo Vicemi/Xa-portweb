@@ -223,6 +223,14 @@ export class XaGame {
   private followLevel = -1;
   /** coop: pantalla final mostrada, a la espera de volver al lobby */
   private coopEnd: 'win' | 'over' | null = null;
+  /** coop (anfitrión): la partida terminó; cuando la sala vuelva a la selección de nivel se abre el mapa */
+  private afterMatch = false;
+  /** el último clic/toque fue sobre el canvas (no sobre los botones táctiles ni el panel) */
+  private clickedCanvas = false;
+  /** pausa: menú normal o aviso al anfitrión de que un invitado abandonó el nivel */
+  private pauseMode: 'pause' | 'away' = 'pause';
+  /** coop: qué confirma el cartel SÍ/NO: salir del nivel o salir de la sala (anfitrión: cerrarla) */
+  private confirmWhat: 'level' | 'room' = 'level';
   private skipIntro(): void {
     this.screen = 'menu';
     this.menuIndex = -1;
@@ -251,10 +259,11 @@ export class XaGame {
         stopMusic(); playSound('CLICK');
         break;
       case 'paused':
-        if (this.confirming) { this.confirming = false; playSound('CLICK'); } else this.resumeFromPause();
+        if (this.pauseMode === 'away') this.dismissAway();
+        else if (this.confirming) { this.confirming = false; playSound('CLICK'); } else this.resumeFromPause();
         break;
       case 'menu': this.toggleFullscreen(); break;
-      case 'online': online.backToMenu(); break;
+      case 'online': this.tryLeaveOnline(); break;
       case 'follow': this.tryLeave(); break;
       case 'splash': if (this.splashClose < 0) this.splashClose = 0; break; // next logo
       case 'loading': this.clicked = true; break;       // same as tapping the screen (once loaded)
@@ -287,13 +296,14 @@ export class XaGame {
     try { this.stretch = localStorage.getItem('xa-stretch') === '1'; } catch { /* storage unavailable */ }
     // puente con el lobby online (React) y con la partida coop
     online.setHooks({
-      start: (level, difficulty, settings, room) => { void this.startOnline(level, difficulty, settings, room); },
+      start: (level, difficulty, settings, room, watch) => { void this.startOnline(level, difficulty, settings, room, watch); },
       ended: () => this.finishOnline(),
       exit: () => this.exitOnline(),
       pick: () => this.openOnlineLevels(),
       input: (from, b, q) => this.scenario?.setRemoteInput(from, b, q),
       snap: (s) => this.scenario?.applySnap(s),
       resetProgress: () => { this.state.wipe(); this.cowCache = {}; this.page = 0; this.selectLevel(0); },
+      notice: (text) => { this.notice = { text, until: performance.now() + 10000 }; },
     });
   }
 
@@ -301,17 +311,20 @@ export class XaGame {
   /** Hay sala en el lobby y el anfitrión ya dijo "todo listo". */
   private browseStage(): boolean {
     const st = online.getState();
-    return st.phase === 'lobby' && !!st.room && st.room.stage === 'browse';
+    return st.phase === 'lobby' && !!st.room && st.room.status === 'lobby' && st.room.stage === 'browse';
   }
 
   /** Mantiene la pantalla de juego alineada con la etapa de la sala (anfitrión: menús; invitados: espectador). */
   private syncStage(): void {
     const st = online.getState();
-    if (st.phase !== 'lobby' || !st.room) return;
+    // con la partida en curso, quien está fuera del nivel se queda en la pantalla online (volver a jugar / mirar)
+    if (st.phase !== 'lobby' || !st.room || st.room.status !== 'lobby') return;
     const browse = st.room.stage === 'browse';
     const s = this.screen;
     if (st.host) {
-      if (browse && s === 'online') { this.screen = 'menu'; this.menuIndex = -1; this.onlinePick = false; this.t = 0; playMusic('xa_menu'); }
+      // al terminar una partida se vuelve directo al mapa para elegir el siguiente nivel
+      if (browse && s === 'online' && this.afterMatch) { this.afterMatch = false; this.openOnlineLevels(); }
+      else if (browse && s === 'online') { this.screen = 'menu'; this.menuIndex = -1; this.onlinePick = false; this.t = 0; playMusic('xa_menu'); }
       else if (!browse && (s === 'menu' || s === 'levels' || s === 'options' || s === 'help' || s === 'credits')) {
         this.onlinePick = false; this.screen = 'online'; this.t = 0;
       }
@@ -374,6 +387,13 @@ export class XaGame {
     this.leaveArm = 3;
   }
 
+  /** Pantalla online: dentro de una sala, Esc (o el botón de volver) pide confirmar apretando otra vez. */
+  private tryLeaveOnline(): void {
+    if (!online.getState().room || this.leaveArm > 0) { this.leaveArm = 0; online.backToMenu(); return; }
+    this.leaveArm = 3;
+    online.hint(online.getState().host ? 'Apretá Esc de nuevo para CERRAR la sala (para todos).' : 'Apretá Esc de nuevo para salir de la sala.');
+  }
+
   /** Datos del anfitrión que mandan sobre el progreso propio mientras se mira su mapa. */
   private remote(): MenuState | null {
     return this.screen === 'follow' ? (online.getState().menu ?? { s: 'menu', i: -1, p: 0, l: 0, d: [], f: [] }) : null;
@@ -390,8 +410,10 @@ export class XaGame {
   /** Arranca una partida coop con el nivel, la dificultad y el roster que fijó el servidor. */
   private async startOnline(level: number, difficulty: Difficulty, settings: { powerups: boolean }, room: {
     code: string; hostId: number | null; players: { id: number; name: string; color: number }[];
-  }): Promise<void> {
+  }, watch = false): Promise<void> {
     this.onlinePick = false;
+    this.afterMatch = false;
+    this.pauseMode = 'pause';
     const entry = level >= EXTRA_FIRST ? this.extras[level - EXTRA_FIRST] : this.levels[level - 1];
     if (!entry) {
       this.error = 'El anfitrión eligió un nivel que no existe en este build.';
@@ -406,16 +428,65 @@ export class XaGame {
         plain: p.id === room.hostId,
       })),
       you: st.you,
+      watch: watch && !st.host,
       difficulty,
       powerups: !!settings.powerups,
       seed: coopSeed(room.code, level),
     };
     await this.loadLevel(entry, this.coopConfig);
+    if (this.coopConfig?.watch && room.hostId !== null) this.scenario?.watch(room.hostId);   // el espectador empieza mirando al anfitrión
+  }
+
+  /** Coop: alinea el mundo con la sala: quien entra con la partida en curso aparece; el anfitrión saca del juego a quien
+   *  salió del nivel o mira (y lo devuelve al volver). El espectador cambia de jugador si el que miraba se fue. */
+  private syncCoopRoster(): void {
+    const sc = this.scenario, cfg = this.coopConfig, room = online.getState().room;
+    if (!sc || !cfg || !room || room.status !== 'playing') return;
+    for (const r of room.players) {
+      if (r.at === 'play' && !sc.players.some((p) => p.id === r.id)) {
+        sc.addPlayer({ id: r.id, name: r.name.slice(0, 10), hex: online.playerInfo(r.id).hex, plain: r.host });
+      }
+    }
+    if (cfg.role === 'host') {
+      for (const p of sc.players) {
+        if (p.id === cfg.you) continue;
+        const r = room.players.find((x) => x.id === p.id);
+        sc.setAway(p.id, !r || r.at !== 'play');
+      }
+    }
+    if (cfg.watch && sc.localPlayer.away) this.cycleWatch(1);
+  }
+
+  /** Espectador: pasa al siguiente (o anterior) jugador que está en el nivel. */
+  private cycleWatch(dir: number): void {
+    const sc = this.scenario;
+    if (!sc) return;
+    const ids = sc.players.filter((p) => !p.away).map((p) => p.id);
+    if (!ids.length) return;
+    const cur = ids.indexOf(sc.localPlayer.id);
+    sc.watch(ids[cur < 0 ? 0 : (cur + dir + ids.length) % ids.length]);
+  }
+
+  /** Coop: salir del nivel desde la pausa. Anfitrión: termina para todos y vuelven a elegir nivel. Invitado: a la
+   *  pantalla online, sin dejar la sala (desde ahí vuelve a jugar o mira). */
+  private quitCoopLevel(): void {
+    online.leaveLevel();
+    this.finishOnline();
+  }
+
+  /** Anfitrión: "seguir jugando" en el aviso de que alguien abandonó el nivel. */
+  private dismissAway(): void {
+    online.dismissAway();
+    this.pauseMode = 'pause';
+    this.resumeFromPause();
   }
 
   /** La sala volvió al lobby (fin de nivel, derrota o el anfitrión cortó): se muestra el panel otra vez. */
   private finishOnline(): void {
     this.onlinePick = false;
+    this.afterMatch = online.getState().host;
+    this.pauseMode = 'pause';
+    this.confirming = false;
     this.coopConfig = null;
     this.coopEnd = null;
     this.scenario?.dispose();
@@ -461,9 +532,13 @@ export class XaGame {
   private exitOnline(): void {
     this.onlinePick = false;
     this.followVote = -1;
+    this.afterMatch = false;
+    this.pauseMode = 'pause';
+    this.confirming = false;
+    this.leaveArm = 0;
     // si la sala se cerró (anfitrión se fue, expulsión...) el motivo queda en el menú unos segundos
     const why = online.getState().error;
-    this.notice = why ? { text: why, until: performance.now() + 7000 } : null;
+    this.notice = why ? { text: why, until: performance.now() + 10000 } : null;
     this.coopConfig = null;
     this.coopEnd = null;
     this.scenario?.dispose();
@@ -680,7 +755,7 @@ export class XaGame {
           playMusic(kind === 'win' ? 'xa_win' : 'lose');
         } : undefined,
         snapshot: coop?.role === 'host' ? (s) => online.sendSnapshot(s) : undefined,
-        input: coop?.role === 'guest' ? (b, q) => online.sendInput(b, q) : undefined,
+        input: coop?.role === 'guest' && !coop.watch ? (b, q) => online.sendInput(b, q) : undefined,
       }, coop);
       // the key counter shows from level 14 on, and in extra levels that have a gate
       if (entry.extra) this.state.keysHud = /type="Door"/.test(text);
@@ -706,6 +781,7 @@ export class XaGame {
   private onPointerDown = (e: PointerEvent) => {
     this.onMouseMove(e);
     this.clicked = true;
+    this.clickedCanvas = e.target === this.canvas;   // un toque en los controles táctiles no es un toque en la pantalla
     this.mouseDown = true;
     // the fullscreen request must run inside the click handler itself (user activation)
     if (this.screen === 'options') {
@@ -810,7 +886,8 @@ export class XaGame {
       case 'online': {
         // el lobby lo dibuja el panel de React; acá solo corre el reloj del ping y la tecla de volver
         online.tick();
-        if (isFirstPress('back')) online.backToMenu();
+        if (this.leaveArm > 0) { this.leaveArm = Math.max(0, this.leaveArm - dt); if (!this.leaveArm) online.hint(''); }
+        if (isFirstPress('back')) this.tryLeaveOnline();
         break;
       }
       case 'follow':
@@ -927,7 +1004,7 @@ export class XaGame {
           if (this.t > END_WAIT + 0.5) this.finishCoopMatch();
           // invitado: si el anfitrión nunca devuelve la sala al lobby, tecla/click a los 6 s o salida sola a los 30 s
           if (this.coopConfig?.role === 'guest' && ((this.t > END_WAIT + 6 && (this.clicked || isFirstPress('any'))) || this.t > 30)) {
-            online.backToMenu();
+            this.quitCoopLevel();   // a la pantalla online, sin dejar la sala
           }
           break;
         }
@@ -952,6 +1029,18 @@ export class XaGame {
         break;
       case 'play':
         online.tick();
+        this.syncCoopRoster();
+        if (this.coopConfig?.role === 'host' && online.getState().away) {
+          // un invitado abandonó el nivel: el anfitrión decide (el mundo queda en pausa mientras tanto)
+          this.screen = 'paused'; this.pauseMode = 'away'; this.pauseIndex = 1; this.confirming = false;
+          playSound('CLICK');
+          break;
+        }
+        if (this.coopConfig?.watch) {
+          if (isFirstPress('right') || isFirstPress('up') || (this.clicked && this.clickedCanvas)) this.cycleWatch(1);
+          if (isFirstPress('left') || isFirstPress('down')) this.cycleWatch(-1);
+          if (isFirstPress('confirm')) online.rejoin(false);   // de mirar a jugar: el servidor manda un `start` nuevo
+        }
         if (isFirstPress('back') || keyPressed('KeyP')) {
           this.screen = 'paused';
           this.pauseIndex = 0;
@@ -964,7 +1053,13 @@ export class XaGame {
         this.hud.update(dt);
         break;
       case 'paused':
-        if (this.coopConfig) { online.tick(); this.scenario?.pauseTick(dt); } // coop: los demás siguen y se enteran de la pausa
+        if (this.coopConfig) {
+          online.tick(); this.scenario?.pauseTick(dt); // coop: los demás siguen y se enteran de la pausa
+          this.syncCoopRoster();
+          const away = this.coopConfig.role === 'host' && !!online.getState().away;
+          if (away && this.pauseMode !== 'away') { this.pauseMode = 'away'; this.pauseIndex = 1; this.confirming = false; }
+          else if (!away && this.pauseMode === 'away') { this.dismissAway(); break; }   // volvió solo: el aviso se va
+        }
         this.updatePause();
         break;
       case 'error':
@@ -1097,7 +1192,11 @@ export class XaGame {
       w.imageSmoothingEnabled = true;
       const sc = this.scenario;
       const local = sc.players.find((p) => p.local) ?? sc.players[0];
-      this.hud.render(w, this.state, sc.coop ? { players: sc.players, local } : undefined);
+      this.hud.render(w, this.state, sc.coop ? { players: sc.players.filter((p) => !p.away), local } : undefined);
+      if (this.coopConfig?.watch && this.screen === 'play') {
+        const name = (local.name || 'Xa').slice(0, 10);
+        this.bottomBanner(w, false, `MIRANDO A ${name}\nFlechas o tocar: cambiar, Enter: jugar, Esc: menú`);
+      }
       const bar = this.scenario.bossBar;
       if (bar) this.hud.renderBossBar(w, bar, STEP);
       if (this.screen === 'paused') this.renderPause(w);
@@ -1174,10 +1273,11 @@ export class XaGame {
       case 'intro': this.renderIntro(w); break;
       case 'menu': this.renderMenu(w); this.renderBrowseBanner(w); break;
       case 'online': this.renderOnline(w); break;
-      case 'levels': this.renderLevels(w); this.renderBrowseBanner(w); break;
+      case 'levels': this.renderLevels(w); this.renderBrowseBanner(w); this.renderNotice(w); break;
       case 'follow':
         if (online.getState().menu?.s === 'levels') this.renderLevels(w); else this.renderMenu(w);
         this.renderFollowBanner(w);
+        this.renderNotice(w);
         break;
       case 'help': this.renderFull(w, 'assets/lang/images/help/ayuda.jpg'); break;
       case 'credits': this.renderFull(w, 'assets/lang/images/credits/creditos.jpg'); break;
@@ -1259,15 +1359,7 @@ export class XaGame {
     // AssetsGeneral "MENU": the day art between 10:00 and 18:59 of the player's clock, the night art otherwise
     const hour = new Date().getHours();
     this.coverTop(w, hour - 10 >= 0 && hour - 10 < 9 ? 'assets/images/menuElements/menu.jpg' : 'assets/images/menuElements/menu_night.jpg');
-    if (this.notice && this.screen === 'menu') {
-      if (performance.now() > this.notice.until) this.notice = null;
-      else if (uiArt('pick_banner')) this.banner(w, 24, 4, VIEW_W - 48, 22, this.notice.text.slice(0, 70), 0.45, 'error');
-      else {
-        w.fillStyle = 'rgba(120,10,10,0.88)';
-        w.fillRect(0, 0, VIEW_W, 16);
-        drawText(w, this.notice.text.slice(0, 70), VIEW_W / 2, 2, 'white', 'center', 0.5);
-      }
-    }
+    if (this.screen === 'menu') this.renderNotice(w);
     const bt = img('assets/images/menuElements/buttons_tile.png');
     if (!bt) return;
     MENU_ITEMS.forEach((it, i) => {
@@ -1398,6 +1490,16 @@ export class XaGame {
         drawText(w, err.slice(0, 64), VIEW_W / 2, 30, 'white', 'center', 0.55);
       }
     }
+  }
+
+  /** Aviso temporal arriba (por qué se cerró la sala o terminó la partida). */
+  private renderNotice(w: CanvasRenderingContext2D): void {
+    if (!this.notice) return;
+    if (performance.now() > this.notice.until) { this.notice = null; return; }
+    if (uiArt('pick_banner')) { this.banner(w, 24, 4, VIEW_W - 48, 22, this.notice.text.slice(0, 70), 0.45, 'error'); return; }
+    w.fillStyle = 'rgba(120,10,10,0.88)';
+    w.fillRect(0, 0, VIEW_W, 16);
+    drawText(w, this.notice.text.slice(0, 70), VIEW_W / 2, 2, 'white', 'center', 0.5);
   }
 
   /** Cartel inferior para el anfitrión durante la etapa de menús: todos lo están mirando. */
@@ -1630,9 +1732,11 @@ export class XaGame {
 
   /** PauseDialog / ConfirmationDialog hit boxes (512x384 space, BUTTONS_* sprites drawn centred on these). */
   private pauseButtons(): { x: number; y: number; w: number; h: number }[] {
-    return this.confirming
-      ? [{ x: 256 - 85, y: 292, w: 60, h: 50 }, { x: 256 + 85, y: 292, w: 60, h: 50 }]
-      : [{ x: 256, y: 218, w: 106, h: 50 }, { x: 256, y: 268, w: 106, h: 50 }];
+    if (this.pauseMode === 'away') return [{ x: 256, y: 226, w: 210, h: 30 }, { x: 256, y: 266, w: 210, h: 30 }];
+    if (this.confirming) return [{ x: 256 - 85, y: 292, w: 60, h: 50 }, { x: 256 + 85, y: 292, w: 60, h: 50 }];
+    const b = [{ x: 256, y: 218, w: 106, h: 50 }, { x: 256, y: 268, w: 106, h: 50 }];
+    if (this.coopConfig) b.push({ x: 256, y: 316, w: 180, h: 26 });   // coop: CERRAR SALA / SALIR DE LA SALA
+    return b;
   }
   private pauseHover(): number {
     const m = this.mouseGamePos();
@@ -1644,13 +1748,30 @@ export class XaGame {
   private updatePause(): void {
     const hover = this.pauseHover();
     const move = isFirstPress('up') || isFirstPress('down') || isFirstPress('left') || isFirstPress('right');
+    if (this.pauseMode === 'away') {
+      // anfitrión: 0 = volver al mapa (termina para todos), 1 = seguir jugando
+      if (move) { this.pauseIndex = 1 - this.pauseIndex; playSound('CLICK'); }
+      if (hover >= 0) this.pauseIndex = hover;
+      if (isFirstPress('back')) { this.dismissAway(); return; }
+      if ((this.clicked && hover >= 0) || isFirstPress('confirm') || isFirstPress('jumpHold')) {
+        playSound('CLICK');
+        if (this.pauseIndex === 0) { online.dismissAway(); this.quitCoopLevel(); } else this.dismissAway();
+      }
+      return;
+    }
     if (this.confirming) {
       if (move) { this.confirmIndex = 1 - this.confirmIndex; playSound('CLICK'); }
       if (hover >= 0) this.confirmIndex = hover;
       const yes = () => {
         playSound('CLICK');
+        this.confirming = false;
+        if (this.coopConfig) {
+          // coop: salir del nivel avisa a la sala (antes se quedaba "en partida" y no se podía elegir otro nivel)
+          if (this.confirmWhat === 'room') online.backToMenu(); else this.quitCoopLevel();
+          return;
+        }
         this.scenario?.dispose();
-    this.scenario = null;
+        this.scenario = null;
         this.screen = 'menu';
         this.menuIndex = -1;
         playMusic('xa_menu');
@@ -1662,12 +1783,14 @@ export class XaGame {
       }
       return;
     }
-    if (move) { this.pauseIndex = 1 - this.pauseIndex; playSound('CLICK'); }
+    const n = this.pauseButtons().length;
+    if (isFirstPress('up') || isFirstPress('left')) { this.pauseIndex = (this.pauseIndex + n - 1) % n; playSound('CLICK'); }
+    if (isFirstPress('down') || isFirstPress('right')) { this.pauseIndex = (this.pauseIndex + 1) % n; playSound('CLICK'); }
     if (hover >= 0) this.pauseIndex = hover;
     if (isFirstPress('back') || keyPressed('KeyP')) { this.resumeFromPause(); return; }
     if ((this.clicked && hover >= 0) || isFirstPress('confirm') || isFirstPress('jumpHold')) {
       if (this.pauseIndex === 0) this.resumeFromPause();
-      else { this.confirming = true; this.confirmIndex = 1; playSound('CLICK'); }
+      else { this.confirming = true; this.confirmIndex = 1; this.confirmWhat = this.pauseIndex === 2 ? 'room' : 'level'; playSound('CLICK'); }
     }
   }
   private resumeFromPause(): void {
@@ -1679,15 +1802,47 @@ export class XaGame {
   /** PAUSE_DIALOG (banner.png: dimmed backdrop + green panel) with the JUGAR / SALIR buttons (BUTTONS_MENU 0/1
    *  and 2/3); SALIR swaps to CONFIRMATION (exit_confirmation.png) with SÍ / NO (BUTTONS_YESNO 0/1, 2/3). */
   private renderPause(w: CanvasRenderingContext2D): void {
+    if (this.pauseMode === 'away') { this.renderAwayPrompt(w); return; }
     const bg = frameOf(this.confirming ? 'CONFIRMATION' : 'PAUSE_DIALOG', 0);
     if (this.confirming) { w.fillStyle = 'rgba(0,0,0,.55)'; w.fillRect(0, 0, VIEW_W, VIEW_H); } // banner.png has its own dim
     if (bg) w.drawImage(bg.image, bg.sx, bg.sy, bg.sw, bg.sh, 0, 0, VIEW_W, VIEW_H);
     const map = this.confirming ? 'BUTTONS_YESNO' : 'BUTTONS_MENU';
     const sel = this.confirming ? this.confirmIndex : this.pauseIndex;
     this.pauseButtons().forEach((b, i) => {
+      if (i === 2) { this.textButton(w, b, online.getState().host ? 'CERRAR SALA' : 'SALIR DE LA SALA', i === sel); return; }
       const f = frameOf(map, i * 2 + (i === sel ? 1 : 0));
       if (f) w.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, Math.round(b.x - f.sw / 2), Math.round(b.y - f.sh / 2), f.sw, f.sh);
     });
+    if (this.confirming && this.coopConfig) {
+      // el cartel original dice "volver al menú principal": en coop se aclara qué pasa de verdad
+      const host = online.getState().host;
+      const what = this.confirmWhat === 'room'
+        ? (host ? 'Se cierra la sala para todos.' : 'Salís de la sala y volvés al menú.')
+        : (host ? 'El nivel termina para todos: vuelven a elegir nivel.' : 'Volvés a la sala online (podés volver a entrar).');
+      this.banner(w, 106, 330, 300, 24, what, 0.4);
+    }
+  }
+
+  /** Botón de texto con el estilo de los del juego (amarillo con borde negro). */
+  private textButton(w: CanvasRenderingContext2D, b: { x: number; y: number; w: number; h: number }, label: string, on: boolean): void {
+    w.fillStyle = on ? '#fff602' : '#e9c53a';
+    w.strokeStyle = '#1a1818';
+    w.lineWidth = 2;
+    w.beginPath(); w.roundRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, 6); w.fill(); w.stroke();
+    drawText(w, label, b.x, b.y - 8, 'black', 'center', 0.5);
+  }
+
+  /** Anfitrión: un invitado abandonó el nivel. ¿Volver al mapa (para todos) o seguir jugando? */
+  private renderAwayPrompt(w: CanvasRenderingContext2D): void {
+    const name = (online.getState().away?.name ?? 'Alguien').slice(0, 10);
+    w.fillStyle = 'rgba(0,0,0,.55)'; w.fillRect(0, 0, VIEW_W, VIEW_H);
+    w.fillStyle = '#e2d5ae'; w.strokeStyle = '#1a1818'; w.lineWidth = 3;
+    w.beginPath(); w.roundRect(116, 150, 280, 140, 10); w.fill(); w.stroke();
+    drawText(w, `${name} abandonó el nivel`, 256, 162, 'black', 'center', 0.6);
+    drawText(w, 'Si no vuelve a jugar o mirar a tiempo, la partida termina.', 256, 186, 'black', 'center', 0.38);
+    const [a, b] = this.pauseButtons();
+    this.textButton(w, a, 'VOLVER AL MAPA', this.pauseIndex === 0);
+    this.textButton(w, b, 'SEGUIR JUGANDO', this.pauseIndex === 1);
   }
 
   private text(w: CanvasRenderingContext2D, t: string, x: number, y: number, size = 14, _color = '#e8f0e0', align: CanvasTextAlign = 'center'): void {

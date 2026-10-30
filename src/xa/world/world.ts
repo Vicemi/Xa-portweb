@@ -22,6 +22,8 @@ export interface CoopConfig {
   roster: { id: number; name: string; color: number; hex: string; plain?: boolean }[];
   /** id del jugador de esta pestaña */
   you: number;
+  /** invitado espectador: no maneja ningún héroe, la cámara sigue a otro (ver watch()) */
+  watch?: boolean;
   difficulty: Difficulty;
   /** power-ups en los niveles originales (contra los jefes siempre están) */
   powerups: boolean;
@@ -279,6 +281,47 @@ export class Scenario implements World {
   /** El jugador de esta pestaña (el que mueve la cámara y el HUD). */
   get localPlayer(): PlayerRuntime {
     return this.players.find((p) => p.local) ?? this.players[0];
+  }
+
+  /** coop: alguien entró con la partida en curso: su héroe aparece en el último punto de guardado. */
+  addPlayer(r: { id: number; name: string; hex: string; plain?: boolean }): void {
+    if (!this.coop || this.players.some((p) => p.id === r.id)) return;
+    const p = new PlayerRuntime(r.id, r.name, r.hex, r.id === this.coop.you && !this.coop.watch);
+    p.plain = !!r.plain;
+    p.resetForLevel(START_LIVES);
+    p.hero = new Hero(this, p);
+    p.hero.limit = { w: this.map.widthPx, h: this.map.heightPx };
+    this.players.push(p);
+    this.respawnPlayer(p);
+  }
+
+  /** coop (anfitrión): un invitado salió del nivel / mira (away) o volvió a jugar. Mientras está afuera su héroe no
+   *  juega, no se dibuja y no cuenta para el game over ni para revivir; al volver reaparece en el punto de guardado. */
+  setAway(id: number, away: boolean): void {
+    const p = this.players.find((x) => x.id === id);
+    if (!p || p.away === away || this.coop?.role !== 'host') return;
+    p.away = away;
+    p.input = emptyInput();
+    p.bits = 0;
+    if (away) {
+      p.awayElim = p.eliminated;
+      p.eliminated = true;
+      p.hero.visible = false;
+      this.heroOnPlatform.delete(p);
+      if (this.players.every((x) => x.eliminated)) {
+        for (const x of this.players) x.lives = Math.max(START_LIVES, this.players.length);
+        this.events.gameOver();
+      }
+      return;
+    }
+    p.eliminated = p.awayElim;
+    if (!p.eliminated) this.respawnPlayer(p);
+  }
+
+  /** Espectador: la cámara y el HUD siguen al jugador `id`. */
+  watch(id: number): void {
+    if (!this.players.some((p) => p.id === id)) return;
+    for (const p of this.players) p.local = p.id === id;
   }
 
   /** Every image path this level needs (for preloading). */
@@ -630,7 +673,7 @@ export class Scenario implements World {
    *  Como cada punto se activa por primera vez una sola vez por nivel, cada punto revive a cada jugador como mucho una vez
    *  (5 eliminaciones con 3 puntos = 3 vueltas como máximo); los que ya estaban activos (atrás) no reviven a nadie. */
   private reviveAtSave(x: number, y: number): void {
-    const back = this.players.filter((p) => p.eliminated);
+    const back = this.players.filter((p) => p.eliminated && !p.away);
     for (const p of back) {
       p.eliminated = false;
       p.lives = 0; // una sola vida: la que juega ahora (el contador son vidas de repuesto); al morir otra vez queda afuera
@@ -1036,7 +1079,7 @@ export class Scenario implements World {
       return [
         pl.id, r1(h.pos.x), r1(h.pos.y), h.dir, h.state, h.anim.name || h.animName,
         h.anim.frameNum(), r1(h.anim.time), pl.energy, pl.power, r1(pl.powerT), pl.lives,
-        h.isAlive() && !pl.eliminated ? 1 : 0, pl.eliminated ? 1 : 0, pl.cereals, pl.heros, pl.score,
+        h.isAlive() && !pl.eliminated ? 1 : 0, pl.eliminated ? 1 : 0, pl.cereals, pl.heros, pl.score, pl.away ? 1 : 0,
       ];
     });
     // ventana: lo que está cerca de algún amigo (los invitados ven poco más que su cámara)
@@ -1097,9 +1140,13 @@ export class Scenario implements World {
     if (s.v !== 1) return;
 
     if (s.p) {
+      // quien no viene en la instantánea no está en el nivel del anfitrión (entró a la sala y todavía no juega)
+      const seen = new Set(s.p.map((r) => r[0]));
+      for (const pl of this.players) if (!seen.has(pl.id)) { pl.away = true; pl.eliminated = true; pl.hero.visible = false; }
       for (const r of s.p) {
         const pl = this.players.find((x) => x.id === r[0]);
         if (!pl) continue;
+        pl.away = !!r[17];
         pl.energy = r[8];
         pl.power = r[9] ?? null;
         pl.powerT = r[10];

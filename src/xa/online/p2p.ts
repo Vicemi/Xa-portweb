@@ -67,13 +67,13 @@ export class P2P {
   }
   worstRtt(): number { let w = 0; for (const l of this.links.values()) if (l.open) w = Math.max(w, l.rtt); return w; }
 
-  /** anfitrión: manda la instantánea (ya serializada) a los invitados con enlace directo. Devuelve cuántos la recibieron. */
-  sendSnap(json: string): number {
-    let n = 0;
+  /** anfitrión: manda la instantánea (ya serializada) a los invitados con enlace directo. Devuelve a quiénes les llegó. */
+  sendSnap(json: string): number[] {
+    const sent: number[] = [];
     for (const l of this.links.values()) {
-      if (l.open && l.snap && l.snap.readyState === 'open' && l.snap.bufferedAmount < 64 * 1024) { l.snap.send(json); n++; }
+      if (l.open && l.snap && l.snap.readyState === 'open' && l.snap.bufferedAmount < 64 * 1024) { l.snap.send(json); sent.push(l.id); }
     }
-    return n;
+    return sent;
   }
   /** invitado: controles al anfitrión. false = sin enlace directo, usar el relé. */
   sendInput(d: { b: number; q: number }): boolean {

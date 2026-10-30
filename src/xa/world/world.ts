@@ -105,6 +105,7 @@ const COW_POINTS = 1000; // Cow points (loadObjects: mov [obj+0x394], 0x3e8)
 interface Bullet {
   x: number; y: number; vx: number; vy: number; team: number; alive: boolean; g?: number; ax?: number;
   dmg?: number; tint?: string; big?: boolean;  // mod power-ups
+  pl?: PlayerRuntime;  // coop: quién disparó (se lleva los puntos)
 }
 const POWER_TIME = 15;  // seconds a power-up lasts
 const POWER_TEXT: Record<string, string> = {
@@ -163,6 +164,8 @@ export class Scenario implements World {
   private spawned: Enemy[] = [];
   /** SavePoint::mpActualSavePoint: only the active checkpoint shines */
   private activeSave: Thing | null = null;
+  /** coop: puntos de guardado ya activados alguna vez en este nivel (solo la primera activación revive) */
+  private firstSaves = new Set<Thing>();
   // boss deaths; `pop`: seconds of MEGA_POWER blasts for the extra-level bosses (the original pops during the first
   // 3 frames of BOSS_DEAD), `puff`: they vanish in an ENEMY_DEATH cloud when their knock-out is over
   private explosions: (Effect & { rect: Rect; t: number; pop?: number; puff?: number })[] = [];
@@ -406,11 +409,11 @@ export class Scenario implements World {
     const pw = p.power;
     const tint = pw ? POWER_TINT[pw] : undefined;
     const dmg = pw === 'PU_POTION' ? 3 : 1;
-    this.bullets.push({ x, y, vx, vy: 0, team: 0, alive: true, dmg, tint, big: pw === 'PU_POTION' });
+    this.bullets.push({ x, y, vx, vy: 0, team: 0, alive: true, dmg, tint, big: pw === 'PU_POTION', pl: p });
     if (pw === 'PU_GEARS') {
       // mod power-up: triple shot in a fan
-      this.bullets.push({ x, y, vx: vx * 0.97, vy: -120, team: 0, alive: true, dmg, tint });
-      this.bullets.push({ x, y, vx: vx * 0.97, vy: 120, team: 0, alive: true, dmg, tint });
+      this.bullets.push({ x, y, vx: vx * 0.97, vy: -120, team: 0, alive: true, dmg, tint, pl: p });
+      this.bullets.push({ x, y, vx: vx * 0.97, vy: 120, team: 0, alive: true, dmg, tint, pl: p });
     }
   }
   spawnEnemyBullet(x: number, y: number, vx: number, vy: number, g = 0, ax = 0): void {
@@ -433,7 +436,7 @@ export class Scenario implements World {
   spawnItem(asset: string, x: number, y: number, count = 3): { alive: boolean } {
     const ts = this.map.ts;
     const o = { type: 'Item', name: asset, x: Math.round(x - ts / 2), y: Math.round(y - ts), w: 32, h: 32,
-      props: { pAsset: asset, pCount: String(count), pIsKey: 'true', pRequiredItem: asset } } as unknown as TmxObject;
+      props: { pAsset: asset, pCount: String(count), pRequiredItem: asset } } as unknown as TmxObject;
     const f = feetOf(o.x, o.y, ts);
     const t = new Thing(o, f.x, f.y, asset);
     this.things.push(t);
@@ -463,7 +466,7 @@ export class Scenario implements World {
       this.things.push(dead);
     }
     const o = { type: 'Item', name: asset, x: Math.round(x - 16), y: Math.round(y - 32), w: 32, h: 32,
-      props: { pAsset: asset, pCount: String(count), pIsKey: 'true', pRequiredItem: asset } } as unknown as TmxObject;
+      props: { pAsset: asset, pCount: String(count), pRequiredItem: asset } } as unknown as TmxObject;
     this.things.push(new Thing(o, x, y, asset));
   }
 
@@ -493,7 +496,7 @@ export class Scenario implements World {
   private markDead(e: Enemy): void {
     if (this.coop?.role === 'host') this.deadIds.push({ id: e.netId, t: 2 });
   }
-  private killEnemy(e: Enemy, byBullet = false): void {
+  private killEnemy(e: Enemy, byBullet = false, pl?: PlayerRuntime): void {
     if (e.isBomb) {
       // EnemyBomb::onCollision: explode into an 8-way radial burst ("8_BULLETS", speed 200).
       e.alive = false;
@@ -501,18 +504,26 @@ export class Scenario implements World {
       playSound('ENEMY_DEATH');
       this.addEffect('BOMBA_DEATH', e.x, e.y - e.h / 2, 1);
       this.burst8(e);
-      this.award(e.points, e.x, e.y - e.h / 2);
+      this.award(e.points, e.x, e.y - e.h / 2, pl);
       return;
     }
     this.removeEnemy(e);
     if (byBullet && e.burstsOnShotDeath) this.burst8(e); // Jumper::onCollision
-    this.award(e.points, e.x, e.y - e.h / 2);
+    this.award(e.points, e.x, e.y - e.h / 2, pl);
   }
   /** Hero::addItems("POINTS", n) + EnemyHelper::addPointsEffect at the centre of the object's bound. */
-  private award(points: number, x: number, y: number): void {
+  private award(points: number, x: number, y: number, pl?: PlayerRuntime): void {
     if (points <= 0) return;
-    this.state.addPoints(points);
+    this.addScore(points, pl);
     this.pointsFx.push({ value: points, x, y, t: 0 });
+  }
+  /** Solitario: HeroState como siempre. Coop: cada amigo suma sus propios puntos; HeroState lleva los del anfitrión
+   *  (el que juega en esta pestaña), que son los que se guardan en el progreso. */
+  private addScore(points: number, pl?: PlayerRuntime): void {
+    if (!this.coop) { this.state.addPoints(points); return; }
+    const p = pl ?? this.localPlayer;
+    p.score = Math.min(999999, p.score + points);
+    if (p.local) this.state.addPoints(points);
   }
   /** XABulletFactory "8_BULLETS": 8 bullets from the centre, every 45° starting straight up, 200 px/s. */
   private burst8(e: Enemy): void {
@@ -567,7 +578,7 @@ export class Scenario implements World {
         this.respawnPlayer(p);
         return;
       }
-      // se quedó sin vidas: espera al próximo SavePoint (o al final si estamos todos así)
+      // se quedó sin vidas: espera a que un amigo vivo active un punto de guardado NUEVO (o al final si estamos todos así)
       p.lives = 0;
       p.eliminated = true;
       h.visible = false;
@@ -575,7 +586,9 @@ export class Scenario implements World {
       if (this.players.every((x) => x.eliminated)) {
         for (const x of this.players) x.lives = Math.max(START_LIVES, this.players.length);
         this.events.gameOver();
+        return;
       }
+      this.message(`${p.name.slice(0, 10) || 'Xa'}: ¡ELIMINADO!\nRevive en el próximo punto de guardado.`, 4);
       return;
     }
     // solitario: el comportamiento original (transición, vidas en HeroState)
@@ -613,20 +626,21 @@ export class Scenario implements World {
     this.addEffect('POWER', this.restore.x, this.restore.y - 30, 1);
   }
 
-  /** Reviven todos los amigos que se quedaron sin vidas (SavePoint), con una vida que hay que cuidar. */
+  /** Un amigo vivo activó por PRIMERA vez este punto de guardado: vuelven los eliminados, ahí, con exactamente 1 vida.
+   *  Como cada punto se activa por primera vez una sola vez por nivel, cada punto revive a cada jugador como mucho una vez
+   *  (5 eliminaciones con 3 puntos = 3 vueltas como máximo); los que ya estaban activos (atrás) no reviven a nadie. */
   private reviveAtSave(x: number, y: number): void {
-    let any = false;
-    for (const p of this.players) {
-      if (!p.eliminated) continue;
-      any = true;
+    const back = this.players.filter((p) => p.eliminated);
+    for (const p of back) {
       p.eliminated = false;
-      p.lives = 1;
+      p.lives = 0; // una sola vida: la que juega ahora (el contador son vidas de repuesto); al morir otra vez queda afuera
       this.respawnPlayer(p);
     }
-    if (any) {
+    if (back.length) {
       this.addEffect('POWER', x, y - 30, 1);
       playSound('HERO_LIFE');
-      this.events.message('¡Revivieron! Cuiden la vida que les queda.', 3);
+      const names = back.map((p) => p.name.slice(0, 10) || 'Xa').join(', ');
+      this.message(`¡${names} volvió con 1 vida!\nSi cae otra vez, queda afuera.`, 3);
     }
   }
 
@@ -695,6 +709,9 @@ export class Scenario implements World {
     }
     const anyAlive = (): boolean => this.players.some((p) => p.hero.isAlive() && !p.eliminated);
 
+    // lado de cada héroe respecto de las puertas ANTES de moverse (las puertas cerradas lo mantienen de ese lado)
+    const before = new Map<PlayerRuntime, number>();
+    for (const p of this.players) before.set(p, p.hero.rect.x + p.hero.rect.w / 2);
     for (const p of this.players) {
       if (p.eliminated) continue;
       setSoundOrigin(p.hero.pos.x, p.hero.pos.y);
@@ -712,10 +729,9 @@ export class Scenario implements World {
     }
 
     const local = this.localPlayer;
-    if (local.hero.isAlive() && !local.eliminated) {
-      const h = local.hero;
-      this.camera.update(dt, h.pos.x, h.pos.y, h.height, h.dir, h.vel.x, h.vel.y, this.winner);
-    }
+    // eliminado: la cámara sigue a un amigo vivo hasta que lo revivan
+    const h = local.hero.isAlive() && !local.eliminated ? local.hero : local.eliminated ? this.hero : null;
+    if (h) this.camera.update(dt, h.pos.x, h.pos.y, h.height, h.dir, h.vel.x, h.vel.y, this.winner);
     for (const p of this.players) {
       if (!p.power) continue;
       p.powerT -= dt;
@@ -765,12 +781,17 @@ export class Scenario implements World {
       for (const pl of this.players) {
         const h = pl.hero;
         if (!h.isAlive() || pl.eliminated) continue;
-        if (!overlaps(h.rect, db)) continue;
-        if (!d.open && d.tryOpen(this.state.keys)) continue;
+        // a la altura de la puerta, o por ENCIMA del mapa (fuera del mapa no hay baldosas: la columna sólida de arriba no
+        // frena a un héroe con los pies sobre y=0, la puerta sí)
+        if (h.rect.y >= db.y + db.h || (h.rect.y + h.rect.h <= db.y && h.rect.y + h.rect.h > 0)) continue;
+        // del lado en que estaba al empezar el cuadro: un desplazamiento grande en un solo cuadro (o un héroe que quedó
+        // solapado) nunca lo deja del otro lado, aunque haya "saltado" la puerta sin tocarla en este cuadro
+        const mid = db.x + db.w / 2, c0 = before.get(pl) ?? h.rect.x + h.rect.w / 2;
+        const left = c0 < mid;
+        if (left ? h.rect.x + h.rect.w <= db.x : h.rect.x >= db.x + db.w) continue;
+        if (overlaps(h.rect, db) && !d.open && d.tryOpen(this.state.keys)) continue;
         if (d.open) continue;
-        // out through the side the hero is on (not the one his speed points to: a hero overlapping the door while
-        // moving away or standing still used to be pushed across it)
-        if (h.rect.x + h.rect.w / 2 < db.x + db.w / 2) h.pushX(db.x - (h.rect.x + h.rect.w));
+        if (left) h.pushX(db.x - (h.rect.x + h.rect.w));
         else h.pushX(db.x + db.w - h.rect.x);
         h.vel.x = 0;
       }
@@ -837,7 +858,7 @@ export class Scenario implements World {
           } else if (!e.unstompable && h.vel.y > 0 && h.rect.y + h.rect.h - eb.y < 24) {
             h.bounce();
             if (e.isBoss) { if (e.onBullet(1 / this.soloPenalty)) this.killBoss(e); }
-            else this.killEnemy(e);
+            else this.killEnemy(e, false, pl);
             break;
           } else {
             h.onCollisionEnemy(4);
@@ -899,7 +920,7 @@ export class Scenario implements World {
             if (e.isBoss) {
               this.camera.shake(0.2); // EnemyBoss::onCollision: every hit shakes the camera
               if (e.onBullet(dmg)) this.killBoss(e);
-            } else if (e.onBullet(dmg)) { this.killEnemy(e, true); this.grantKey(e); }
+            } else if (e.onBullet(dmg)) { this.killEnemy(e, true, b.pl); this.grantKey(e); }
             break;
           }
         }
@@ -1015,7 +1036,7 @@ export class Scenario implements World {
       return [
         pl.id, r1(h.pos.x), r1(h.pos.y), h.dir, h.state, h.anim.name || h.animName,
         h.anim.frameNum(), r1(h.anim.time), pl.energy, pl.power, r1(pl.powerT), pl.lives,
-        h.isAlive() && !pl.eliminated ? 1 : 0, pl.eliminated ? 1 : 0, pl.cereals, pl.heros,
+        h.isAlive() && !pl.eliminated ? 1 : 0, pl.eliminated ? 1 : 0, pl.cereals, pl.heros, pl.score,
       ];
     });
     // ventana: lo que está cerca de algún amigo (los invitados ven poco más que su cámara)
@@ -1086,6 +1107,7 @@ export class Scenario implements World {
         pl.eliminated = !!r[13];
         pl.cereals = r[14] ?? 0;
         pl.heros = r[15] ?? 0;
+        pl.score = r[16] ?? 0;
         pl.hero.applyNet(r[1], r[2], r[3], r[4] as HS, r[5], r[7], !!r[12], pl.eliminated);
       }
     }
@@ -1184,7 +1206,7 @@ export class Scenario implements World {
     }
     for (const d of this.doors) d.update(dt);
     this.updateAnimations(dt);
-    const h = this.localPlayer.hero;
+    const h = this.localPlayer.eliminated ? this.hero : this.localPlayer.hero; // eliminado: sigue a un amigo vivo
     this.camera.update(dt, h.pos.x, h.pos.y, h.height, h.dir, 0, 0, this.winner);
     if (this.fadeDir) {
       this.fade = Math.min(1, Math.max(0, this.fade + this.fadeDir * dt));
@@ -1246,8 +1268,8 @@ export class Scenario implements World {
           if (p.pMusic) { this.music = p.pMusic; playMusic(this.music); }
           if (this.activeSave?.anim) this.activeSave.anim.goToAndPlay(0);
           this.activeSave = t;
-          // coop: en cada checkpoint vuelven los amigos que se habían quedado sin vidas
-          if (this.coop) this.reviveAtSave(t.x, t.y);
+          // coop: solo la PRIMERA activación de cada punto revive a los eliminados (volver a uno viejo no revive)
+          if (this.coop && !this.firstSaves.has(t)) { this.firstSaves.add(t); this.reviveAtSave(t.x, t.y); }
         }
         return;
       case 'Cow':
@@ -1257,7 +1279,7 @@ export class Scenario implements World {
           t.anim = new Anim('HAPPY_COW');
           t.rescueTime = 1.0; // blink time once the anim is over
           s.cows++;
-          this.award(COW_POINTS, t.x, t.y - 24);
+          this.award(COW_POINTS, t.x, t.y - 24, pl);
           playSound('COW_RESCUED_1');
         }
         return;
@@ -1268,7 +1290,7 @@ export class Scenario implements World {
     switch (req) {
       case 'POINTS':
         s.coins++;
-        s.addPoints(ITEM_POINTS);
+        this.addScore(ITEM_POINTS, pl);
         playSound('COIN');
         break;
       case 'LIVES':
@@ -1299,6 +1321,8 @@ export class Scenario implements World {
         playSound('POWERUP');
         break;
       case 'ENDING':
+        // la salida no cuenta mientras viva un jefe que custodia una puerta cerrada (niveles extra: solo su muerte abre)
+        if (this.enemies.some((e) => e.alive && e.isBoss && !!e.dropsKey) && this.doors.some((d) => !d.open)) return;
         if (!this.winner) {
           this.winner = true;
           pl.hero.winner = true;

@@ -20,11 +20,12 @@ All random choices are seeded, so the output is stable.
 usage: python gen_extra_levels.py
 """
 import base64
+import math
 import os
 import random
 import struct
 import xml.etree.ElementTree as ET
-from collections import defaultdict, deque
+from collections import Counter, defaultdict, deque
 from copy import deepcopy
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -130,6 +131,88 @@ class Base:
 
 
 # ======================================================================================================== terrain
+def plain_col(bb, k):
+    """One plain ground column: a hard tile with at least 5 free tiles above, no spikes/ladders/one-way floors."""
+    c = bb.cols[k]
+    if any(bb.state.get(gg) in ('pKilling', 'pLadder', 'pLadderEnd', 'pPlatform') for gg in c):
+        return False
+    for y in range(5, bb.h):
+        if bb.state.get(c[y]) == 'pHard':
+            return all(bb.state.get(c[yy]) != 'pHard' for yy in range(y - 5, y))
+    return False
+
+
+def arena_floor(bb, left, right, n, rnd):
+    """Ground of the boss arena: n columns between the composed columns `left` and `right` (gid tuples).
+
+    A walk over the plain ground columns of bb at left's floor height where every tile meets its neighbour the way
+    tiles meet somewhere in the original level (common pairs favoured, the same column twice in a row discouraged), so
+    the floor keeps its rim, pebbles and variation instead of one column copied n times, and no lone edge pieces
+    (grass caps with both ends drawn) line up into fake pillars. Only the ground is returned (rows above it are left
+    empty for arena_tufts). None if the level has no such columns."""
+    def ground(c):
+        return next((y for y in range(5, bb.h) if bb.state.get(c[y]) == 'pHard'), None)
+    g0 = ground(left)
+    if g0 is None:
+        return None
+    pair = Counter((bb.cols[x][y], bb.cols[x + 1][y]) for x in range(bb.w - 1) for y in range(g0, bb.h))
+    nodes = sorted({bb.cols[x][g0:] for x in range(bb.w) if plain_col(bb, x) and ground(bb.cols[x]) == g0})
+    if not nodes:
+        return None
+
+    def w(a, b):
+        c = [pair[(p, q)] for p, q in zip(a, b)]
+        return 0.0 if min(c) == 0 else math.exp(sum(map(math.log, c)) / len(c))
+    lg = left[g0:]
+    rg = right[g0:] if right is not None and ground(right) == g0 else None
+    # ok[i]: columns that can stand at position i and still reach a column that meets `right`
+    ok = [None] * n
+    ok[n - 1] = {a for a in nodes if rg is None or w(a, rg)} or set(nodes)
+    for i in range(n - 2, -1, -1):
+        ok[i] = {a for a in nodes if any(w(a, b) for b in ok[i + 1])} or set(nodes)
+    seq, cur = [], lg
+    for i in range(n):
+        cand = [(b, w(cur, b) * (0.15 if b == cur else 1.0)) for b in sorted(ok[i])]
+        cand = [(b, v) for b, v in cand if v] or [(b, 1.0) for b in sorted(ok[i])]
+        # the most common joins dominate, but not so much that one column repeats: square root of the weight
+        tot = sum(math.sqrt(v) for _, v in cand)
+        r = rnd.random() * tot
+        for b, v in cand:
+            r -= math.sqrt(v)
+            if r <= 0:
+                break
+        seq.append(b)
+        cur = b
+    return g0, seq
+
+
+def arena_tufts(bb, cover, g0, n, rnd):
+    """Light decorations (grass tufts, pebbles) for the arena floor: short runs (1-3 tiles) of light tiles that sit
+    on a plain floor of the original level with nothing beside or above them, copied whole so no tuft is cut in half.
+    About one every 6 columns, never on the first/last 3 columns (checkpoint, gate). {column: tile}."""
+    def empty(t):
+        return cover(t) == 0       # gid 0 and the blank tile some levels paint over the sky
+
+    runs = set()
+    x = 1
+    while x < bb.w - 1:
+        e = x
+        while e < bb.w - 1 and not empty(bb.cols[e][g0 - 1]) and plain_col(bb, e) and cover(bb.cols[e][g0 - 1]) < 0.35                 and empty(bb.cols[e][g0 - 2]) and bb.state.get(bb.cols[e][g0]) == 'pHard':
+            e += 1
+        if e > x and empty(bb.cols[x - 1][g0 - 1]) and empty(bb.cols[e][g0 - 1]) and e - x <= 3:
+            runs.add(tuple(bb.cols[k][g0 - 1] for k in range(x, e)))
+        x = e + 1
+    runs = sorted(runs)
+    out = {}
+    j = 3 + rnd.randint(0, 3)
+    while runs and j < n - 3:
+        r = rnd.choice(runs)
+        if j + len(r) <= n - 3:
+            out.update({j + q: t for q, t in enumerate(r)})
+        j += len(r) + rnd.randint(4, 8)
+    return out
+
+
 def walk(bases, length, rnd, boss):
     """New column order: a list of (base index, column), and where the boss arena starts."""
     twins = defaultdict(list)
@@ -155,20 +238,10 @@ def walk(bases, length, rnd, boss):
             return [(b2, y) for (b2, y) in cand if b2 == 0 and b0.w * 0.6 <= y < end_col - 3]
         return [(b2, y) for (b2, y) in cand if y < (min(b0.w * 0.8, end_col - 12) if b2 == 0 else bases[b2].w * 0.7)]
 
-    def arena_col(bb, k):
-        # one plain ground column: a hard tile with at least 5 free tiles above, no spikes/ladders/one-way floors
-        c = bb.cols[k]
-        if any(bb.state.get(gg) in ('pKilling', 'pLadder', 'pLadderEnd', 'pPlatform') for gg in c):
-            return False
-        for y in range(5, bb.h):
-            if bb.state.get(c[y]) == 'pHard':
-                return all(bb.state.get(c[yy]) != 'pHard' for yy in range(y - 5, y))
-        return False
-
     def add_arena(bb, bi, x, lo, hi, step):
         nonlocal arena_at
         for k in range(lo, hi, step):
-            if arena_col(bb, k):
+            if plain_col(bb, k):
                 put(bi, x, k + 1)
                 arena_at = len(out)
                 out.extend([(bi, k)] * ARENA)
@@ -430,18 +503,32 @@ def compose(i, spec, bases, out, arena_at, rnd, tpl):
     # down to the top of the gate (like the gates of the original levels) so it can't be jumped over
     gate = None
     if arena_at is not None:
-        # the arena is one column repeated: whatever is drawn over its floor (grass tufts, pillars, walls) would be
-        # repeated ARENA times in a row, so keep only the floor, plus a light grass tuft every 4th column
+        # the walk leaves the arena as one column repeated ARENA times: rebuild its ground from the level's own plain
+        # floor columns (arena_floor) with a few light tufts on top; own seed, so the rest of the level is unchanged
         cover = coverage(b0)
-        for k in range(arena_at, arena_at + ARENA):
-            col = cols[k]
-            ground = next(y for y in range(5, h) if b0.state.get(col[y]) == 'pHard')
-            cols[k] = tuple(0 if y < ground and col[y] and not (cover(col[y]) < 0.35 and k % 4 == 0 and 2 < k - arena_at < ARENA - 3)
-                            else col[y] for y in range(h))
+        bb = bases[out[arena_at][0]]
+        arnd = random.Random(9000 + i)
+        right = cols[arena_at + ARENA] if arena_at + ARENA < nw else None
+        res = arena_floor(bb, cols[arena_at - 1], right, ARENA, arnd)
+        if res:
+            g0, floor = res
+            tufts = arena_tufts(bb, cover, g0, len(floor), arnd)
+            for j, gcol in enumerate(floor):
+                cols[arena_at + j] = (0,) * (g0 - 1) + (tufts.get(j, 0),) + gcol
+        else:
+            for k in range(arena_at, arena_at + ARENA):
+                col = cols[k]
+                ground = next(y for y in range(5, h) if b0.state.get(col[y]) == 'pHard')
+                cols[k] = tuple(0 if y < ground and col[y] and not (cover(col[y]) < 0.35 and k % 4 == 0 and 2 < k - arena_at < ARENA - 3)
+                                else col[y] for y in range(h))
         gate_col = arena_at + ARENA - 1
         acol = cols[gate_col]
         ground = next(y for y in range(5, h) if b0.state.get(acol[y]) == 'pHard')
-        fill = next((acol[y] for y in range(ground + 1, h) if b0.state.get(acol[y]) == 'pHard'), acol[ground])
+        # the gate wall: the level's plainest inner ground tile (the most common one deep under a floor), so the wall
+        # doesn't show a pebble or a rim repeated all the way up
+        deep = Counter(c[y] for c in b0.cols for y in range(2, h) if b0.state.get(c[y]) == 'pHard'
+                       and b0.state.get(c[y - 1]) == 'pHard' and b0.state.get(c[y - 2]) == 'pHard')
+        fill = deep.most_common(1)[0][0] if deep else acol[ground]
         cols[gate_col] = tuple(fill if y < ground - 4 else acol[y] for y in range(h))
         gate = (gate_col, ground)
     g = Grid(cols, b0.state, h)
@@ -568,7 +655,7 @@ def compose(i, spec, bases, out, arena_at, rnd, tpl):
     # ---- checkpoints every ~100 columns ----
     nxt = 100
     for x in sorted(route):
-        if nxt <= x < nw - 30 and x not in no_go and flat(x, route[x]):
+        if nxt <= x < nw - 30 and x not in no_go and flat(x, route[x]) and not (arena_at is not None and arena_at - 40 <= x < arena_at):
             objs.append(at(tpl['SavePoint'][0], x, route[x]))
             taken.add((x, route[x]))
             occ.add((x, route[x]))

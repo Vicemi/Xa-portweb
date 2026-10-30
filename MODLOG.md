@@ -1048,3 +1048,61 @@ Protocolo final del modo online (el detalle de mensajes está en XA-Backend/READ
   panel CREAR/UNIRSE/SALA a 1000x640 y 640x360 apaisado, HUD coop con power-up y eliminado, mapa con roster, votos, bandera,
   cursores, candados y cartel inferior. NO se pudo recorrer el menú en el preview estático (el splash tarda con 500 audios y
   el servidor de prueba de un solo hilo); NO se probó con backend real ni en celular real.
+
+## Estado 2026-10-30 (coop: cabecita del anfitrión, puntos individuales, reglas de revivir; puerta del jefe blindada)
+- Cabecita del anfitrión: el color 0 «Original» ya no tiñe la cabecita en ningún lado (casillas del panel: `Avatar` recibe
+  `transparent`; fichas del HUD con `p.plain`; roster del mapa con `p.host`): se ve la cabeza verde original. El dorado sigue solo
+  como color de marcadores (franja de la plaquita de nombre, fichas de voto).
+- Puntos individuales: `PlayerRuntime.score`; cada bala lleva a su dueño (`Bullet.pl`) y las monedas/vacas/pisotones suman al que
+  las agarró. En solitario no cambia nada (HeroState como siempre). En coop HeroState suma solo los del anfitrión (su progreso y récord
+  se guardan como antes). Viajan en la tupla de jugadores (índice 16). El HUD muestra los puntos propios; la pantalla final (ganar o
+  game over) muestra una tabla con los puntos de cada uno (game.ts `renderCoopScores`). Vidas: ya eran por jugador.
+- Revivir: quien pierde todas las vidas queda ELIMINADO (cartel en el HUD «ELIMINADO / Revivís en el próximo punto de guardado»,
+  mensaje a todos, la cámara sigue a un amigo vivo, también en el invitado). Vuelve solo cuando un amigo vivo activa por PRIMERA vez
+  un punto de guardado (`firstSaves`): reaparece ahí con una sola vida (vidas de repuesto 0: si cae otra vez queda afuera; sin
+  duplicar), con HERO_LIFE y el mensaje «¡X volvió con 1 vida!». Volver a pasar por un punto ya activado no revive a nadie, así que
+  cada punto revive a cada jugador como mucho una vez por nivel (5 eliminaciones con 3 puntos = 3 vueltas). Todos afuera = game over
+  como antes. Todo lo decide el anfitrión y llega por la instantánea.
+- Puerta del jefe (reporte repetido): NO se reprodujo con el juego real (fuzz de 2400 cuadros por nivel de jefe, 1 y 2 jugadores,
+  objetos tirados pegados a la puerta, y en el navegador con `?extra=3`). Revisado: los objetos de los jefes no dan llaves (solo
+  `killBoss` mete la KEY) y la columna sobre la puerta es sólida hasta la fila 0. Puntos débiles encontrados y cerrados:
+  1) la puerta no es una baldosa: solo empujaba según el lado del CENTRO del héroe después de moverse, así que cualquier desplazamiento
+  de más de media puerta en un cuadro lo dejaba del otro lado; y fuera del mapa (pies en y<=0) no hay baldosas ni puerta. Ahora se usa
+  el lado en que estaba al empezar el cuadro, cubre el cruce sin solaparse y también por encima del mapa. 2) La salida (ENDING) no
+  cuenta mientras viva un jefe con llave y haya una puerta cerrada. 3) Los objetos generados en vivo ya no llevan `pIsKey`.
+  Regresión: tools/boss-door-check.mts (mismo requisito `LINKEDOM_DIR` que online-sim).
+- Verificado: tsc, build de producción, tools/online-sim.mts (nuevos: puntos por jugador y en el invitado, 5 eliminaciones/3 puntos =
+  3 vueltas, puntos viejos no reviven, 1 vida sin duplicar, game over con todos afuera), tools/boss-door-check.mts, humo de los 32
+  niveles en solitario sin errores y puntos en solitario en el navegador; HUD coop con eliminado y cabecita verde visto en captura.
+  NO verificado: partida coop real con backend (2 pestañas), tabla de puntos final en pantalla, panel del lobby en el navegador.
+  XA-Backend sin cambios.
+
+## Estado 2026-10-30 (menú ONLINE con letras originales, interfaz online con la letra del juego, arenas de jefe nuevas)
+- Botón ONLINE del menú: ya no es texto de la fuente escalado (se veía pixelado). tools/compose_online_button.py lo arma con
+  letras del propio buttons_tile.png: "ON" y "NE" de OPCIONES y "LI" de SALIR (mismo tamaño en la hoja). Las filas se
+  enderezan con corrimientos de píxel entero (sin re-muestrear), se cortan, se unen y se vuelven a inclinar; el contorno
+  negro se cierra en las puntas con distancia a las letras. Hover = la misma palabra 10 % más grande, relleno amarillo
+  (255,246,2) y resplandor (255,255,190), como los pares originales. Sale public/assets/images/menuElements/online_btn.png
+  (normal 58x23 arriba, hover 78x39 abajo); game.ts MENU_ITEMS lo usa con `src` (mismo dibujo y caja de clic que los demás).
+- Interfaz online: src/components/GameText.tsx escribe con las fuentes bitmap del juego en el DOM (un sprite por glifo, anchos
+  de font.json, medida en em; el texto real queda oculto para lectores de pantalla). OnlinePanel la usa en título, pestañas,
+  botones, rótulos, código de sala, nivel y nombres (negra / negra_2 / blanca según el fondo); el resto del texto en una sola
+  sans en negrita (se sacaron Bangers/Comic Sans de respaldo, que no estaban cargadas). Sin anillo de foco alrededor de todo
+  el panel; tamaños para apaisado bajo.
+- Carteles del canvas (TODOS TE ESTÁN MIRANDO, cartel del invitado, ELEGÍ/VOTÁ EL NIVEL, nivel elegido, errores): se dibujan
+  en un pase a la resolución real de la pantalla (`overlay` en render()), así la letra chica no se pixela; la letra se achica
+  sola para entrar. Errores (aviso del menú, rechazo del nivel, anfitrión desconectado, "Esc de nuevo") = el mismo cartel
+  teñido de rojo con letra blanca. En el menú principal el cartel inferior va a la izquierda en dos renglones (antes tapaba SALIR).
+- Arenas de jefe (gen_extra_levels.py): `arena_floor` rehace el piso de la arena con las columnas de piso plano del nivel
+  base a la misma altura, uniendo sólo pares de baldosas que en el original quedan una al lado de la otra (los pares
+  comunes pesan más y se evita repetir la misma columna): piso con borde y piedritas variadas, sin pilares de bordes sueltos
+  (E9 era una fila de piezas de 1 baldosa). `arena_tufts` pone matas de 1-3 baldosas copiadas enteras (sólo hay en el
+  tileset 8). La pared sobre la puerta usa la baldosa de relleno más común (antes una con piedrita repetida hasta arriba).
+  Sin checkpoint común en las 40 columnas antes de la arena (había dos juntos en E15). Semilla propia: el terreno fuera de
+  las arenas es idéntico (comparado baldosa por baldosa); cambió la colocación de algunos objetos en los 5 niveles de jefe.
+- art-source/referencias_gemini_arenas/ (ignorada por git): tilesets 3/7/8 (y versión numerada), fondos de las arenas,
+  cada arena vista en mapa y en juego, y PROMPTS.md con 4 hojas por tema (piso, plataformas, pared/puerta, adornos) a 32 px.
+- Verificado: tsc, build de producción, verify_extra_levels.py (16 niveles, 0 problemas), PNG de las 5 arenas, capturas en el
+  juego de las 5 arenas (puerta firme), menú a 1280x960 y 812x375 con ONLINE normal y hover, panel UNIRSE y SALA (estado
+  forzado por consola en dev) a 1280x960 y 800x360, carteles del modo menús y cartel de error.
+  NO verificado: con backend real; Safari (ctx.filter para el rojo: si no lo soporta el cartel queda crema con letra negra).

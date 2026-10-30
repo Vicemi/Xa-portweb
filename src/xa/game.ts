@@ -95,14 +95,12 @@ interface MenuItem {
   /** rectángulo de origen en buttons_tile.png (normal / hover) */
   n?: [number, number, number, number];
   h?: [number, number, number, number];
-  /** botón dibujado con la fuente del juego (no hay arte para ONLINE en buttons_tile.png) */
-  text?: string;
-  w?: number;
-  hBox?: number;
+  /** otra hoja en vez de buttons_tile.png (ONLINE: armado con letras del original, tools/compose_online_button.py) */
+  src?: string;
 }
 const MENU_ITEMS: MenuItem[] = [
   { action: 'levels', x: 256, y: 295, n: [16, 59, 73, 29], h: [115, 53, 88, 41] },
-  { action: 'online', x: 256, y: 262, text: 'ONLINE', w: 104, hBox: 30 },
+  { action: 'online', x: 256, y: 262, src: 'assets/images/menuElements/online_btn.png', n: [0, 0, 58, 23], h: [0, 25, 78, 39] },
   { action: 'help', x: 176, y: 330, n: [238, 113, 54, 22], h: [338, 108, 66, 33] },
   { action: 'options', x: 256, y: 330, n: [14, 112, 77, 24], h: [113, 107, 91, 34] },
   { action: 'credits', x: 336, y: 330, n: [13, 161, 79, 27], h: [112, 155, 94, 38] },
@@ -127,6 +125,7 @@ const SCREEN_IMAGES = [
   'assets/images/menuElements/menu.jpg',
   'assets/images/menuElements/menu_night.jpg',
   'assets/images/menuElements/buttons_tile.png',
+  'assets/images/menuElements/online_btn.png',
   'assets/images/menuElements/map.png',
   'assets/images/menuElements/map_2.png',
   'assets/images/menuElements/preview_extra.jpg',
@@ -213,6 +212,8 @@ export class XaGame {
   private coopConfig: CoopConfig | null = null;
   /** coop online: estamos dentro del selector de niveles del juego (el host elige, los demás votan) */
   private onlinePick = false;
+  /** carteles (pick_banner) que se dibujan a la resolución de la pantalla, encima del cuadro de 512x384 */
+  private overlay: ((c: CanvasRenderingContext2D) => void)[] = [];
   /** coop (invitado): nodo del mapa donde está su cursor de voto (-1 = todavía no se movió) */
   private followVote = -1;
   /** aviso temporal sobre el menú principal (por ejemplo, por qué se cerró la sala) */
@@ -1067,8 +1068,7 @@ export class XaGame {
     const m = this.mouseGamePos();
     for (let i = 0; i < MENU_ITEMS.length; i++) {
       const it = MENU_ITEMS[i];
-      const w = it.text ? it.w ?? 90 : it.n![2];
-      const h = it.text ? it.hBox ?? 26 : it.n![3];
+      const [, , w, h] = it.n!;
       if (m.x >= it.x - w / 2 && m.x <= it.x + w / 2 && m.y >= it.y - h / 2 && m.y <= it.y + h / 2) return i;
     }
     return -1;
@@ -1118,6 +1118,13 @@ export class XaGame {
     // ribbons, fades drawn after the art) is laid on top with the art's area left transparent
     if (this.hdArt) this.renderHdArt(c, v);
     c.drawImage(this.world, v.x, v.y, v.w, v.h);
+    // carteles en coordenadas del juego pero pintados a la resolución real: la letra chica no se pixela
+    if (this.overlay.length) {
+      c.setTransform(s, 0, 0, s, v.x, v.y);
+      for (const f of this.overlay) f(c);
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      this.overlay.length = 0;
+    }
 
     // custom cursor (original POINTER sprite) — hidden while playing so it doesn't get in the way
     const cur = this.screen === 'play' ? null : frameOf('POINTER', 0);
@@ -1176,10 +1183,26 @@ export class XaGame {
       case 'credits': this.renderFull(w, 'assets/lang/images/credits/creditos.jpg'); break;
       case 'options': this.renderOptions(w); break;
       case 'levelIntro': this.renderLevelIntro(w); break;
-      case 'gameover': this.renderFull(w, 'assets/lang/images/intros/game_over.jpg', END_WAIT); break;
-      case 'win': this.renderFull(w, 'assets/lang/images/intros/screen_win.jpg', END_WAIT); break;
+      case 'gameover': this.renderFull(w, 'assets/lang/images/intros/game_over.jpg', END_WAIT); this.renderCoopScores(w); break;
+      case 'win': this.renderFull(w, 'assets/lang/images/intros/screen_win.jpg', END_WAIT); this.renderCoopScores(w); break;
       default: break;
     }
+  }
+
+  /** Coop: puntos de cada jugador en la pantalla final (cada uno suma los suyos). */
+  private renderCoopScores(w: CanvasRenderingContext2D): void {
+    const pls = this.coopEnd ? this.scenario?.players : null;
+    if (!pls?.length) return;
+    const rowH = 18, pw = 220, ph = pls.length * rowH + 10, x = (VIEW_W - pw) / 2, y = 8;
+    w.fillStyle = 'rgba(0,0,0,0.3)'; w.beginPath(); w.roundRect(x + 1, y + 2, pw, ph, 6); w.fill();
+    w.fillStyle = '#e2d5ae'; w.strokeStyle = '#1a1818'; w.lineWidth = 2;
+    w.beginPath(); w.roundRect(x, y, pw, ph, 6); w.fill(); w.stroke();
+    [...pls].sort((a, b) => b.score - a.score).forEach((p, i) => {
+      const ry = y + 5 + i * rowH;
+      w.fillStyle = p.hex ?? '#fff'; w.fillRect(x + 8, ry + 3, 8, 8);
+      drawText(w, (p.name || 'Xa').slice(0, 10), x + 22, ry, 'black', 'left', 0.5);
+      drawText(w, String(p.score).padStart(6, '0'), x + pw - 8, ry, 'black', 'right', 0.5);
+    });
   }
 
   private renderPick(w: CanvasRenderingContext2D): void {
@@ -1238,6 +1261,7 @@ export class XaGame {
     this.coverTop(w, hour - 10 >= 0 && hour - 10 < 9 ? 'assets/images/menuElements/menu.jpg' : 'assets/images/menuElements/menu_night.jpg');
     if (this.notice && this.screen === 'menu') {
       if (performance.now() > this.notice.until) this.notice = null;
+      else if (uiArt('pick_banner')) this.banner(w, 24, 4, VIEW_W - 48, 22, this.notice.text.slice(0, 70), 0.45, 'error');
       else {
         w.fillStyle = 'rgba(120,10,10,0.88)';
         w.fillRect(0, 0, VIEW_W, 16);
@@ -1248,13 +1272,10 @@ export class XaGame {
     if (!bt) return;
     MENU_ITEMS.forEach((it, i) => {
       const active = i === this.menuIndex || i === this.hoverIndex;
-      if (it.text) {
-        // no hay arte de "ONLINE" en buttons_tile.png: se usa la fuente amarilla del juego (fuente_negra_2)
-        drawText(w, it.text, it.x, it.y - 19, 'black2', 'center', active ? 1.5 : 1.32);
-        return;
-      }
+      const sheet = it.src ? img(it.src) : bt;
+      if (!sheet) return;
       const [sx, sy, sw, sh] = (active ? it.h : it.n)!;
-      w.drawImage(bt, sx, sy, sw, sh, it.x - sw / 2, it.y - sh / 2, sw, sh);
+      w.drawImage(sheet, sx, sy, sw, sh, it.x - sw / 2, it.y - sh / 2, sw, sh);
     });
     // Menu::init → setHighScore(HeroState::getHighScore): the record = sum of every level's best score (saveGame),
     // zero-padded to 6 digits, black font (GameFont 0), TextSprite at (419, 8) per Menu::Menu — the glyphs sit low
@@ -1370,7 +1391,8 @@ export class XaGame {
     if (pick) this.renderOnlineRoster(w);
     if (this.onlinePick) {
       const err = online.getState().error;
-      if (err) {
+      if (err && uiArt('pick_banner')) this.banner(w, 40, 30, VIEW_W - 80, 22, err.slice(0, 64), 0.45, 'error');
+      else if (err) {
         w.fillStyle = 'rgba(120,10,10,0.85)';
         w.fillRect(0, 28, VIEW_W, 16);
         drawText(w, err.slice(0, 64), VIEW_W / 2, 30, 'white', 'center', 0.55);
@@ -1382,7 +1404,7 @@ export class XaGame {
   private renderBrowseBanner(w: CanvasRenderingContext2D): void {
     if (!this.browseStage() || !online.getState().host) return;
     const y = VIEW_H - 14;
-    if (uiArt('pick_banner')) { this.banner(w, 40, VIEW_H - 24, VIEW_W - 80, 20, 'TODOS TE ESTÁN MIRANDO  -  Esc: volver a la sala', 0.42); return; }
+    if (uiArt('pick_banner')) { this.bottomBanner(w, this.screen === 'menu', 'TODOS TE ESTÁN MIRANDO\nEsc: volver a la sala'); return; }
     w.fillStyle = 'rgba(0,0,0,0.7)';
     w.fillRect(0, y, VIEW_W, 14);
     drawText(w, 'TODOS TE ESTÁN MIRANDO  -  Esc: volver a la sala', VIEW_W / 2, y + 1, 'white', 'center', 0.5);
@@ -1402,7 +1424,7 @@ export class XaGame {
       lines.push(`Mirás a ${(host?.name ?? 'el anfitrión').slice(0, 10)}. Votás: ${e ? e.label.slice(0, 18) : '-'} (flechas+Enter)`);
     } else lines.push(`Mirás a ${(host?.name ?? 'el anfitrión').slice(0, 10)}. Él elige el nivel y empieza.`);
     const y = VIEW_H - 14;
-    if (!lost && this.leaveArm <= 0 && uiArt('pick_banner')) { this.banner(w, 40, VIEW_H - 24, VIEW_W - 80, 20, lines[0].slice(0, 70), 0.42); return; }
+    if (uiArt('pick_banner')) { this.bottomBanner(w, hm?.s !== 'levels', lines[0].slice(0, 70).replace('. ', '.\n'), lost || this.leaveArm > 0 ? 'error' : undefined); return; }
     w.fillStyle = lost || this.leaveArm > 0 ? 'rgba(120,10,10,0.85)' : 'rgba(0,0,0,0.7)';
     w.fillRect(0, y, VIEW_W, 14);
     drawText(w, lines[0].slice(0, 70), VIEW_W / 2, y + 1, 'white', 'center', 0.5);
@@ -1425,7 +1447,7 @@ export class XaGame {
         const pw = Math.max(86, 33 + nw + (p.host ? 22 : 8));
         draw9(w, plate, 4, y, pw, h, [50, 50, 50, 135], k);
         const hex = online.playerInfo(p.id).hex ?? '#ffffff';
-        if (head) drawTinted(w, head, 4 + 13.5 - 7.5, y + 13 - 5.5, 1, hex, 0.8, 0.34);
+        if (head) drawTinted(w, head, 4 + 13.5 - 7.5, y + 13 - 5.5, 1, hex, p.host ? 0 : 0.8, 0.34); // anfitrión: cabecita original
         drawText(w, labels[i], 4 + 31, y + 6, 'black', 'left', scale);
         if (p.host && flag) drawIcon(w, flag, 4 + 33 + nw + 3, y + 5, { h: 15 });
       });
@@ -1444,7 +1466,7 @@ export class XaGame {
     w.beginPath(); w.roundRect(4, 4, pw, ph, 6); w.fill(); w.stroke();
     players.forEach((p, i) => {
       const y = 7 + i * rowH, hex = online.playerInfo(p.id).hex ?? '#ffffff';
-      if (head) drawTinted(w, head, 9, y, 1, hex, 0.8, 0.42);
+      if (head) drawTinted(w, head, 9, y, 1, hex, p.host ? 0 : 0.8, 0.42);
       drawText(w, labels[i], 31, y + 1, 'black', 'left', scale);
       if (p.host) { // corona del anfitrión
         const cx = 31 + Math.round(lineWidth(labels[i], 'black') * scale) + 5, cy = y + 4;
@@ -1456,11 +1478,33 @@ export class XaGame {
   }
 
   /** Cartel de papel con marco dorado (pick_banner, 9 cortes) y texto centrado. */
-  private banner(w: CanvasRenderingContext2D, x: number, y: number, bw: number, bh: number, text: string, scale: number): void {
+  /** Cartel inferior de la etapa de menús. En el menú principal va a la izquierda en dos renglones para no tapar
+   *  SALIR; en el mapa, a lo ancho. */
+  private bottomBanner(w: CanvasRenderingContext2D, side: boolean, text: string, tone?: 'error'): void {
+    const lines = side ? text.split('\n') : [text.replace('\n', '  -  ')];
+    const bw = side ? 216 : VIEW_W - 80, bh = side ? 38 : 20;
+    this.banner(w, side ? 6 : 40, VIEW_H - bh - 4, bw, bh, lines.join('\n'), 0.42, tone);
+  }
+
+  /** Cartel pick_banner (9 cortes) con letra negra del juego; tone 'error' lo tiñe de rojo con letra blanca.
+   *  Se dibuja en el pase de pantalla (overlay) para que el arte y la letra queden nítidos a cualquier tamaño. */
+  private banner(_w: CanvasRenderingContext2D, x: number, y: number, bw: number, bh: number, text: string, scale: number, tone?: 'error'): void {
     const im = uiArt('pick_banner');
     if (!im) return;
-    draw9(w, im, x, y, bw, bh, [70, 70, 70, 70], bh / im.naturalHeight);
-    drawText(w, text, x + bw / 2, y + bh / 2 - 7, 'black', 'center', scale);
+    this.overlay.push((c) => {
+      c.save();
+      c.imageSmoothingEnabled = true;
+      c.imageSmoothingQuality = 'high';
+      if (tone === 'error') c.filter = 'saturate(6) hue-rotate(-50deg) brightness(0.68)'; // papel crema -> rojo
+      draw9(c, im, x, y, bw, bh, [70, 70, 70, 70], bh / im.naturalHeight);
+      c.filter = 'none';
+      // bloque de líneas centrado (celda de 30 px, renglones cada 18 px), un pelo arriba: los glifos se apoyan abajo
+      const font = tone === 'error' && 'filter' in c ? 'white' : 'black'; // sin ctx.filter el cartel queda crema
+      const n = text.split('\n').length;
+      scale = Math.min(scale, (bw - 22) / Math.max(...text.split('\n').map((l) => lineWidth(l, font)))); // que entre
+      drawText(c, text, x + bw / 2, y + bh / 2 - (30 + (n - 1) * 18) * scale / 2 - 0.5, font, 'center', scale);
+      c.restore();
+    });
   }
 
   /** Mod: arrow on the map edge to switch between the original map and map 2 (the original ARROW sprite turned

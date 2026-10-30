@@ -195,5 +195,66 @@ for (let n = 1; n <= 16; n++) {
   for (const p of h.players) p.eliminated = false; pump(5);
   check(GG.guestMusicCut === false, 'y la retoma al reaparecer');
 }
+// ---- ronda 3: puntos individuales y reglas de revivir
+{
+  const sn: Snap[] = [];
+  const h = make('level2', 2, 2, 'host', 0, (x) => sn.push(JSON.parse(JSON.stringify(x))));
+  const g = make('level2', 2, 2, 'guest', 1);
+  const HH = h as any;
+  const msgs: string[] = [];
+  const msg0 = HH.events.message; HH.events.message = (t: string, s: number) => { msgs.push(t); msg0(t, s); };
+  const pump = (frames: number) => { for (let i = 0; i < frames; i++) { h.update(1 / 60); const n = HH.sfx.length, q = HH.sfxQ; for (const x of sn.splice(0)) { g.applySnap(x); g.update(1 / 60); } HH.sfx.length = n; HH.sfxQ = q; } };
+  pump(100);
+  const [A, B] = h.players;
+  // puntos: B mata a un enemigo con su bala; los puntos son de B (no de A ni del HeroState del anfitrión)
+  const e = hp(h).find((x: any) => x.alive && !x.isBoss && !x.isIndestructible && x.points > 0);
+  e.lives = 1;
+  B.hero.spawn(e.x - 300, e.y);
+  HH.spawnHeroBullet(e.x - 10, e.y - e.h / 2, 0.001, B);
+  pump(3);
+  check(B.score === e.points && A.score === 0 && h.state.score === 0, `puntos individuales: B ${B.score} (enemigo ${e.points}), A ${A.score}, HeroState(anfitrión) ${h.state.score}`);
+  const e2 = hp(h).find((x: any) => x.alive && !x.isBoss && !x.isIndestructible && x.points > 0);
+  e2.lives = 1; HH.bullets.length = 0; A.hero.spawn(e2.x - 300, e2.y); pump(1); HH.spawnHeroBullet(e2.x - 10, e2.y - e2.h / 2, 0.001, A); pump(3);
+  check(A.score === e2.points && h.state.score === A.score, `los del anfitrión van a su HeroState (progreso): A ${A.score}, HeroState ${h.state.score}`);
+  pump(10);
+  check(g.players[1].score === B.score && g.players[0].score === A.score, `el invitado recibe los puntos de cada uno (${g.players[0].score}/${g.players[1].score})`);
+
+  // revivir: 5 eliminaciones de B con 3 puntos de guardado nuevos -> 3 vueltas como máximo, siempre con 1 vida
+  const saves = (HH.things as any[]).filter((t) => t.o.type === 'SavePoint').sort((a, b) => a.x - b.x).slice(0, 3);
+  check(saves.length === 3, `nivel 2 tiene >= 3 puntos de guardado (${saves.length})`);
+  const eliminate = () => { B.lives = 0; B.hero.setState(9 as any); HH.onHeroDeathFinished(B.hero); };
+  const visit = (t: any) => { A.hero.spawn(t.x, t.y); pump(4); A.hero.spawn(t.x + 200, t.y); pump(2); };
+  let revives = 0, badLives = 0, wrongSpot = 0;
+  for (let k = 0; k < 5; k++) {
+    eliminate();
+    pump(8);
+    check(B.eliminated && g.players[1].eliminated, `eliminación ${k + 1}: B queda afuera (también en el invitado)`);
+    // A vuelve a pasar por los puntos ya usados (no reviven) y después llega al siguiente punto nuevo, si queda
+    for (const t of [...saves.slice(0, k), ...saves.slice(k, k + 1)]) {
+      const was = B.eliminated;
+      visit(t);
+      if (was && !B.eliminated && saves.indexOf(t) < k) wrongSpot += 100; // un punto viejo lo revivió: mal
+      if (was && !B.eliminated) {
+        revives++;
+        if (B.lives !== 0) badLives++;
+        if (Math.abs(B.hero.pos.x - t.x) > 40) wrongSpot++;
+      }
+    }
+  }
+  check(revives === 3 && badLives === 0 && wrongSpot === 0, `5 eliminaciones con 3 puntos: ${revives} vueltas (esperado 3), con 1 vida (vidas de repuesto 0) y en el punto`);
+  check(B.eliminated, 'tras gastar los 3 puntos, B sigue afuera (pasar de nuevo por un punto que ya lo revivió no lo revive)');
+  check(msgs.some((m) => /ELIMINADO/.test(m)) && msgs.some((m) => /volvió con 1 vida/.test(m)), 'mensajes de eliminado y de vuelta');
+  // sin duplicar vidas: B revivido muere una vez y queda afuera directamente
+  const h2 = make('level1', 1, 2, 'host', 0); const H2 = h2 as any;
+  const [, B2] = h2.players; const sv = (H2.things as any[]).filter((t) => t.o.type === 'SavePoint').sort((a, b) => a.x - b.x);
+  B2.lives = 0; B2.hero.setState(9 as any); H2.onHeroDeathFinished(B2.hero);
+  h2.players[0].hero.spawn(sv[0].x, sv[0].y); for (let i = 0; i < 4; i++) h2.update(1 / 60);
+  const livesAfter = B2.lives; B2.hero.setState(9 as any); H2.onHeroDeathFinished(B2.hero);
+  check(livesAfter === 0 && B2.eliminated, `revivido con 1 vida: la siguiente muerte lo saca (vidas al volver ${livesAfter})`);
+  // todos afuera -> game over como antes
+  let over = 0; H2.events.gameOver = () => over++;
+  h2.players[0].lives = 0; h2.players[0].hero.setState(9 as any); H2.onHeroDeathFinished(h2.players[0].hero);
+  check(over === 1, 'si todos quedan afuera: game over');
+}
 console.log(fails ? `\n${fails} fallos` : '\ntodo OK');
 process.exit(fails ? 1 : 0);

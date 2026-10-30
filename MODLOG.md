@@ -1026,3 +1026,25 @@ Protocolo final del modo online (el detalle de mensajes está en XA-Backend/READ
 - `dynItems` se poda al recogerse y el invitado rellena los índices descartados; se borró markEnd/lastEnd (sin uso).
 - tools/online-sim.mts cubre todo lo anterior.
 - Tercera pasada: tras un corte de enlace los controles quedan en cero pero `bits` conserva lo último, así el primer paquete al volver no inventa un flanco de salto/fuego; el jefe SVNZ elige mejor dónde dejar el ítem de curación (arena angosta, sin ítems encima, el más lejos si ninguno cumple 160 px); el líder que se adelantó lleva "!" en su plaquita de nombre (consume `ah`).
+
+## Estado 2026-10-28 (UI online, fase 2 — arte final de Gemini conectado)
+- El usuario generó 5 hojas con la guía (art-source/Nuevos assets/). tools/slice_ui_sheets.py las corta en 37 PNG con alfa
+  en public/online/ (alfa suave del verde #00FF00, des-mezcla del borde, resplandores verdosos quitados en btn_hover/slot_me/
+  cursores, mayor componente conexa para los cursores pisados por la barra "warn" de la hoja del mapa; el corazón repetido
+  de la hoja del lobby se usa una vez; la barra warn buena es la de la hoja del HUD).
+- Sin estirar: panel DOM con CSS border-image de 9 cortes (card, header, tab, tab_active, btn, btn_hover, input, code_box,
+  slot, slot_me, slot_free; esquinas/bordes mantienen proporción), piezas fijas a su proporción (crown, ready_on/off, ping_*,
+  kick_x, toggle_*, spinner); avatar = cabecita tintada recortada en círculo + aro avatar_frame. Botones rojo/verde con
+  hue-rotate sobre el amarillo. Para canvas: src/xa/core/nineslice.ts (draw9 con límites enteros, drawIcon, drawIconTinted,
+  carga perezosa uiArt/preloadUiArt con respaldo al dibujo anterior si falta la imagen).
+- HUD (hud.ts): fichas de amigos = friend_plate 9 cortes (cabecita en la ranura, corazón + vidas, nombre debajo, corona del
+  anfitrión, insignia down_badge si está eliminado); power-up = powerup_plate + powerbar_frame con relleno recortado y parpadeo
+  con la variante warn los últimos 3 s (sin power-up coop va a la esquina inferior izquierda; sin coop debajo del doble salto).
+- Mapa (game.ts): roster con roster_plate por jugador, host_flag, fichas de voto vote_chip teñidas con inicial, bandera en el
+  nivel elegido, pick_banner como cartel superior/inferior, cursor_host/cursor_guest en el menú espejo del invitado, level_lock
+  en niveles bloqueados al elegir/votar.
+- Fondo: Assets_fondo_online.png -> online_bg.jpg 1024x768 (100 KB) en la pantalla online del canvas (velo más suave) y detrás del panel.
+- Verificado en dev (puerto propio, estado forzado por consola) + build de producción OK + todas las rutas /online/*.png existen:
+  panel CREAR/UNIRSE/SALA a 1000x640 y 640x360 apaisado, HUD coop con power-up y eliminado, mapa con roster, votos, bandera,
+  cursores, candados y cartel inferior. NO se pudo recorrer el menú en el preview estático (el splash tarda con 500 audios y
+  el servidor de prueba de un solo hilo); NO se probó con backend real ni en celular real.

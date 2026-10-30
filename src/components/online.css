@@ -1,10 +1,11 @@
-/* ONLINE panel (src/components/OnlinePanel.tsx). Look of the original menus: lime-green cartoon panel with a white
- * outline, tan paper plaques (info_map.png), yellow/lime comic lettering with a black stroke.
+/* ONLINE panel (src/components/OnlinePanel.tsx). Look of the original menus: lime-green cartoon panel, tan paper
+ * plaques, yellow comic lettering.
  *
- * ART SLOTS: every piece of final art is a CSS variable that defaults to `none`. The CSS paints the art slot first and
- * the hand-made CSS look underneath, so dropping a PNG in public/online/ and setting the variable (see
- * art-source/GEMINI_UI_ONLINE.md) replaces the piece without touching the markup. Example, in :root:
- *   --xo-art-card: url('/online/card.png');
+ * FINAL ART (public/online/*.png, cut from the Gemini sheets by tools/slice_ui_sheets.py): the resizable pieces use
+ * CSS border-image 9-slice (corners and edges keep their proportions, only the middle stretches); the fixed ones
+ * (crown, ready, ping, kick, toggle, spinner) are plain images. If a PNG is missing, the element keeps the CSS look
+ * written above the 'final art' block at the end of this file. To replace a piece, overwrite the PNG; if its
+ * proportions change, adjust the `slice` numbers in that block (see docs/GEMINI_UI_ONLINE.md).
  */
 :root {
   /* palette sampled from options_win.png / info_map.png / buttons_tile.png */
@@ -14,17 +15,6 @@
   --xo-font-body: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
 
   /* art slots (all optional) */
-  --xo-art-card: none;      /* public/online/card.png        panel background, 9-slice friendly */
-  --xo-art-header: none;    /* public/online/header.png      "SALA ONLINE" plaque */
-  --xo-art-tab: none;       /* public/online/tab.png         tab, idle */
-  --xo-art-tab-on: none;    /* public/online/tab_active.png  tab, selected */
-  --xo-art-btn: none;       /* public/online/btn.png         button, idle */
-  --xo-art-btn-hover: none; /* public/online/btn_hover.png   button, hover/focus */
-  --xo-art-slot: none;      /* public/online/slot.png        player slot */
-  --xo-art-slot-me: none;   /* public/online/slot_me.png     your own slot */
-  --xo-art-slot-free: none; /* public/online/slot_free.png   empty slot */
-  --xo-art-avatar: none;    /* public/online/avatar.png      avatar frame, drawn over the head */
-  --xo-art-spinner: none;   /* public/online/spinner.png     loading */
 }
 
 .xo, .xo * { box-sizing: border-box; }
@@ -42,7 +32,6 @@
 .xo-card {
   width: min(720px, 100%); max-height: calc(100dvh - 1.5rem); display: flex; flex-direction: column; margin: auto;
   background:
-    var(--xo-art-card),
     radial-gradient(120% 60% at 50% 0%, rgba(255,255,255,0.28), transparent 60%),
     linear-gradient(180deg, var(--xo-lime) 0%, var(--xo-green) 46%, #4d8a02 100%);
   background-size: 100% 100%;
@@ -66,7 +55,7 @@
 .xo-title {
   flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; text-align: center; line-height: 1;
   padding: 0.5rem 0.6rem 0.4rem;
-  background: var(--xo-art-header), linear-gradient(180deg, #efe4c3, var(--xo-paper) 60%, var(--xo-paper-d));
+  background: linear-gradient(180deg, #efe4c3, var(--xo-paper) 60%, var(--xo-paper-d));
   background-size: 100% 100%;
   border: 3px solid var(--xo-ink); border-radius: 12px; box-shadow: 0 3px 0 rgba(0,0,0,0.35);
   transform: rotate(-0.8deg);
@@ -78,13 +67,13 @@
 .xo-btn {
   position: relative; min-height: 44px; padding: 0.55rem 1.1rem 0.5rem; cursor: pointer;
   font-size: 1.15rem; line-height: 1; color: var(--xo-ink); text-transform: uppercase; white-space: nowrap;
-  background: var(--xo-art-btn), linear-gradient(180deg, #fff9a0, var(--xo-yellow) 40%, #e8c800);
+  background: linear-gradient(180deg, #fff9a0, var(--xo-yellow) 40%, #e8c800);
   background-size: 100% 100%;
   border: 3px solid var(--xo-ink); border-radius: 12px; box-shadow: 0 4px 0 var(--xo-ink);
   transition: transform 80ms, filter 80ms, box-shadow 80ms;
 }
 .xo-btn:hover:not(:disabled), .xo-btn:focus-visible {
-  background: var(--xo-art-btn-hover), linear-gradient(180deg, #ffffc4, #fffa3a 40%, #f2d400);
+  background: linear-gradient(180deg, #ffffc4, #fffa3a 40%, #f2d400);
   background-size: 100% 100%; transform: translateY(-2px); box-shadow: 0 6px 0 var(--xo-ink);
 }
 .xo-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 var(--xo-ink); }
@@ -103,7 +92,7 @@
 .xo-tab {
   flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.45rem; min-height: 44px; padding: 0.3rem 0.5rem 0.2rem;
   font-size: 1.1rem; color: #5a4c28; cursor: pointer;
-  background: var(--xo-art-tab), linear-gradient(180deg, #d9cca3, var(--xo-paper-d));
+  background: linear-gradient(180deg, #d9cca3, var(--xo-paper-d));
   background-size: 100% 100%;
   border: 3px solid var(--xo-ink); border-bottom: 0; border-radius: 12px 12px 0 0; transition: filter 80ms, transform 80ms;
 }
@@ -114,7 +103,7 @@
 .xo-tab:hover:not(:disabled):not(.is-active) { filter: brightness(1.08); transform: translateY(-1px); }
 .xo-tab.is-active {
   color: var(--xo-ink); padding-top: 0.45rem; margin-top: -4px;
-  background: var(--xo-art-tab-on), linear-gradient(180deg, #fffbe3, var(--xo-paper));
+  background: linear-gradient(180deg, #fffbe3, var(--xo-paper));
   background-size: 100% 100%;
 }
 .xo-tab.is-active .xo-tab-n { background: var(--xo-green); color: #fff; }
@@ -161,7 +150,7 @@
 .xo-wait p { margin: 0; }
 .xo-spinner {
   width: 44px; height: 44px; border-radius: 50%; border: 6px solid rgba(255,255,255,0.25); border-top-color: var(--xo-yellow);
-  background: var(--xo-art-spinner) center / contain no-repeat; animation: xo-spin 0.9s linear infinite;
+   animation: xo-spin 0.9s linear infinite;
 }
 @keyframes xo-spin { to { transform: rotate(360deg); } }
 
@@ -190,14 +179,14 @@
 .xo-slots { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.55rem; }
 .xo-slot {
   position: relative; display: flex; align-items: center; gap: 0.55rem; min-width: 0; min-height: 64px; padding: 0.4rem 0.55rem 0.4rem 0.45rem;
-  background: var(--xo-art-slot), linear-gradient(180deg, #f6edcc, var(--xo-paper));
+  background: linear-gradient(180deg, #f6edcc, var(--xo-paper));
   background-size: 100% 100%;
   color: var(--xo-ink); border: 3px solid var(--xo-ink); border-radius: 14px; box-shadow: 0 3px 0 rgba(0,0,0,0.4);
 }
-.xo-slot[style] { background: var(--xo-art-slot), linear-gradient(180deg, color-mix(in srgb, var(--hero) 38%, #fff7d6), color-mix(in srgb, var(--hero) 30%, var(--xo-paper))); background-size: 100% 100%; }
-.xo-slot.is-me { background: var(--xo-art-slot-me), linear-gradient(180deg, #fffbb0, #f6e57c); background-size: 100% 100%; box-shadow: 0 0 0 3px var(--xo-yellow), 0 3px 0 3px var(--xo-ink); }
+.xo-slot[style] { background: linear-gradient(180deg, color-mix(in srgb, var(--hero) 38%, #fff7d6), color-mix(in srgb, var(--hero) 30%, var(--xo-paper))); background-size: 100% 100%; }
+.xo-slot.is-me { background: linear-gradient(180deg, #fffbb0, #f6e57c); background-size: 100% 100%; box-shadow: 0 0 0 3px var(--xo-yellow), 0 3px 0 3px var(--xo-ink); }
 .xo-slot.is-off { filter: grayscale(0.8); opacity: 0.7; }
-.xo-slot.is-free { background: var(--xo-art-slot-free), rgba(0,0,0,0.25); background-size: 100% 100%; border-style: dashed; border-color: rgba(255,255,255,0.45); color: #d8f3a8; box-shadow: none; }
+.xo-slot.is-free { background: rgba(0,0,0,0.25); background-size: 100% 100%; border-style: dashed; border-color: rgba(255,255,255,0.45); color: #d8f3a8; box-shadow: none; }
 .xo-slot-main { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 0.15rem; padding-left: 0.3rem; }
 .xo-name { display: flex; align-items: center; gap: 0.3rem; font-weight: 900; font-size: 0.98rem; min-width: 0; }
 .xo-slot.is-free .xo-name { font-family: var(--xo-font); font-weight: 400; letter-spacing: 0.08em; font-size: 1rem; opacity: 0.8; }
@@ -214,7 +203,7 @@
 /* avatar: head of items_tile.png tinted with --hero (colour blend through a mask of the same sprite) */
 .xo-avatar {
   --k: 1.25; position: relative; flex: none; width: calc(44px * var(--k)); height: calc(34px * var(--k)); isolation: isolate;
-  background: var(--xo-art-avatar), url('/assets/images/menuElements/items_tile.png') calc(-12px * var(--k)) calc(-8px * var(--k)) / calc(512px * var(--k)) calc(256px * var(--k)) no-repeat;
+  background: url('/assets/images/menuElements/items_tile.png') calc(-12px * var(--k)) calc(-8px * var(--k)) / calc(512px * var(--k)) calc(256px * var(--k)) no-repeat;
   image-rendering: auto;
 }
 .xo-avatar::after {
@@ -291,4 +280,94 @@
   .xo-tab { min-height: 36px; font-size: 1rem; }
   .xo-body { padding: 0.55rem; }
   .xo-menu, .xo-pane, .xo-lobby { gap: 0.6rem; }
+}
+
+
+/* ======================= final art: 9-slice border-image (no stretching of corners/edges) ======================= */
+.xo-card, .xo-title, .xo-tab, .xo-btn, .xo-input, .xo-slot {
+  border-style: solid; border-color: transparent; background-clip: padding-box; box-shadow: none;
+}
+/* panel: 720x366 master, corners ~78 px -> 27 px */
+.xo-card {
+  border-width: 27px; border-radius: 0; padding: 0 0.3rem 0.3rem;
+  border-image: url('/online/card.png') 78 fill / 27px stretch;
+  filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.65));
+}
+.xo-title {
+  border-width: 12px 15px; border-radius: 0; transform: none; padding: 0.1rem 0.3rem;
+  border-image: url('/online/header.png') 40 50 fill / 12px 15px stretch;
+}
+.xo-tabs { margin-top: 0.3rem; padding: 0; gap: 0.15rem; }
+.xo-tab {
+  border-width: 12px 11px 4px 38px; border-radius: 0; min-height: 0; padding: 0.1rem 0.2rem 0.15rem; margin-top: 0;
+  border-image: url('/online/tab.png') 62 56 20 190 fill / 12px 11px 4px 38px stretch;
+}
+.xo-tab.is-active { margin-top: 0; padding-top: 0.1rem; border-image: url('/online/tab_active.png') 60 40 12 40 fill / 12px 11px 4px 38px stretch; }
+.xo-tab.is-active .xo-tab-n { background: var(--xo-green); }
+.xo-btn {
+  border-width: 17px 20px; border-radius: 0; min-height: 0; padding: 0 0.1rem; line-height: 1;
+  border-image: url('/online/btn.png') 70 80 fill / 17px 20px stretch;
+}
+.xo-btn:hover:not(:disabled), .xo-btn:focus-visible { background: none; border-image: url('/online/btn_hover.png') 85 90 fill / 17px 20px stretch; transform: translateY(-1px); box-shadow: none; }
+.xo-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: none; }
+.xo-btn:disabled { box-shadow: none; }
+.xo-btn-small { border-width: 13px 16px; border-image-width: 13px 16px; }
+.xo-btn-big { border-width: 20px 26px; border-image-width: 20px 26px; }
+.xo-btn-go { border-width: 20px 26px; border-image-width: 20px 26px; }
+/* the art is yellow: tint it for the red (exit) and green (go / on) variants */
+.xo-btn-exit { background: none; color: #fff; filter: hue-rotate(-38deg) saturate(1.5); }
+.xo-btn-go, .xo-btn.is-on { background: none; filter: hue-rotate(62deg) saturate(1.1); }
+.xo-btn:disabled { filter: grayscale(1) brightness(0.85); }
+.xo-input { border-width: 16px; border-radius: 0; min-height: 0; padding: 0 0.2rem; background: none; border-image: url('/online/input.png') 55 fill / 16px stretch; font-size: 1.1rem; }
+.xo-input:focus { outline: 3px solid var(--xo-yellow); outline-offset: 1px; background: none; box-shadow: none; border-color: transparent; }
+.xo-code { border-image: url('/online/code_box.png') 45 fill / 14px stretch; border-width: 14px; padding: 0 0 0 0.2rem; min-height: 66px; }
+.xo-slot { border-width: 17px; border-radius: 0; min-height: 0; padding: 0 0.3rem; background: none; border-image: url('/online/slot.png') 55 fill / 17px stretch; }
+.xo-slot[style], .xo-slot.is-me, .xo-slot.is-off { box-shadow: none; }
+.xo-slot[style] { background: none; }
+.xo-slot.is-me { background: none; border-image: url('/online/slot_me.png') 60 fill / 17px stretch; }
+.xo-slot.is-free { background: none; border-style: solid; color: #355000; border-image: url('/online/slot_free.png') 55 fill / 17px stretch; }
+.xo-slot.is-free .xo-state { color: #4a6a1a; }
+.xo-slots { gap: 0.2rem 0.4rem; }
+
+/* fixed-ratio pieces */
+.xo-crown { width: 22px; height: auto; flex: none; }
+.xo-state { display: inline-flex; align-items: center; gap: 0.3rem; }
+.xo-ready-ico { width: 16px; height: 16px; flex: none; }
+.xo-kick { width: 30px; height: 30px; padding: 0; font-size: 0; border: 0; background: url('/online/kick_x.png') center / contain no-repeat; }
+.xo-kick:hover { background-color: transparent; filter: brightness(1.15); }
+.xo-signal { gap: 0; height: auto; align-items: center; }
+.xo-signal i { display: none; }
+.xo-signal img { height: 24px; width: auto; display: block; }
+.xo-signal.is-lost img { animation: xo-blink 0.8s steps(2) infinite; }
+.xo-head .xo-signal { background: none; border: 0; padding: 0 0.2rem; }
+.xo-switch-box { width: 56px; height: 34px; border: 0; border-radius: 0; background: url('/online/toggle_off.png') center / contain no-repeat; }
+.xo-switch-box::after { display: none; }
+.xo-switch input:checked + .xo-switch-box { background: url('/online/toggle_on.png') center / contain no-repeat; }
+.xo-spinner { width: 64px; height: 62px; border: 0; background: url('/online/spinner.png') center / contain no-repeat; }
+
+/* avatar: head clipped to a circle, the round frame on top */
+.xo-avatar { --k: 1.06; width: 48px; height: 48px; border-radius: 50%; background: none; position: relative; flex: none; isolation: isolate; }
+.xo-avatar::before, .xo-avatar::after {
+  content: ''; position: absolute; inset: 5px; border-radius: 50%;
+  background: url('/assets/images/menuElements/items_tile.png') calc(-12px * var(--k) - 5px) calc(-8px * var(--k)) / calc(512px * var(--k)) calc(256px * var(--k)) no-repeat, rgba(0, 0, 0, 0.18);
+}
+.xo-avatar::after {
+  background: var(--hero, #fff); mix-blend-mode: color; opacity: 0.8;
+  -webkit-mask: url('/assets/images/menuElements/items_tile.png') calc(-12px * var(--k) - 5px) calc(-8px * var(--k)) / calc(512px * var(--k)) calc(256px * var(--k)) no-repeat;
+  mask: url('/assets/images/menuElements/items_tile.png') calc(-12px * var(--k) - 5px) calc(-8px * var(--k)) / calc(512px * var(--k)) calc(256px * var(--k)) no-repeat;
+}
+.xo-avatar i { position: absolute; inset: 0; background: url('/online/avatar_frame.png') center / 100% 100% no-repeat; z-index: 2; }
+.xo-avatar.is-dim::after { opacity: 0; }
+.xo-avatar.is-empty { background: none; border: 0; font-size: 0; width: 48px; height: 48px; }
+.xo-avatar.is-empty::before { background: rgba(0, 0, 0, 0.22); }
+.xo-avatar.is-empty::after { display: none; }
+
+@media (max-width: 520px) {
+  .xo-card { border-width: 20px; border-image-width: 20px; padding: 0; }
+  .xo-btn { border-width: 14px 17px; border-image-width: 14px 17px; }
+  .xo-btn-small { border-width: 11px 14px; border-image-width: 11px 14px; }
+  .xo-btn-big, .xo-btn-go { border-width: 16px 20px; border-image-width: 16px 20px; }
+  .xo-tab { border-width: 10px 9px 4px 24px; border-image-width: 10px 9px 4px 24px; }
+  .xo-slot { border-width: 14px; border-image-width: 14px; }
+  .xo-input { border-width: 13px; border-image-width: 13px; }
 }

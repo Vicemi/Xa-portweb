@@ -1,25 +1,47 @@
 # Arte de la interfaz ONLINE para Gemini
 
-La interfaz online ya funciona completa con CSS (panel verde lima, plaquetas de papel, botones amarillos, estilo de los
-menús originales). Este documento lista **las piezas de arte final** que se pueden generar para reemplazar esas
-partes sin tocar el código: cada pieza es una variable CSS `--xo-art-*` en `src/components/online.css` (bloque `:root`).
-Por defecto valen `none` y se ve el CSS; al poner una imagen, se pinta **encima** del CSS (que queda de respaldo).
+La interfaz online usa el arte final de Gemini (ver "Estado" abajo); este documento también guarda los prompts
+originales para regenerar o ampliar piezas.
 
 **El texto NO va en las imágenes**: el juego lo escribe (nombres, "CREAR SALA", códigos...). Pedirle a Gemini piezas
 **sin ninguna letra**, con la zona central vacía.
 
-## Cómo se instala una pieza
+## Estado: el arte final YA está conectado
 
-1. Generar en Gemini con el prompt de abajo (fondo **verde `#00FF00` sólido**, sin degradados ni sombras en el verde).
-2. Pasarla por el recorte de croma + ajuste al tamaño exacto (skill `universal-modder:asset-pipeline`, o a mano:
-   quitar el verde, recortar al borde, escalar al tamaño de la tabla) y guardarla como PNG con alfa en `public/online/`.
-3. En `src/components/online.css`, en `:root`, cambiar `--xo-art-card: none;` por `--xo-art-card: url('/online/card.png');`.
-   Las variables ya están declaradas con su nombre de archivo en el comentario.
+El arte generado con Gemini vive en `public/online/*.png` (37 piezas). Se corta de las 4 hojas de
+`art-source/Nuevos assets/` con `python tools/slice_ui_sheets.py` (quita el verde con alfa suave, recorta, reduce con
+alfa premultiplicado y guarda; cada pieza tiene su caja y su ancho de salida en la tabla `PIEZAS` del script). El fondo
+`Assets_fondo_online.png` se redujo a `public/assets/images/menuElements/online_bg.jpg` (1024x768, ~100 KB).
 
-Todas las piezas **se estiran al 100 % del elemento** (`background-size: 100% 100%`), y el elemento cambia de tamaño
-según la pantalla (de 320 px a escritorio). Por eso: bordes y adornos pegados a los costados, **centro liso** (sin
-detalles que se deformen), esquinas con el mismo radio que el original (~22 px en el panel, ~12 px en botones).
-Tamaños = los de referencia a 1x; si se generan al doble (x2) mejor, hay que decirlo y escalar al guardar.
+Cómo se usa cada pieza (**nada se estira**: las piezas de tamaño variable van en 9 cortes, las fijas a su proporción):
+
+| Dónde | Piezas | Cómo |
+|---|---|---|
+| Panel DOM (`src/components/online.css`, bloque "final art") | card, header, tab, tab_active, btn, btn_hover, input, code_box, slot, slot_me, slot_free | `border-image: url(..) <slice> fill / <ancho> stretch`: esquinas y bordes conservan su proporción, sólo el centro se estira |
+| Panel DOM | crown, ready_on/off, ping_good/mid/bad, kick_x, toggle_on/off, spinner, avatar_frame | imágenes a proporción nativa; el avatar es la cabecita de Xa tintada recortada en círculo con el aro encima |
+| HUD (`src/xa/world/hud.ts`) | friend_plate, powerup_plate, powerbar_frame, powerbar_fill(_warn), heart, host_flag, down_badge | `draw9()` de `src/xa/core/nineslice.ts`; el relleno de la barra se **recorta** a lo que queda (no se escala); parpadeo en los últimos 3 s con la variante warn |
+| Mapa online (`src/xa/game.ts`) | roster_plate, host_flag, vote_chip, vote_flag, pick_banner, cursor_host, cursor_guest, level_lock | roster = una placa 9 cortes por jugador; fichas y banderas teñidas con el color del jugador; cursores en el menú espejo (invitado) |
+| Fondo | online_bg.jpg | pantalla `online` del canvas (cover 512x384) + panel encima |
+
+Si una imagen falta o no carga, el canvas dibuja lo de antes (placas y fichas dibujadas) y el panel DOM conserva su
+CSS de respaldo (degradés), salvo `card`/`header`/`btn`... donde el borde queda transparente.
+
+### Cómo reemplazar una pieza
+
+1. Pasar la hoja nueva por el script o dejar el PNG final en `public/online/` con el MISMO nombre.
+2. Si las proporciones cambiaron, ajustar los números de corte: en `online.css` (`border-image: url(..) <slice> fill / <ancho>`;
+   el *slice* son píxeles de la imagen: arriba derecha abajo izquierda) o, para los canvas, el arreglo `[arriba, derecha,
+   abajo, izquierda]` que se le pasa a `draw9(...)` en `hud.ts` / `game.ts`.
+3. Regla del maestro: las piezas se guardan a ~2x-4x del tamaño en pantalla; el canvas las achica con calidad alta.
+4. Revisar en el navegador a 320/768/1280 px y en el mapa/HUD que ninguna esquina se vea deformada.
+
+### Notas de la primera tanda
+
+- Las fichas de jugador (`slot*`) salieron verticales (tarjetas): sirven en 9 cortes, con bordes chicos.
+- `ready_off` es una X roja y `avatar_frame` un aro: el aro rodea la cabecita recortada en círculo.
+- Los rellenos de la barra son tiras segmentadas de otro largo que el marco: se escalan al hueco del marco y se recortan.
+- La hoja del mapa traía `powerbar_fill_warn` pisado por los cursores (se usa el de la hoja del HUD) y la del lobby traía
+  el corazón dos veces (se usa uno).
 
 ## Estilo común (pegar al principio de cada prompt)
 
@@ -33,7 +55,10 @@ numbers, NO characters, NO logos. Flat solid #00FF00 background around the piece
 Keep the middle area plain and calm so the piece can be stretched.
 ```
 
-## Piezas (archivo → variable → tamaño → prompt)
+## Prompts originales (referencia para regenerar o ampliar)
+
+Ojo: las columnas "Variable" son de la primera versión con ranuras CSS `--xo-art-*`, que ya no existen: ahora cada
+PNG se usa por nombre de archivo (ver "Estado" arriba). Tamaños = los pedidos a Gemini; los finales salen del script.
 
 Guardar todo en `public/online/`. Tamaños a 1x en píxeles (ancho × alto).
 

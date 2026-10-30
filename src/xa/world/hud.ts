@@ -3,7 +3,11 @@
 // fuente_negra, black, 30px grid).
 import { drawTinted, frameOf } from '../core/sprites';
 import { img } from '../core/assets';
-import { drawLine, drawText } from '../core/font';
+import { drawLine, drawText, lineWidth } from '../core/font';
+import { draw9, drawIcon, uiArt, preloadUiArt } from '../core/nineslice';
+import { online } from '../online/session';
+
+preloadUiArt();
 import { VIEW_W } from './camera';
 import type { HeroState } from './state';
 import type { PlayerRuntime } from './player';
@@ -19,7 +23,7 @@ export interface HudCoop {
 // Coop: fila de amigos arriba a la izquierda (cabecita + nombre + vidas), una por jugador.
 const CHIP_X = 2;
 const CHIP_Y = 2;
-const CHIP_W = 55;
+const CHIP_W = 56;
 const CHIP_H = 32;
 
 // Escape codes of the TMX sign texts, decoded exactly like the original (switch on the char after '\'):
@@ -80,7 +84,7 @@ export class Hud {
       else this.lose = null;
       this.lastEnergy = energy;
     }
-    const barX = this.coopEnergyX(coop), barY = coop ? CHIP_Y + 34 : 48;
+    const barX = this.coopEnergyX(coop), barY = coop ? CHIP_Y + 45 : 48; // coop: debajo del nombre
     if (energy > 0) this.blit(ctx, 'ENERGY_BAR', barX, barY, Math.max(0, Math.min(9, energy - 1)));
     if (this.lose) {
       const f = frameOf('ENERGY_BAR_LOSE', 0);
@@ -97,7 +101,7 @@ export class Hud {
       this.doubleT = -1;
       this.blit(ctx, 'DOUBLE_JUMP_NONE', djX, djY);
     }
-    if (power) this.renderPower(ctx, power, powerT, coop ? 72 : 162, coop ? 282 : 8);
+    if (power) this.renderPower(ctx, power, powerT, coop ? 72 : 100, coop ? 282 : 60);
     this.blit(ctx, 'BACK_POINTS', 226, 7);
     drawLine(ctx, 'Puntos', 271, 10, 'black', 'center', 1);
     drawLine(ctx, pad(s.score, 6), 271, 25, 'black', 'center', 1);
@@ -150,7 +154,24 @@ export class Hud {
   /** Mod power-up: paper plaque (like the score one) with the item icon and, under it, the time left drawn with the
    *  game's own ENERGY_BAR frames (10 steps, green to red). The whole plaque blinks during the last 3 s. */
   private renderPower(ctx: CanvasRenderingContext2D, power: string, powerT: number, x: number, y: number): void {
-    const f = frameOf(power, 0), bar = frameOf('ENERGY_BAR', Math.max(0, Math.min(9, Math.ceil((powerT / 15) * 10) - 1)));
+    const plate = uiArt('powerup_plate'), frame = uiArt('powerbar_frame');
+    const fill = uiArt(powerT <= 3 ? 'powerbar_fill_warn' : 'powerbar_fill'), f = frameOf(power, 0);
+    if (plate && frame && fill && f) {
+      // arte final: placa 9 cortes + marco de barra 9 cortes; el relleno se recorta (no se estira) a lo que queda
+      const W = 96, H = 34, k = H / plate.naturalHeight;
+      ctx.save();
+      if (powerT <= 3 && Math.floor(powerT * 4) % 2) ctx.globalAlpha = 0.4;
+      draw9(ctx, plate, x, y, W, H, [38, 50, 38, 100], k);
+      const ik = 18 / f.sh, iw = f.sw * ik; // el ícono entra en el círculo de la placa (unos 20 px)
+      ctx.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, x + 11.5 - iw / 2, y + 17 - 9, iw, 18);
+      const bx = x + 28, by = y + 13, bw = 52, bh = 8;
+      draw9(ctx, frame, bx, by, bw, bh, [10, 12, 10, 12], bh / frame.naturalHeight);
+      const b = 1.6, ratio = Math.max(0, Math.min(1, powerT / 15));
+      ctx.drawImage(fill, 0, 0, fill.naturalWidth * ratio, fill.naturalHeight, bx + b, by + b, (bw - 2 * b) * ratio, bh - 2 * b);
+      ctx.restore();
+      return;
+    }
+    const bar = frameOf('ENERGY_BAR', Math.max(0, Math.min(9, Math.ceil((powerT / 15) * 10) - 1)));
     if (!f || !bar) return;
     ctx.save();
     if (powerT <= 3 && Math.floor(powerT * 4) % 2) ctx.globalAlpha = 0.4;
@@ -180,15 +201,39 @@ export class Hud {
 
   /** Coop: una ficha por amigo — cabecita de Xa con su color, apodo (máx. 10) y vidas. */
   private renderFriends(ctx: CanvasRenderingContext2D, coop: HudCoop): void {
+    const plate = uiArt('friend_plate'), heart = uiArt('heart'), flag = uiArt('host_flag'), down = uiArt('down_badge');
+    const hostId = online.getState().room?.hostId ?? -1;
     coop.players.forEach((p, i) => {
       const x = CHIP_X + i * CHIP_W;
       const me = p === coop.local;
+      const head = frameOf('AVATAR_HEAD', 0), hex = p.hex ?? '#ffffff';
+      if (plate && heart) {
+        // arte final: placa 9 cortes (la ranura cuadrada de la cabecita queda en el corte izquierdo, sin deformarse)
+        const w = CHIP_W - 2, h = 27;
+        ctx.save();
+        if (p.eliminated) ctx.globalAlpha = 0.65;
+        draw9(ctx, plate, x, CHIP_Y, w, h, [28, 40, 28, 100], h / plate.naturalHeight);
+        if (head) drawTinted(ctx, head, x + 5, CHIP_Y + 6, 1, hex, 0.75, 0.42);
+        if (p.eliminated && down) drawIcon(ctx, down, x + 5, CHIP_Y + 5, { h: 17 });
+        drawIcon(ctx, heart, x + 27, CHIP_Y + 9, { h: 8 });
+        drawLine(ctx, String(Math.max(0, p.lives)), x + 36, CHIP_Y + 3, 'black', 'left', 0.7);
+        ctx.restore();
+        if (me) { // el que juega en esta pestaña: contorno amarillo alrededor de la placa
+          ctx.strokeStyle = '#fff602'; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.roundRect(x - 0.5, CHIP_Y - 0.5, w + 1, h + 1, 6); ctx.stroke();
+        }
+        if (p.id === hostId && flag) drawIcon(ctx, flag, x + w - 14, CHIP_Y - 5, { w: 14 });
+        // nombre debajo de la placa (no entra dentro), con el color del héroe en el trazo
+        let name = p.name.slice(0, 10) || 'Xa';
+        while (name.length > 1 && lineWidth(name, 'white') * 0.4 > CHIP_W - 4) name = name.slice(0, -1);
+        drawLine(ctx, name, x + 2, CHIP_Y + h + 1, 'white', 'left', 0.4);
+        return;
+      }
       this.plaque(ctx, x, CHIP_Y, CHIP_W - 4, CHIP_H, me ? '#fff602' : undefined);
-      ctx.fillStyle = p.hex ?? '#ffffff'; // the hero colour as a rounded stripe along the bottom edge
+      ctx.fillStyle = hex; // the hero colour as a rounded stripe along the bottom edge
       ctx.beginPath(); ctx.roundRect(x + 4, CHIP_Y + CHIP_H - 6, CHIP_W - 12, 3, 1.5); ctx.fill();
       ctx.strokeStyle = '#1a1818'; ctx.lineWidth = 1; ctx.stroke();
-      const head = frameOf('AVATAR_HEAD', 0);
-      if (head) drawTinted(ctx, head, x + 4, CHIP_Y + 2, 1, p.hex ?? '#ffffff', 0.7, 0.5);
+      if (head) drawTinted(ctx, head, x + 4, CHIP_Y + 2, 1, hex, 0.7, 0.5);
       drawLine(ctx, 'x' + Math.max(0, p.lives), x + 27, CHIP_Y + 3, 'black', 'left', 0.5);
       drawLine(ctx, p.name.slice(0, 10) || 'Xa', x + 5, CHIP_Y + 16, 'black', 'left', 0.4);
     });

@@ -8,24 +8,21 @@ type Tab = 'crear' | 'unirse';
 /** El ?sala= se usa una sola vez por carga de página: tras SALIR el panel no vuelve a entrar solo. */
 let linkConsumed = false;
 
-const Crown = () => (
-  <svg className="xo-crown" viewBox="0 0 24 16" aria-label="Anfitrión" role="img">
-    <path d="M2 14 1 4l6 5 5-8 5 8 6-5-1 10z" />
-  </svg>
-);
+const Crown = () => <img className="xo-crown" src="/online/crown.png" alt="Anfitrión" />;
 
-/** Cabecita de Xa del color del jugador (items_tile.png + tinte por CSS: ver .xo-avatar). */
+/** Cabecita de Xa del color del jugador (items_tile.png + tinte por CSS) dentro del marco redondo (ver .xo-avatar). */
 const Avatar = ({ hex, dim }: { hex: string; dim?: boolean }) => (
-  <span className={`xo-avatar ${dim ? 'is-dim' : ''}`} style={{ '--hero': hex } as CSSProperties} aria-hidden="true" />
+  <span className={`xo-avatar ${dim ? 'is-dim' : ''}`} style={{ '--hero': hex } as CSSProperties} aria-hidden="true"><i /></span>
 );
 
-/** Antena de conexión: 3 barras según el ping; roja y parpadeando si se perdió. */
+/** Antena de conexión según el ping (ping_good / ping_mid / ping_bad); parpadea si se perdió. */
 function Signal({ rtt, lost, direct }: { rtt: number; lost: boolean; direct: boolean }) {
   const q = lost ? 0 : !rtt ? 1 : rtt < 90 ? 3 : rtt < 180 ? 2 : 1;
   const label = lost ? 'Reconectando…' : `${rtt || '—'} ms · ${direct ? 'directo' : 'relay'}`;
+  const img = q === 3 ? 'ping_good' : q === 2 ? 'ping_mid' : 'ping_bad';
   return (
     <span className={`xo-signal q${q} ${lost ? 'is-lost' : ''}`} title={label} role="img" aria-label={`Conexión: ${label}`}>
-      <i /><i /><i />
+      <img src={`/online/${img}.png`} alt="" />
       <b>{label}</b>
     </span>
   );
@@ -273,7 +270,7 @@ export default function OnlinePanel() {
                     if (!p) {
                       return (
                         <li key={`free${i}`} className="xo-slot is-free">
-                          <span className="xo-avatar is-empty" aria-hidden="true">?</span>
+                          <span className="xo-avatar is-empty" aria-hidden="true"><i /></span>
                           <span className="xo-slot-main">
                             <span className="xo-name">LIBRE</span>
                             <span className="xo-state">Esperando a un amigo…</span>
@@ -293,7 +290,8 @@ export default function OnlinePanel() {
                             {you && <span className="xo-tag">VOS</span>}
                           </span>
                           <span className={`xo-state ${p.ready ? 'is-on' : ''}`}>
-                            {!p.online ? 'SIN CONEXIÓN' : p.ready ? '✔ LISTO' : 'ESPERANDO…'}
+                            {p.online && <img className="xo-ready-ico" src={`/online/${p.ready ? 'ready_on' : 'ready_off'}.png`} alt="" />}
+                            {!p.online ? 'SIN CONEXIÓN' : p.ready ? 'LISTO' : 'ESPERANDO…'}
                           </span>
                         </span>
                         {host && !you && (

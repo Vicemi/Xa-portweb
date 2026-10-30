@@ -33,3 +33,5 @@ art-source/
 .env.local
 
 .review/
+
+__pycache__/

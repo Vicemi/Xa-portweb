@@ -1161,3 +1161,12 @@ XA-Backend/README.md (**hay que volver a desplegar el backend**).
   sala cerrada y anfitrión al menú, el anfitrión recarga en plena partida → todos al mapa. Panel a 1024, 640x360 y 320 px.
   NO verificado: celular real / pantalla táctil (toque para cambiar de jugador, botón redondo), enlace WebRTC con NAT real
   (en local siempre abre directo), más de 3 jugadores.
+
+### Online: pantalla negra del anfitrión, controles perdidos, amigos fuera de cámara
+- En coop, cualquier muerte (también la de un invitado) disparaba el fundido a negro del anfitrión y nunca volvía: en coop ya no hay fundido.
+- El invitado manda cada control por WebRTC y además por el relé; el anfitrión acepta solo secuencias nuevas. Un canal WebRTC
+  medio muerto (abierto de un lado) ya no se traga los controles mientras las instantáneas llegan por el relé.
+- `setRemoteInput` conserva un salto/disparo no consumido si llegan dos paquetes en el mismo cuadro.
+- Flecha con nombre en el borde para los amigos fuera de cámara (la cámara sigue a tu héroe).
+- Verificado: online-sim (nuevos: fundido, reaparecer y moverse, dos paquetes en un cuadro), prueba e2e local; en producción no se
+  reprodujo el congelamiento (se movía tras morir, por WebRTC y por relé).

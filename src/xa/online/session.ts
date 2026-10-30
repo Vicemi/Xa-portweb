@@ -311,8 +311,9 @@ export class OnlineSession {
    *  = viejo). q = 1 es siempre el primer paquete de una página nueva del invitado (recargó o volvió al nivel): reinicia. */
   private acceptInput(from: number, d: { b: number; q: number }): void {
     const prev = this.lastQ.get(from) ?? -1;
-    const q = d.q & 0xffff;
-    if (prev < 0 || q === 1 || ((q - prev) & 0xffff) < 0x8000) {
+    const q = d.q & 0xffff, step = (q - prev) & 0xffff;
+    // the same packet arrives twice (WebRTC and relay): only strictly newer ones count
+    if (prev < 0 || (q === 1 && prev !== 1) || (step > 0 && step < 0x8000)) {
       this.lastQ.set(from, q);
       this.hooks.input?.(from, d.b, q);
     }
@@ -432,7 +433,10 @@ export class OnlineSession {
   /** Invitado: manda sus controles (bits + secuencia). */
   sendInput(b: number, q: number): void {
     if (this.state.phase !== 'playing' || this.state.host || this.state.watch) return;
-    if (!this.p2p?.sendInput({ b, q })) this.net.send({ t: 'in', d: { b, q } });
+    // always also via the relay (the host keeps the first copy of each q): a WebRTC channel that looks open on this
+    // side but no longer reaches the host would otherwise swallow every control while snapshots keep arriving
+    this.p2p?.sendInput({ b, q });
+    this.net.send({ t: 'in', d: { b, q } });
   }
 
   /** Anfitrión: manda la instantánea del mundo. Si alguien no tiene enlace directo, también va por el relé. */

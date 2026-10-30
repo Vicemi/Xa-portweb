@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { online } from '../xa/online/session';
 import { isBossLevel, levelTitle } from '../xa/online/levels';
+import GameText from './GameText';
 import './online.css';
 
 type Tab = 'crear' | 'unirse';
@@ -105,12 +106,12 @@ export default function OnlinePanel() {
       <div className="xo-card" ref={cardRef} role="dialog" aria-modal="true" aria-labelledby="xo-title" tabIndex={-1}>
         <header className="xo-head">
           <div className="xo-title">
-            <strong id="xo-title">SALA ONLINE</strong>
+            <strong id="xo-title"><GameText text="SALA ONLINE" font="black2" /></strong>
             <small>Hasta {s.max || 4} jugadores (con vos) · el anfitrión manda</small>
           </div>
           {inRoom && <Signal rtt={s.rtt} lost={lost} direct={s.direct} />}
           <button className="xo-btn xo-btn-exit" onClick={() => online.backToMenu()} title="Volver al menú principal">
-            SALIR
+            <GameText text="SALIR" font="white" />
           </button>
         </header>
 
@@ -137,7 +138,7 @@ export default function OnlinePanel() {
               }}
             >
               <span className="xo-tab-n">{t.n}</span>
-              {t.label}
+              <GameText text={t.label} />
             </button>
           ))}
         </nav>
@@ -160,7 +161,7 @@ export default function OnlinePanel() {
             <section className="xo-wait" aria-live="polite">
               <span className="xo-spinner" aria-hidden="true" />
               <p>{code ? <>Entrando a la sala <b>{code}</b>…</> : 'Conectando con la sala…'}</p>
-              <button className="xo-btn" onClick={() => online.backToMenu()}>CANCELAR</button>
+              <button className="xo-btn" onClick={() => online.backToMenu()}><GameText text="CANCELAR" /></button>
             </section>
           )}
 
@@ -169,7 +170,7 @@ export default function OnlinePanel() {
             <section className="xo-menu">
               <label className="xo-field">
                 <span className="xo-label">
-                  TU NOMBRE <em>{s.name.length}/10</em>
+                  <GameText text="TU NOMBRE" font="black2" /> <em>{s.name.length}/10</em>
                 </span>
                 <input
                   className="xo-input"
@@ -196,10 +197,10 @@ export default function OnlinePanel() {
                   </ul>
                   <div className="xo-row">
                     <button className="xo-btn xo-btn-primary" disabled={!nameOk} onClick={() => void online.create()}>
-                      CREAR SALA
+                      <GameText text="CREAR SALA" />
                     </button>
                     {s.canResume && (
-                      <button className="xo-btn" onClick={() => void online.resume()}>RECUPERAR SESIÓN</button>
+                      <button className="xo-btn" onClick={() => void online.resume()}><GameText text="RECUPERAR SESIÓN" /></button>
                     )}
                   </div>
                 </div>
@@ -209,7 +210,7 @@ export default function OnlinePanel() {
                     <p className="xo-note is-info">Te invitaron a la sala <b>{linkCode}</b>.{!nameOk && ' Poné tu nombre para entrar.'}</p>
                   )}
                   <label className="xo-field">
-                    <span className="xo-label">CÓDIGO DE SALA</span>
+                    <span className="xo-label"><GameText text="CÓDIGO DE SALA" font="black2" /></span>
                     <input
                       className="xo-input xo-code"
                       value={code}
@@ -226,10 +227,10 @@ export default function OnlinePanel() {
                   </label>
                   <div className="xo-row">
                     <button className="xo-btn xo-btn-primary" disabled={!nameOk || !codeOk} onClick={goJoin}>
-                      UNIRSE
+                      <GameText text="UNIRSE" />
                     </button>
                     {s.canResume && (
-                      <button className="xo-btn" onClick={() => void online.resume()}>RECUPERAR SESIÓN</button>
+                      <button className="xo-btn" onClick={() => void online.resume()}><GameText text="RECUPERAR SESIÓN" /></button>
                     )}
                   </div>
                 </div>
@@ -241,7 +242,7 @@ export default function OnlinePanel() {
           {s.enabled && s.phase === 'playing' && (
             <section className="xo-wait">
               <p>La partida está en curso.</p>
-              <button className="xo-btn" onClick={() => online.backToMenu()}>SALIR DE LA PARTIDA</button>
+              <button className="xo-btn" onClick={() => online.backToMenu()}><GameText text="SALIR DE LA PARTIDA" /></button>
             </section>
           )}
 
@@ -250,18 +251,18 @@ export default function OnlinePanel() {
             <section className="xo-lobby">
               <div className="xo-room">
                 <div className="xo-room-code">
-                  <span className="xo-label">CÓDIGO DE SALA</span>
-                  <strong aria-live="polite">{s.room.code}</strong>
+                  <span className="xo-label"><GameText text="CÓDIGO DE SALA" font="black2" /></span>
+                  <strong aria-live="polite"><GameText text={s.room.code} font="black2" /></strong>
                 </div>
                 <div className="xo-room-actions">
-                  <button className="xo-btn xo-btn-small" onClick={() => void copy('code')}>{copied === 'code' ? '¡COPIADO!' : 'COPIAR CÓDIGO'}</button>
-                  <button className="xo-btn xo-btn-small" onClick={() => void copy('link')}>{copied === 'link' ? '¡COPIADO!' : 'COPIAR LINK'}</button>
+                  <button className="xo-btn xo-btn-small" onClick={() => void copy('code')}><GameText text={copied === 'code' ? '¡COPIADO!' : 'COPIAR CÓDIGO'} /></button>
+                  <button className="xo-btn xo-btn-small" onClick={() => void copy('link')}><GameText text={copied === 'link' ? '¡COPIADO!' : 'COPIAR LINK'} /></button>
                 </div>
               </div>
 
               <div>
                 <div className="xo-sub">
-                  <span className="xo-label">JUGADORES</span>
+                  <span className="xo-label"><GameText text="JUGADORES" font="black2" /></span>
                   <span className="xo-count">{connected.length}/{slots} · {readyCount} listos</span>
                 </div>
                 <ul className="xo-slots">
@@ -272,7 +273,7 @@ export default function OnlinePanel() {
                         <li key={`free${i}`} className="xo-slot is-free">
                           <span className="xo-avatar is-empty" aria-hidden="true"><i /></span>
                           <span className="xo-slot-main">
-                            <span className="xo-name">LIBRE</span>
+                            <span className="xo-name"><GameText text="LIBRE" font="white" /></span>
                             <span className="xo-state">Esperando a un amigo…</span>
                           </span>
                         </li>
@@ -282,11 +283,12 @@ export default function OnlinePanel() {
                     const you = p.id === s.you;
                     return (
                       <li key={p.id} className={`xo-slot ${you ? 'is-me' : ''} ${!p.online ? 'is-off' : ''} ${p.ready ? 'is-ready' : ''}`} style={{ '--hero': hex } as CSSProperties}>
-                        <Avatar hex={hex} dim={!p.online} />
+                        {/* color 0 (anfitrión): cabecita verde original, sin tinte; el dorado solo marca la casilla */}
+                        <Avatar hex={p.color === 0 || p.host ? 'transparent' : hex} dim={!p.online} />
                         <span className="xo-slot-main">
                           <span className="xo-name">
                             {p.host && <Crown />}
-                            <span className="xo-name-text">{p.name.slice(0, 10) || 'Xa'}</span>
+                            <span className="xo-name-text"><GameText text={p.name.slice(0, 10) || 'Xa'} /></span>
                             {you && <span className="xo-tag">VOS</span>}
                           </span>
                           <span className={`xo-state ${p.ready ? 'is-on' : ''}`}>
@@ -306,7 +308,7 @@ export default function OnlinePanel() {
               <div className="xo-ready">
                 {!host && (
                   <button className={`xo-btn xo-btn-big ${ready ? 'is-on' : 'xo-btn-primary'}`} aria-pressed={ready} onClick={() => online.setReady(!ready)}>
-                    {ready ? '✔ LISTO · CANCELAR' : 'ESTOY LISTO'}
+                    <GameText text={ready ? '¡LISTO! - CANCELAR' : 'ESTOY LISTO'} />
                   </button>
                 )}
                 <p className="xo-help">
@@ -318,12 +320,12 @@ export default function OnlinePanel() {
 
               <div className="xo-level">
                 <div className="xo-sub">
-                  <span className="xo-label">NIVEL</span>
+                  <span className="xo-label"><GameText text="NIVEL" font="black2" /></span>
                   {isBossLevel(selected) && <span className="xo-tag is-boss">JEFE</span>}
                 </div>
                 {selected ? (
                   <div className="xo-level-card">
-                    <span className="xo-level-num">{isBossLevel(selected) ? `E${selected - 100}` : selected}</span>
+                    <span className="xo-level-num"><GameText text={isBossLevel(selected) ? `E${selected - 100}` : String(selected)} font="black2" /></span>
                     <span className="xo-level-title">{levelTitle(selected)}</span>
                   </div>
                 ) : (
@@ -352,7 +354,7 @@ export default function OnlinePanel() {
                     title={allReady ? 'Pasar a los menús: los demás te miran y votan, vos elegís el nivel' : 'Primero todos deben estar listos'}
                     onClick={() => online.setBrowse(true)}
                   >
-                    {allReady ? '¡TODO LISTO!' : 'FALTAN LISTOS'}
+                    <GameText text={allReady ? '¡TODO LISTO!' : 'FALTAN LISTOS'} />
                   </button>
                 ) : (
                   <p className="xo-help">El anfitrión elige el nivel en el mapa; vos votás cuando él lo abra.</p>
@@ -361,21 +363,21 @@ export default function OnlinePanel() {
 
               <div className="xo-level">
                 <div className="xo-sub">
-                  <span className="xo-label">PROGRESO</span>
+                  <span className="xo-label"><GameText text="PROGRESO" font="black2" /></span>
                   <span className="xo-count">
                     {s.menu ? `${s.menu.d.filter((n) => n <= 16).length}/16 originales · ${s.menu.d.filter((n) => n > 100).length}/16 extra` : '…'}
                   </span>
                 </div>
                 <p className="xo-help">Se juega con el progreso del anfitrión: sus niveles abiertos son los que se pueden elegir.</p>
                 {host && !confirmReset && (
-                  <button className="xo-btn xo-btn-small" onClick={() => setConfirmReset(true)}>BORRAR PROGRESO</button>
+                  <button className="xo-btn xo-btn-small" onClick={() => setConfirmReset(true)}><GameText text="BORRAR PROGRESO" /></button>
                 )}
                 {host && confirmReset && (
                   <p className="xo-note is-error" role="alertdialog" aria-labelledby="xo-reset-title" aria-describedby="xo-reset-desc">
                     <b id="xo-reset-title">¿Borrar todo tu progreso?</b><span id="xo-reset-desc" hidden> Se pierden los niveles abiertos y los récords. </span> Se pierden los niveles abiertos y los récords de este navegador. No se puede deshacer.
                     <span className="xo-row">
-                      <button className="xo-btn xo-btn-small is-on" onClick={() => { online.resetProgress(); setConfirmReset(false); }}>SÍ, BORRAR</button>
-                      <button ref={cancelRef} className="xo-btn xo-btn-small" onClick={() => setConfirmReset(false)}>CANCELAR</button>
+                      <button className="xo-btn xo-btn-small is-on" onClick={() => { online.resetProgress(); setConfirmReset(false); }}><GameText text="SÍ, BORRAR" /></button>
+                      <button ref={cancelRef} className="xo-btn xo-btn-small" onClick={() => setConfirmReset(false)}><GameText text="CANCELAR" /></button>
                     </span>
                   </p>
                 )}
@@ -400,7 +402,7 @@ export default function OnlinePanel() {
                   </span>
                 </label>
                 {host ? (
-                  canStart ? <button className="xo-btn xo-btn-go" onClick={() => online.start()}>¡EMPEZAR!</button>
+                  canStart ? <button className="xo-btn xo-btn-go" onClick={() => online.start()}><GameText text="¡EMPEZAR!" /></button>
                     : <span className="xo-help">{!allReady ? 'Faltan jugadores por marcar listo.' : 'Tocá TODO LISTO para elegir el nivel.'}</span>
                 ) : (
                   <span className="xo-help">El anfitrión inicia la partida.</span>

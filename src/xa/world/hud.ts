@@ -104,7 +104,7 @@ export class Hud {
     if (power) this.renderPower(ctx, power, powerT, coop ? 72 : 100, coop ? 282 : 60);
     this.blit(ctx, 'BACK_POINTS', 226, 7);
     drawLine(ctx, 'Puntos', 271, 10, 'black', 'center', 1);
-    drawLine(ctx, pad(s.score, 6), 271, 25, 'black', 'center', 1);
+    drawLine(ctx, pad(me ? me.score : s.score, 6), 271, 25, 'black', 'center', 1); // coop: los puntos propios
     this.blit(ctx, 'COINS', 323, 12);
     drawLine(ctx, pad(s.coinPercentage(), 3), 369, 8, 'black', 'center', 1); // Hud::setCoins: coin %, 3 digits
     this.blit(ctx, 'COW', 410, 10);
@@ -123,6 +123,13 @@ export class Hud {
       this.blit(ctx, 'BACK_HUD', MSG_X - 280, MSG_Y - 20);
       const lines = this.message.split('\n').length;
       drawText(ctx, this.message, MSG_X, Math.round(MSG_Y + 5 - (lines * LINE_H) / 2), 'black', 'center', 1);
+    }
+
+    // ---- coop: este jugador está eliminado (mira a un amigo hasta el próximo punto de guardado) ----
+    if (me?.eliminated) {
+      this.plaque(ctx, VIEW_W / 2 - 150, 300, 300, 40, '#c0392b');
+      drawLine(ctx, 'ELIMINADO', VIEW_W / 2, 303, 'black', 'center', 0.7);
+      drawLine(ctx, 'Revivís en el próximo punto de guardado', VIEW_W / 2, 323, 'black', 'center', 0.45);
     }
 
     // ---- "guardando" indicator ----
@@ -213,7 +220,7 @@ export class Hud {
         ctx.save();
         if (p.eliminated) ctx.globalAlpha = 0.65;
         draw9(ctx, plate, x, CHIP_Y, w, h, [28, 40, 28, 100], h / plate.naturalHeight);
-        if (head) drawTinted(ctx, head, x + 5, CHIP_Y + 6, 1, hex, 0.75, 0.42);
+        if (head) drawTinted(ctx, head, x + 5, CHIP_Y + 6, 1, hex, p.plain ? 0 : 0.75, 0.42); // anfitrión: cabecita original
         if (p.eliminated && down) drawIcon(ctx, down, x + 5, CHIP_Y + 5, { h: 17 });
         drawIcon(ctx, heart, x + 27, CHIP_Y + 9, { h: 8 });
         drawLine(ctx, String(Math.max(0, p.lives)), x + 36, CHIP_Y + 3, 'black', 'left', 0.7);
@@ -233,7 +240,7 @@ export class Hud {
       ctx.fillStyle = hex; // the hero colour as a rounded stripe along the bottom edge
       ctx.beginPath(); ctx.roundRect(x + 4, CHIP_Y + CHIP_H - 6, CHIP_W - 12, 3, 1.5); ctx.fill();
       ctx.strokeStyle = '#1a1818'; ctx.lineWidth = 1; ctx.stroke();
-      if (head) drawTinted(ctx, head, x + 4, CHIP_Y + 2, 1, hex, 0.7, 0.5);
+      if (head) drawTinted(ctx, head, x + 4, CHIP_Y + 2, 1, hex, p.plain ? 0 : 0.7, 0.5);
       drawLine(ctx, 'x' + Math.max(0, p.lives), x + 27, CHIP_Y + 3, 'black', 'left', 0.5);
       drawLine(ctx, p.name.slice(0, 10) || 'Xa', x + 5, CHIP_Y + 16, 'black', 'left', 0.4);
     });

@@ -371,3 +371,39 @@
   .xo-slot { border-width: 14px; border-image-width: 14px; }
   .xo-input { border-width: 13px; border-image-width: 13px; }
 }
+
+/* ======================= game lettering (GameText.tsx: the bitmap comic fonts of the game) ======================= */
+.xg { display: inline-block; position: relative; line-height: 0; vertical-align: middle; max-width: 100%; }
+.xg-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.xg-glyphs { display: inline-flex; white-space: nowrap; height: 1.5em; margin: -0.18em 0 -0.12em; }
+.xg-glyphs i { display: block; flex: none; height: 1.5em; }
+.xg-glyphs b { display: block; width: 1.5em; height: 1.5em; background-repeat: no-repeat; }
+/* the glyphs bring their own outline: no CSS stroke/shadow on their containers */
+.xo-head strong, .xo-room-code strong, .xo-level-num { -webkit-text-stroke: 0; text-shadow: none; }
+.xo-title strong { font-size: clamp(1.45rem, 4.6vw, 2.1rem); line-height: 1; }
+.xo-room-code strong { font-size: 2.3rem; letter-spacing: 0; padding-left: 0; }
+.xo-room-code strong .xg-glyphs i { margin-right: 0.12em !important; }
+.xo-level-num { font-size: 1.7rem; }
+.xo-label { font-size: 1.3rem; text-shadow: none; letter-spacing: 0; align-items: center; }
+.xo-btn { font-size: 1.12rem; }
+.xo-btn-primary { font-size: 1.25rem; }
+.xo-btn-small { font-size: 0.92rem; }
+.xo-btn-big, .xo-btn-go { font-size: 1.4rem; }
+.xo-tab { font-size: 1.3rem; }
+.xo-help { font-size: 0.84rem; }
+.xo-btn-exit .xg { font-size: 1.15rem; }
+.xo-name { font-size: 1.2rem; }
+.xo-name-text { display: block; overflow: hidden; }
+.xo-slot.is-free .xo-name { font-size: 0.95rem; opacity: 0.9; }
+/* remaining text: one bold sans, no fake comic fallbacks (Comic Sans / Impact) */
+:root { --xo-font: var(--xo-font-body); }
+.xo-tab-n, .xo-steps b, .xo-code { font-weight: 900; font-style: italic; }
+/* the card takes focus only so keyboard users start inside the dialog: no ring around the whole panel */
+.xo-card:focus { outline: none; }
+@media (max-height: 480px) {
+  .xo-title strong { font-size: 1.35rem; }
+  .xo-room-code strong { font-size: 1.7rem; }
+  .xo-label, .xo-tab { font-size: 1.05rem; }
+  .xo-name { font-size: 1.05rem; }
+  .xo-lobby { gap: 0.45rem; }
+}

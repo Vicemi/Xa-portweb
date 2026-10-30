@@ -54,6 +54,8 @@ export class PlayerRuntime {
   lives = START_LIVES;
   /** se quedó sin vidas: espera al próximo SavePoint (o al final del nivel si estamos todos así) */
   eliminated = false;
+  /** puntos de este jugador en el nivel (coop: cada uno suma los suyos) */
+  score = 0;
   input: PlayerInput = emptyInput();
   /** último paquete de bits recibido (invitado) y secuencia */
   bits = 0;
@@ -81,6 +83,7 @@ export class PlayerRuntime {
     this.heros = 0;
     this.lives = lives;
     this.eliminated = false;
+    this.score = 0;
     this.input = emptyInput();
     this.bits = 0;
     this.q = -1;

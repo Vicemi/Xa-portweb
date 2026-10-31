@@ -6,7 +6,7 @@ import { playMusic, playSound, stopMusic, onSound, setListener, setSoundOrigin }
 import { resetInput } from '../core/input';
 import { GameCamera, VIEW_H, VIEW_W } from './camera';
 import { Enemy, createEnemy } from './enemies';
-import { createSvEnemy } from './svnz';
+import { createSvEnemy, POWER_UPS } from './svnz';
 import { Hero, HS, POWER_TINT } from './hero';
 import { Door, Platform } from './objects';
 import { MAX_ENERGY, START_LIVES, type HeroState } from './state';
@@ -131,6 +131,8 @@ class Thing {
   t = 0;
   /** ids de los amigos que lo estaban tocando el cuadro anterior (para no repetir la recogida) */
   touching = new Set<number>();
+  /** coop: friends that already took this jump upgrade (it stays for the others) */
+  takenBy = new Set<number>();
   /** float phase offset (Item::setTime) so neighbouring items don't bob in lockstep */
   phase = 0;
   /** seconds left before a rescued cow is removed (-1 = not rescued) */
@@ -1339,6 +1341,9 @@ export class Scenario implements World {
     const req = p.pRequiredItem ?? p.pAsset;
     const count = +(p.pCount ?? 1) || 1;
     const scout = this.coop ? pl : null; // en coop las vidas/energía/power-ups son de cada amigo
+    // coop: jump upgrades and timed powers stay in place so every friend can take them (upgrades once each)
+    const shared = !!scout && (req === 'ENERGY_JUMP' || req === 'ENERGY_DOUBLE_JUMP' || POWER_UPS.includes(req ?? ''));
+    if (shared && req?.startsWith('ENERGY') && t.takenBy.has(pl.id)) return;
     switch (req) {
       case 'POINTS':
         s.coins++;
@@ -1389,7 +1394,8 @@ export class Scenario implements World {
     // special power-up (inferred: the double-jump yogurt; ENDING has none)
     const b = t.bounds();
     this.addEffect(req === 'ENERGY_DOUBLE_JUMP' ? 'MEGA_POWER' : 'POWER', b.x + b.w / 2, b.y + b.h / 2, 1);
-    t.alive = false;
+    if (shared) t.takenBy.add(pl.id);
+    else t.alive = false;
   }
 
   // ---------- render ----------

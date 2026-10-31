@@ -1170,3 +1170,8 @@ XA-Backend/README.md (**hay que volver a desplegar el backend**).
 - Flecha con nombre en el borde para los amigos fuera de cámara (la cámara sigue a tu héroe).
 - Verificado: online-sim (nuevos: fundido, reaparecer y moverse, dos paquetes en un cuadro), prueba e2e local; en producción no se
   reprodujo el congelamiento (se movía tras morir, por WebRTC y por relé).
+
+## Online: power-ups compartidos
+
+- In coop, jump upgrades (`ENERGY_JUMP`, `ENERGY_DOUBLE_JUMP`) and the timed mod powers (`PU_*`) no longer vanish when one friend takes them: the item stays and `Thing.takenBy` records who already got it. Jump upgrades count once per friend; timed powers can be retaken (e.g. after dying). Single player is unchanged.
+- Check: `tools/online-sim.mts` ("el anfitrión toma el power-up una vez y sigue ahí").

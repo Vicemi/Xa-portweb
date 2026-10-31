@@ -323,5 +323,21 @@ for (let n = 1; n <= 16; n++) {
   for (let i = 0; i < 30; i++) { h.update(1 / 60); top = Math.min(top, B.hero.pos.y); }
   check(y0 - top > 40, `dos paquetes en un cuadro no se comen el salto (subió ${Math.round(y0 - top)} px)`);
 }
+{
+  // los power-ups de salto no desaparecen: cada amigo toma el suyo, una sola vez
+  const h = make('level1', 1, 2, 'host', 0, () => {});
+  const [A, B] = h.players;
+  const things: any[] = (h as any).things;
+  const t = things.find((x) => ['ENERGY_JUMP', 'ENERGY_DOUBLE_JUMP'].includes(x.o.props.pRequiredItem ?? x.o.props.pAsset));
+  if (!t) check(false, 'level1 tiene un power-up de salto');
+  else {
+    const key = (t.o.props.pRequiredItem ?? t.o.props.pAsset) === 'ENERGY_JUMP' ? 'heros' : 'cereals';
+    const a0 = (A as any)[key], b0 = (B as any)[key];
+    (h as any).touch(t, A); (h as any).touch(t, A);
+    check(t.alive && (A as any)[key] === a0 + 1, `el anfitrión toma el power-up una vez y sigue ahí (${key} ${a0} -> ${(A as any)[key]})`);
+    (h as any).touch(t, B);
+    check((B as any)[key] === b0 + 1, 'el invitado también puede tomarlo');
+  }
+}
 console.log(fails ? `\n${fails} fallos` : '\ntodo OK');
 process.exit(fails ? 1 : 0);

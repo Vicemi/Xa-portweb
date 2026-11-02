@@ -1175,3 +1175,9 @@ XA-Backend/README.md (**hay que volver a desplegar el backend**).
 
 - In coop, jump upgrades (`ENERGY_JUMP`, `ENERGY_DOUBLE_JUMP`) and the timed mod powers (`PU_*`) no longer vanish when one friend takes them: the item stays and `Thing.takenBy` records who already got it. Jump upgrades count once per friend; timed powers can be retaken (e.g. after dying). Single player is unchanged.
 - Check: `tools/online-sim.mts` ("el anfitrión toma el power-up una vez y sigue ahí").
+
+## Doble salto / super salto: solitario y toques rápidos
+
+- Single player had been broken since the online rewrite: pickups wrote `cereals`/`heros`/`energy`/`power` to `HeroState`, but the hero reads them from its `PlayerRuntime`, so double jump, super jump, energy refills and the boss power-ups did nothing (only the HUD icon showed). Pickups now always go to the `PlayerRuntime`; in single player the HUD reads that player (`Hud.render(..., solo)`). The SVNZ boss arena reads/clears per-player energy and power.
+- Online guest: two fast taps (touch) could land in one 30 Hz input packet, so the host never saw a new jump edge. On a re-press while the last packet still had the button held, the guest now sends the pending packet, then a release, then the press (`in` channel is ordered and reliable; no backend change).
+- Checks: `tools/online-sim.mts` (single-player and guest fast double tap; all three fail on the old code). Browser: 844x390 touch emulation, two `touchscreen.tap` on SALTO → states Jump → DoubleJump.

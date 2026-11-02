@@ -17,6 +17,7 @@ import { parseTmx } from '../src/xa/world/tmx.ts';
 import { HeroState } from '../src/xa/world/state.ts';
 import { onSound } from '../src/xa/core/audio.ts';
 import { attachInput, pollInput } from '../src/xa/core/input.ts';
+import { HS } from '../src/xa/world/hero.ts';
 import type { Snap, Difficulty } from '../src/xa/online/types.ts';
 
 let fails = 0;
@@ -338,6 +339,42 @@ for (let n = 1; n <= 16; n++) {
     (h as any).touch(t, B);
     check((B as any)[key] === b0 + 1, 'el invitado también puede tomarlo');
   }
+}
+{
+  // doble salto con toques rápidos (pantalla táctil): en solitario y como invitado
+  attachInput();
+  const key = (type: 'keydown' | 'keyup', code: string) => (handlers[type] ?? []).forEach((f) => f({ code, preventDefault() {} }));
+  const dj = (sc: any, pl: any, frames: number, step: (i: number) => void) => {
+    let doubled = false;
+    for (let i = 0; i < frames; i++) { step(i); if (pl.hero.state === HS.DoubleJump) doubled = true; }
+    return doubled;
+  };
+  // solitario: el power-up lo usa el héroe (antes quedaba solo en el HUD)
+  const st = new HeroState();
+  const solo = new Scenario(load('level1'), 1, st, { gameOver() {}, levelComplete() {}, message() {}, saving() {} } as any, null);
+  const S = solo as any, P = solo.players[0];
+  const cer = S.things.find((x) => (x.o.props.pRequiredItem ?? x.o.props.pAsset) === 'ENERGY_DOUBLE_JUMP');
+  S.touch(cer, P);
+  check(P.cereals === 1, 'solitario: el doble salto queda en el jugador');
+  for (let i = 0; i < 240 && P.hero.state !== HS.Stand; i++) { pollInput(); solo.update(1 / 60); }
+  // toque, suelta, toque: 4 cuadros en total (≈ 66 ms)
+  const tap = [['keydown', 0], ['keyup', 2], ['keydown', 4], ['keyup', 6]] as const;
+  const trace: string[] = [];
+  const okSolo = dj(solo, P, 40, (i) => { for (const [t, f] of tap) if (f === i) key(t, 'Space'); pollInput(); solo.update(1 / 60); trace.push(P.hero.state + (P.input.jumpPressed ? '!' : '')); });
+  if (!okSolo) console.log('estados', trace.join(' '), 'cereals', P.cereals);
+  check(okSolo, 'solitario: dos toques rápidos hacen el doble salto');
+  // invitado: los paquetes van a 30 Hz; los dos toques caen en paquetes pegados
+  const sn: Snap[] = [], ins: [number, number][] = [];
+  const h = make('level1', 1, 2, 'host', 0, (x) => sn.push(JSON.parse(JSON.stringify(x))));
+  const g = new Scenario(load('level1'), 1, new HeroState(), { gameOver() {}, levelComplete() {}, message() {}, saving() {}, input: (b: number, q: number) => ins.push([b, q]) } as any,
+    { role: 'guest', roster: [0, 1].map((i) => ({ id: i, name: 'P' + i, color: i, hex: '#fff' })), you: 1, difficulty: diff(2), powerups: true, seed: 12345 });
+  const B = h.players[1];
+  B.cereals = 1;
+  const frame = () => { pollInput(); g.update(1 / 60); for (const [b, q] of ins.splice(0)) h.setRemoteInput(1, b, q); h.update(1 / 60); for (const x of sn.splice(0)) g.applySnap(x); };
+  for (let i = 0; i < 90; i++) frame();
+  const tap2 = [['keydown', 0], ['keyup', 1], ['keydown', 3], ['keyup', 5]] as const;
+  const okGuest = dj(h, B, 40, (i) => { for (const [t, f] of tap2) if (f === i) key(t, 'Space'); frame(); });
+  check(okGuest, 'invitado: dos toques rápidos hacen el doble salto en el anfitrión');
 }
 console.log(fails ? `\n${fails} fallos` : '\ntodo OK');
 process.exit(fails ? 1 : 0);

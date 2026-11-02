@@ -141,7 +141,7 @@ class SvEnemy extends Enemy {
     this.healT -= dt;
     if (this.healT > 0) return;
     this.healT = HEAL_EVERY;
-    const hurt = this.world.state.energy < 10;
+    const hurt = this.world.players.some((p) => p.energy < 10);
     const asset = hurt && Math.random() < 0.45 ? 'ENERGY' : POWER_UPS[Math.floor(Math.random() * POWER_UPS.length)];
     // anywhere on the flat arena floor (the whole of it is reachable): off the walls and the gate, away from the boss
     // and from anything already lying there
@@ -188,7 +188,7 @@ class SvEnemy extends Enemy {
   override onDefeated(): void {
     const b = this.spec.boss;
     if (!b) return;
-    this.world.state.clearPower(); // power-ups only last for the boss fight
+    for (const p of this.world.players) p.clearPower(); // power-ups only last for the boss fight
     this.world.message(`${b.defeat}\nTomá la llave: te falta la parte final.`, 5);
     const m = this.world.levelMusic;
     if (m) this.world.setMusic(m);

@@ -65,8 +65,8 @@ export class Hud {
     if (this.doubleT >= 0) this.doubleT += dt;
   }
 
-  render(ctx: CanvasRenderingContext2D, s: HeroState, coop?: HudCoop): void {
-    const me = coop?.local;
+  render(ctx: CanvasRenderingContext2D, s: HeroState, coop?: HudCoop, solo?: PlayerRuntime): void {
+    const me = coop?.local ?? solo;
     const energy = me ? me.energy : s.energy;
     const cereals = me ? me.cereals : s.cereals;
     const power = me ? me.power : s.power;

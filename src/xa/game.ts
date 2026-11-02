@@ -1192,7 +1192,7 @@ export class XaGame {
       w.imageSmoothingEnabled = true;
       const sc = this.scenario;
       const local = sc.players.find((p) => p.local) ?? sc.players[0];
-      this.hud.render(w, this.state, sc.coop ? { players: sc.players.filter((p) => !p.away), local } : undefined);
+      this.hud.render(w, this.state, sc.coop ? { players: sc.players.filter((p) => !p.away), local } : undefined, local);
       if (this.coopConfig?.watch && this.screen === 'play') {
         const name = (local.name || 'Xa').slice(0, 10);
         this.bottomBanner(w, false, `MIRANDO A ${name}\nFlechas o tocar: cambiar, Enter: jugar, Esc: menú`);

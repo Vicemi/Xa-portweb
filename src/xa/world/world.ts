@@ -227,6 +227,8 @@ export class Scenario implements World {
   private staleIn = new Set<number>();
   /** invitado: bits vistos entre dos envíos (un toque más corto que el intervalo igual llega) */
   private inputAcc = 0;
+  /** bits of the last input packet sent (guest) */
+  private inputSent = 0;
   private reinforcements: Enemy[] = [];
   private offSfx: (() => void) | null = null;
 
@@ -737,11 +739,23 @@ export class Scenario implements World {
       // invitado: lee sus controles (los manda ~30 veces por segundo) y dibuja lo que llega del anfitrión
       this.localPlayer.input = readLocalInput();
       this.syncListener();
-      this.inputAcc |= bitsOf(this.localPlayer.input);
+      const li = this.localPlayer.input;
+      // a re-press while the host still sees the button held (fast taps on touch screens fit in one 30 Hz packet):
+      // send the release first, so the host gets a fresh edge and the double jump isn't lost
+      const again = ((li.jumpPressed ? 32 : 0) | (li.firePressed ? 16 : 0)) & (this.inputSent | this.inputAcc);
+      if (again && this.events.input) {
+        const send = (b: number) => { this.inputQ = (this.inputQ + 1) & 0xffff; this.inputSent = b; this.events.input!(b, this.inputQ); };
+        if (this.inputAcc & again) send(this.inputAcc); // an earlier tap still unsent goes first
+        send(bitsOf(li) & ~again);
+        this.inputAcc = 0;
+        this.inputT = 1 / 30; // the press goes out right after it
+      }
+      this.inputAcc |= bitsOf(li);
       this.inputT += dt;
       if (this.inputT >= 1 / 30 && this.events.input) {
         this.inputT = 0;
         this.inputQ = (this.inputQ + 1) & 0xffff;
+        this.inputSent = this.inputAcc;
         this.events.input(this.inputAcc, this.inputQ);
         this.inputAcc = bitsOf(this.localPlayer.input);
       }
@@ -1340,7 +1354,8 @@ export class Scenario implements World {
     }
     const req = p.pRequiredItem ?? p.pAsset;
     const count = +(p.pCount ?? 1) || 1;
-    const scout = this.coop ? pl : null; // en coop las vidas/energía/power-ups son de cada amigo
+    // energía, power-ups y saltos viven en el PlayerRuntime (el héroe los lee de ahí; en solitario el HUD los copia)
+    const scout = this.coop ? pl : null; // en coop las vidas también son de cada amigo
     // coop: jump upgrades and timed powers stay in place so every friend can take them (upgrades once each)
     const shared = !!scout && (req === 'ENERGY_JUMP' || req === 'ENERGY_DOUBLE_JUMP' || POWER_UPS.includes(req ?? ''));
     if (shared && req?.startsWith('ENERGY') && t.takenBy.has(pl.id)) return;
@@ -1357,24 +1372,20 @@ export class Scenario implements World {
         break;
       case 'PU_CRYSTAL': case 'PU_POTION': case 'PU_BATTERY': case 'PU_GEARS':
         // mod power-ups (extra-level boss fights): timed, lost on death and when the boss falls
-        if (scout) scout.setPower(req, POWER_TIME);
-        else s.setPower(req, POWER_TIME);
+        pl.setPower(req, POWER_TIME);
         playSound('POWERUP');
         this.message(POWER_TEXT[req], 2.5);
         break;
       case 'ENERGY':
-        if (scout) scout.energy = Math.min(MAX_ENERGY, scout.energy + count);
-        else s.addEnergy(count);
+        pl.energy = Math.min(MAX_ENERGY, pl.energy + count);
         playSound('HERO_ENERGY');
         break;
       case 'ENERGY_DOUBLE_JUMP':
-        if (scout) scout.cereals = Math.min(1, scout.cereals + 1);
-        else s.cereals = Math.min(1, s.cereals + 1); // HeroState::addCereals caps at 1
+        pl.cereals = Math.min(1, pl.cereals + 1); // HeroState::addCereals caps at 1
         playSound('POWERUP');
         break;
       case 'ENERGY_JUMP':
-        if (scout) scout.heros = Math.min(4, scout.heros + 1);
-        else s.heros = Math.min(4, s.heros + 1);
+        pl.heros = Math.min(4, pl.heros + 1);
         playSound('POWERUP');
         break;
       case 'ENDING':
